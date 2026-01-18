@@ -37,14 +37,14 @@ export async function processSplitPayment(
   orderId: string,
   payments: Omit<SplitPaymentInput, 'idempotency_key'>[]
 ): Promise<SplitPaymentResponse> {
-  const paymentsWithKeys = payments.map(p => ({
+  const paymentsWithKeys: SplitPaymentInput[] = payments.map(p => ({
     ...p,
     idempotency_key: generateIdempotencyKey(),
   }));
 
   const { data, error } = await supabase.rpc('process_split_payment', {
     p_order_id: orderId,
-    p_payments: paymentsWithKeys as unknown as Record<string, unknown>[],
+    p_payments: JSON.parse(JSON.stringify(paymentsWithKeys)),
   });
 
   if (error) throw error;

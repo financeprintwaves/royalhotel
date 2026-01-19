@@ -11,8 +11,9 @@ import Orders from "@/pages/Orders";
 import Tables from "@/pages/Tables";
 import KitchenDisplay from "@/pages/KitchenDisplay";
 import Reports from "@/pages/Reports";
+import Reservations from "@/pages/Reservations";
+import StaffManagement from "@/pages/StaffManagement";
 import NotFound from "@/pages/NotFound";
-
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,8 @@ function AppRoutes() {
       <Route path="/tables" element={<ProtectedRoute><Tables /></ProtectedRoute>} />
       <Route path="/kitchen" element={<ProtectedRoute><KitchenDisplay /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+      <Route path="/reservations" element={<ProtectedRoute><Reservations /></ProtectedRoute>} />
+      <Route path="/staff" element={<ProtectedRoute><StaffManagement /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

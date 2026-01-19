@@ -395,6 +395,7 @@ export type Database = {
           avatar_url: string | null
           branch_id: string | null
           created_at: string | null
+          email: string | null
           full_name: string | null
           id: string
           updated_at: string | null
@@ -404,6 +405,7 @@ export type Database = {
           avatar_url?: string | null
           branch_id?: string | null
           created_at?: string | null
+          email?: string | null
           full_name?: string | null
           id?: string
           updated_at?: string | null
@@ -413,6 +415,7 @@ export type Database = {
           avatar_url?: string | null
           branch_id?: string | null
           created_at?: string | null
+          email?: string | null
           full_name?: string | null
           id?: string
           updated_at?: string | null
@@ -459,6 +462,75 @@ export type Database = {
             columns: ["payment_id"]
             isOneToOne: false
             referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reservations: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          party_size: number
+          reservation_date: string
+          start_time: string
+          status: string
+          table_id: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          party_size?: number
+          reservation_date: string
+          start_time: string
+          status?: string
+          table_id: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          party_size?: number
+          reservation_date?: string
+          start_time?: string
+          status?: string
+          table_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservations_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_tables"
             referencedColumns: ["id"]
           },
         ]
@@ -541,6 +613,18 @@ export type Database = {
           p_transaction_reference?: string
         }
         Returns: Json
+      }
+      get_staff_with_roles: {
+        Args: never
+        Returns: {
+          branch_id: string
+          branch_name: string
+          created_at: string
+          email: string
+          full_name: string
+          roles: string[]
+          user_id: string
+        }[]
       }
       get_user_branch_id: { Args: { _user_id: string }; Returns: string }
       has_role: {

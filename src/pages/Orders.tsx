@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone } from 'lucide-react';
+import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer } from 'lucide-react';
 import { getOrders, sendToKitchen, markAsServed, requestBill } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
+import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import ReceiptDialog from '@/components/ReceiptDialog';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -26,23 +28,43 @@ export default function Orders() {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [transactionRef, setTransactionRef] = useState('');
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  async function loadOrders() {
+  const loadOrders = useCallback(async () => {
     try {
       const data = await getOrders();
       setOrders(data);
+      setIsConnected(true);
     } catch (error) {
       console.error('Failed to load orders:', error);
+      setIsConnected(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Realtime subscription
+  useOrdersRealtime(
+    useCallback(() => {
+      console.log('New order received');
+      loadOrders();
+    }, [loadOrders]),
+    useCallback(() => {
+      console.log('Order updated');
+      loadOrders();
+    }, [loadOrders]),
+    useCallback((deletedId: string) => {
+      setOrders(prev => prev.filter(o => o.id !== deletedId));
+    }, [])
+  );
 
   async function handleStatusUpdate(order: Order, action: 'kitchen' | 'served' | 'bill') {
     setLoading(true);
@@ -64,6 +86,11 @@ export default function Orders() {
     setShowPaymentDialog(true);
   }
 
+  function openReceiptDialog(order: Order) {
+    setReceiptOrder(order);
+    setShowReceiptDialog(true);
+  }
+
   async function handleProcessPayment() {
     if (!selectedOrder) return;
     setLoading(true);
@@ -71,6 +98,11 @@ export default function Orders() {
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
       await finalizePayment(selectedOrder.id, Number(selectedOrder.total_amount), paymentMethod, ref);
       setShowPaymentDialog(false);
+      
+      // Show receipt after payment
+      setReceiptOrder(selectedOrder);
+      setShowReceiptDialog(true);
+      
       setSelectedOrder(null);
       toast({ title: 'Payment Successful!' });
       loadOrders();
@@ -91,6 +123,12 @@ export default function Orders() {
           <ArrowLeft className="h-4 w-4 mr-2" />Back
         </Button>
         <h1 className="font-bold text-lg">Orders</h1>
+        <div className="flex items-center gap-1.5 ml-2">
+          <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`} />
+          <span className="text-xs text-muted-foreground">
+            {isConnected ? 'Live' : 'Connecting...'}
+          </span>
+        </div>
         <Button className="ml-auto" asChild>
           <Link to="/new-order">New Order</Link>
         </Button>
@@ -134,9 +172,14 @@ export default function Orders() {
                         </Button>
                       )}
                       {order.order_status === 'BILL_REQUESTED' && (
-                        <Button size="sm" onClick={() => openPaymentDialog(order)} disabled={loading}>
-                          <CreditCard className="h-3 w-3 mr-1" />Pay
-                        </Button>
+                        <>
+                          <Button size="sm" onClick={() => openPaymentDialog(order)} disabled={loading}>
+                            <CreditCard className="h-3 w-3 mr-1" />Pay
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openReceiptDialog(order)}>
+                            <Printer className="h-3 w-3 mr-1" />Preview
+                          </Button>
+                        </>
                       )}
                     </div>
                   </CardContent>
@@ -158,10 +201,13 @@ export default function Orders() {
                       <Badge variant="secondary">{order.order_status}</Badge>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex items-center justify-between">
                     <div className="text-sm text-muted-foreground">
                       ${Number(order.total_amount).toFixed(2)}
                     </div>
+                    <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>
+                      <Printer className="h-3 w-3 mr-1" />Receipt
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
@@ -205,6 +251,13 @@ export default function Orders() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receipt Dialog */}
+      <ReceiptDialog 
+        open={showReceiptDialog} 
+        onOpenChange={setShowReceiptDialog} 
+        order={receiptOrder} 
+      />
     </div>
   );
 }

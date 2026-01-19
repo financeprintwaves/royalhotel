@@ -272,6 +272,7 @@ export type Database = {
           branch_id: string
           created_at: string | null
           created_by: string | null
+          customer_name: string | null
           discount_amount: number | null
           id: string
           locked_at: string | null
@@ -288,6 +289,7 @@ export type Database = {
           branch_id: string
           created_at?: string | null
           created_by?: string | null
+          customer_name?: string | null
           discount_amount?: number | null
           id?: string
           locked_at?: string | null
@@ -304,6 +306,7 @@ export type Database = {
           branch_id?: string
           created_at?: string | null
           created_by?: string | null
+          customer_name?: string | null
           discount_amount?: number | null
           id?: string
           locked_at?: string | null

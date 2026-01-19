@@ -7,12 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer } from 'lucide-react';
-import { getOrders, sendToKitchen, markAsServed, requestBill } from '@/services/orderService';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User } from 'lucide-react';
+import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   CREATED: 'bg-blue-500 text-white',
@@ -35,6 +39,12 @@ export default function Orders() {
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [transactionRef, setTransactionRef] = useState('');
+  
+  // Search filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [isSearching, setIsSearching] = useState(false);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -65,6 +75,37 @@ export default function Orders() {
       setOrders(prev => prev.filter(o => o.id !== deletedId));
     }, [])
   );
+
+  async function handleSearch() {
+    if (!searchTerm && !startDate && !endDate) {
+      loadOrders();
+      setIsSearching(false);
+      return;
+    }
+    
+    setLoading(true);
+    setIsSearching(true);
+    try {
+      const data = await searchOrders({
+        searchTerm: searchTerm || undefined,
+        startDate,
+        endDate,
+      });
+      setOrders(data);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Search Failed', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function clearSearch() {
+    setSearchTerm('');
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setIsSearching(false);
+    loadOrders();
+  }
 
   async function handleStatusUpdate(order: Order, action: 'kitchen' | 'served' | 'bill') {
     setLoading(true);
@@ -136,10 +177,71 @@ export default function Orders() {
 
       <main className="p-6">
         <Tabs defaultValue="active">
-          <TabsList>
-            <TabsTrigger value="active">Active ({activeOrders.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completedOrders.length})</TabsTrigger>
-          </TabsList>
+          <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+            <TabsList>
+              <TabsTrigger value="active">Active ({activeOrders.length})</TabsTrigger>
+              <TabsTrigger value="completed">Completed ({completedOrders.length})</TabsTrigger>
+            </TabsList>
+            
+            {/* Search Controls */}
+            <div className="flex flex-wrap gap-2 md:ml-auto">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by customer or order ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 w-56"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn(startDate && 'text-foreground')}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, 'MMM dd') : 'From'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn(endDate && 'text-foreground')}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, 'MMM dd') : 'To'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <Button size="sm" onClick={handleSearch} disabled={loading}>
+                <Search className="h-4 w-4" />
+              </Button>
+              
+              {isSearching && (
+                <Button size="sm" variant="ghost" onClick={clearSearch}>
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
 
           <TabsContent value="active" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -147,7 +249,15 @@ export default function Orders() {
                 <Card key={order.id} className="relative">
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
-                      <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                        {(order as any).customer_name && (
+                          <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {(order as any).customer_name}
+                          </span>
+                        )}
+                      </div>
                       <Badge className={STATUS_COLORS[order.order_status]}>
                         {order.order_status.replace('_', ' ')}
                       </Badge>
@@ -217,7 +327,15 @@ export default function Orders() {
                 <Card key={order.id} className="bg-muted/30">
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
-                      <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                        {(order as any).customer_name && (
+                          <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {(order as any).customer_name}
+                          </span>
+                        )}
+                      </div>
                       <Badge className={STATUS_COLORS[order.order_status]}>
                         {order.order_status}
                       </Badge>

@@ -58,6 +58,7 @@ export async function getOrder(orderId: string): Promise<Order | null> {
 // Create new order
 export async function createOrder(
   tableId: string | null,
+  customerName?: string,
   notes?: string
 ): Promise<Order> {
   const { data: userData } = await supabase.auth.getUser();
@@ -80,6 +81,7 @@ export async function createOrder(
       created_by: userData.user.id,
       order_status: 'CREATED',
       payment_status: 'unpaid',
+      customer_name: customerName || null,
       notes,
     })
     .select()
@@ -96,6 +98,59 @@ export async function createOrder(
   }
 
   return data as Order;
+}
+
+// Update customer name on order
+export async function updateOrderCustomerName(orderId: string, customerName: string): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({ customer_name: customerName })
+    .eq('id', orderId);
+
+  if (error) throw error;
+}
+
+// Search orders with filters
+export async function searchOrders(params: {
+  searchTerm?: string;
+  startDate?: Date;
+  endDate?: Date;
+  status?: OrderStatus[];
+}): Promise<Order[]> {
+  let query = supabase
+    .from('orders')
+    .select(`
+      *,
+      table:restaurant_tables(id, table_number, capacity),
+      order_items(
+        *,
+        menu_item:menu_items(id, name, price, image_url)
+      )
+    `)
+    .order('created_at', { ascending: false });
+
+  if (params.startDate) {
+    query = query.gte('created_at', params.startDate.toISOString());
+  }
+
+  if (params.endDate) {
+    const endOfDay = new Date(params.endDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    query = query.lte('created_at', endOfDay.toISOString());
+  }
+
+  if (params.status && params.status.length > 0) {
+    query = query.in('order_status', params.status);
+  }
+
+  if (params.searchTerm) {
+    query = query.or(`customer_name.ilike.%${params.searchTerm}%,id.ilike.%${params.searchTerm}%`);
+  }
+
+  const { data, error } = await query.limit(100);
+  
+  if (error) throw error;
+  return (data || []) as unknown as Order[];
 }
 
 // Add item to order

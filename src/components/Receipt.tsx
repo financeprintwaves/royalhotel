@@ -12,6 +12,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
   ({ order, payments = [], branchName = 'Restaurant POS', branchAddress }, ref) => {
     const orderItems = (order as any).order_items || [];
     const tableNumber = (order as any).table?.table_number;
+    const customerName = (order as any).customer_name;
     const createdAt = order.created_at ? new Date(order.created_at) : new Date();
     
     const subtotal = Number(order.subtotal) || 0;
@@ -40,6 +41,11 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           <p className="text-xs">
             <span className="font-bold">Order #:</span> {order.id.slice(-8).toUpperCase()}
           </p>
+          {customerName && (
+            <p className="text-xs">
+              <span className="font-bold">Customer:</span> {customerName}
+            </p>
+          )}
           {tableNumber && (
             <p className="text-xs">
               <span className="font-bold">Table:</span> {tableNumber}
@@ -100,6 +106,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
 
         {/* Footer */}
         <div className="text-center mt-6 pt-4 border-t border-dashed border-gray-400">
+          {customerName && <p className="text-xs font-medium mb-2">Thank you, {customerName}!</p>}
           <p className="text-xs">Thank you for your visit!</p>
           <p className="text-xs mt-1">Please come again</p>
         </div>

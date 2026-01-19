@@ -530,6 +530,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bootstrap_demo_admin: { Args: { p_branch_id: string }; Returns: Json }
       finalize_payment: {
         Args: {
           p_amount: number

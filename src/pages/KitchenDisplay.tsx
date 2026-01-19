@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ChefHat, Check, Clock } from 'lucide-react';
+import { ArrowLeft, ChefHat, Check, Clock, Wifi } from 'lucide-react';
 import { getKitchenOrders, markAsServed } from '@/services/orderService';
+import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useToast } from '@/hooks/use-toast';
 import type { Order } from '@/types/pos';
 
@@ -12,30 +13,52 @@ export default function KitchenDisplay() {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
-  useEffect(() => {
-    loadOrders();
-    const interval = setInterval(loadOrders, 10000); // Refresh every 10s
-    return () => clearInterval(interval);
-  }, []);
-
-  async function loadOrders() {
+  const loadOrders = useCallback(async () => {
     try {
       const data = await getKitchenOrders();
       setOrders(data);
+      setIsConnected(true);
     } catch (error) {
       console.error('Failed to load kitchen orders:', error);
+      setIsConnected(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Realtime subscription
+  useOrdersRealtime(
+    // On insert - reload to get full order with items
+    useCallback(() => {
+      console.log('New order received, reloading...');
+      loadOrders();
+      toast({ title: 'New Order!', description: 'A new order has arrived' });
+    }, [loadOrders, toast]),
+    // On update - reload to get latest status
+    useCallback((updatedOrder: Order) => {
+      console.log('Order updated:', updatedOrder.id);
+      loadOrders();
+    }, [loadOrders]),
+    // On delete - remove from list
+    useCallback((deletedId: string) => {
+      setOrders(prev => prev.filter(o => o.id !== deletedId));
+    }, [])
+  );
 
   async function handleMarkServed(orderId: string) {
     setLoading(true);
     try {
       await markAsServed(orderId);
       toast({ title: 'Order Served!', description: 'Order marked as served' });
-      loadOrders();
+      // Optimistically remove from list (realtime will confirm)
+      setOrders(prev => prev.filter(o => o.id !== orderId));
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
+      loadOrders(); // Reload on error
     } finally {
       setLoading(false);
     }
@@ -52,7 +75,15 @@ export default function KitchenDisplay() {
             <ChefHat className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold">Kitchen Display</h1>
           </div>
-          <Badge variant="secondary" className="ml-auto">{orders.length} orders</Badge>
+          <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`} />
+              <span className="text-xs text-muted-foreground">
+                {isConnected ? 'Live' : 'Connecting...'}
+              </span>
+            </div>
+            <Badge variant="secondary">{orders.length} orders</Badge>
+          </div>
         </div>
       </header>
 

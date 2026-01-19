@@ -10,6 +10,7 @@ import NewOrder from "@/pages/NewOrder";
 import Orders from "@/pages/Orders";
 import Tables from "@/pages/Tables";
 import KitchenDisplay from "@/pages/KitchenDisplay";
+import Reports from "@/pages/Reports";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ function AppRoutes() {
       <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
       <Route path="/tables" element={<ProtectedRoute><Tables /></ProtectedRoute>} />
       <Route path="/kitchen" element={<ProtectedRoute><KitchenDisplay /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

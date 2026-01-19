@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Plus, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, AlertTriangle } from 'lucide-react';
+import { LogOut, Plus, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, AlertTriangle, MonitorPlay } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrders } from '@/services/orderService';
@@ -123,8 +123,8 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="flex flex-wrap gap-4">
                 <Button size="lg" className="gap-2" asChild>
-                  <Link to="/new-order">
-                    <Plus className="h-5 w-5" />New Order
+                  <Link to="/pos">
+                    <MonitorPlay className="h-5 w-5" />POS Terminal
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" className="gap-2" asChild>

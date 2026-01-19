@@ -186,6 +186,13 @@ export interface SplitPaymentInput {
   idempotency_key: string;
 }
 
+// Cart item for order creation
+export interface CartItem {
+  menuItem: MenuItem;
+  quantity: number;
+  notes?: string;
+}
+
 // Order workflow helpers
 export const ORDER_STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
   CREATED: 'SENT_TO_KITCHEN',

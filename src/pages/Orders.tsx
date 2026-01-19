@@ -15,12 +15,12 @@ import ReceiptDialog from '@/components/ReceiptDialog';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  CREATED: 'bg-blue-500',
-  SENT_TO_KITCHEN: 'bg-yellow-500',
-  SERVED: 'bg-green-500',
-  BILL_REQUESTED: 'bg-purple-500',
-  PAID: 'bg-emerald-500',
-  CLOSED: 'bg-gray-500',
+  CREATED: 'bg-blue-500 text-white',
+  SENT_TO_KITCHEN: 'bg-yellow-500 text-black',
+  SERVED: 'bg-green-500 text-white',
+  BILL_REQUESTED: 'bg-purple-500 text-white',
+  PAID: 'bg-emerald-600 text-white',
+  CLOSED: 'bg-gray-500 text-white',
 };
 
 export default function Orders() {
@@ -144,16 +144,36 @@ export default function Orders() {
           <TabsContent value="active" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {activeOrders.map(order => (
-                <Card key={order.id}>
+                <Card key={order.id} className="relative">
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
-                      <span>{(order as any).table?.table_number || 'Takeaway'}</span>
-                      <Badge className={STATUS_COLORS[order.order_status]}>{order.order_status}</Badge>
+                      <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                      <Badge className={STATUS_COLORS[order.order_status]}>
+                        {order.order_status.replace('_', ' ')}
+                      </Badge>
                     </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.created_at).toLocaleTimeString()}
+                    </p>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="text-sm text-muted-foreground">
-                      {((order as any).order_items || []).length} items · ${Number(order.total_amount).toFixed(2)}
+                    {/* Order Items Preview */}
+                    <div className="space-y-1">
+                      {((order as any).order_items || []).slice(0, 3).map((item: any) => (
+                        <div key={item.id} className="text-sm flex justify-between">
+                          <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
+                          <span className="text-muted-foreground">${Number(item.total_price).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {((order as any).order_items || []).length > 3 && (
+                        <p className="text-xs text-muted-foreground">
+                          +{((order as any).order_items || []).length - 3} more items
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <span className="font-bold">Total</span>
+                      <span className="font-bold text-lg">${Number(order.total_amount).toFixed(2)}</span>
                     </div>
                     <div className="flex gap-2 flex-wrap">
                       {order.order_status === 'CREATED' && (
@@ -194,15 +214,20 @@ export default function Orders() {
           <TabsContent value="completed" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {completedOrders.slice(0, 20).map(order => (
-                <Card key={order.id} className="opacity-75">
+                <Card key={order.id} className="bg-muted/30">
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
-                      <span>{(order as any).table?.table_number || 'Takeaway'}</span>
-                      <Badge variant="secondary">{order.order_status}</Badge>
+                      <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                      <Badge className={STATUS_COLORS[order.order_status]}>
+                        {order.order_status}
+                      </Badge>
                     </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString()}
+                    </p>
                   </CardHeader>
                   <CardContent className="flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
+                    <div className="font-bold text-lg">
                       ${Number(order.total_amount).toFixed(2)}
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>

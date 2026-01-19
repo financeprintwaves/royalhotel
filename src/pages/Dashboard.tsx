@@ -3,11 +3,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Plus, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog } from 'lucide-react';
+import { LogOut, Plus, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrders } from '@/services/orderService';
 import { getTables } from '@/services/tableService';
+import { getInventoryAlertsCount } from '@/services/inventoryService';
 import { useToast } from '@/hooks/use-toast';
 import type { Order, RestaurantTable } from '@/types/pos';
 
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [hasBranch, setHasBranch] = useState(false);
 
@@ -30,9 +32,14 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [ordersData, tablesData] = await Promise.all([getOrders(), getTables()]);
+      const [ordersData, tablesData, alertsCount] = await Promise.all([
+        getOrders(),
+        getTables(),
+        getInventoryAlertsCount(),
+      ]);
       setOrders(ordersData);
       setTables(tablesData);
+      setLowStockCount(alertsCount);
     } catch (error) {
       console.error('Failed to load data:', error);
     }
@@ -145,6 +152,25 @@ export default function Dashboard() {
                     <Calendar className="h-5 w-5" />Reservations
                   </Link>
                 </Button>
+                {(roles.includes('admin') || roles.includes('manager')) && (
+                  <>
+                    <Button size="lg" variant="outline" className="gap-2" asChild>
+                      <Link to="/menu">
+                        <BookOpen className="h-5 w-5" />Menu Management
+                      </Link>
+                    </Button>
+                    <Button size="lg" variant="outline" className="gap-2 relative" asChild>
+                      <Link to="/inventory">
+                        <Package className="h-5 w-5" />Inventory
+                        {lowStockCount > 0 && (
+                          <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                            {lowStockCount}
+                          </Badge>
+                        )}
+                      </Link>
+                    </Button>
+                  </>
+                )}
                 {roles.includes('admin') && (
                   <Button size="lg" variant="outline" className="gap-2" asChild>
                     <Link to="/staff">

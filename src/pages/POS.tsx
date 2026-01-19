@@ -47,6 +47,7 @@ export default function POS() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
   const [view, setView] = useState<'floor' | 'menu'>('floor');
+  const [customerName, setCustomerName] = useState('');
 
   useEffect(() => {
     loadTables();
@@ -199,8 +200,8 @@ export default function POS() {
           description: `${cart.length} items sent to kitchen for ${selectedTable?.table_number || 'Takeaway'}` 
         });
       } else {
-        // Create new order
-        const newOrder = await createOrder(selectedTable?.id || null);
+        // Create new order with customer name
+        const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
         
         for (const item of cart) {
@@ -218,6 +219,7 @@ export default function POS() {
       setCart([]);
       setExistingOrder(null);
       setSelectedTable(null);
+      setCustomerName('');
       setView('floor');
       loadTables();
       
@@ -264,8 +266,8 @@ export default function POS() {
           });
         }
       } else {
-        // Create new order for immediate payment
-        const newOrder = await createOrder(selectedTable?.id || null);
+        // Create new order for immediate payment with customer name
+        const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
         
         for (const item of cart) {
@@ -305,6 +307,7 @@ export default function POS() {
       setCart([]);
       setExistingOrder(null);
       setSelectedTable(null);
+      setCustomerName('');
       setView('floor');
       setTransactionRef('');
       loadTables();
@@ -473,6 +476,17 @@ export default function POS() {
               {selectedTable.table_number}
             </div>
           )}
+        </div>
+
+        {/* Customer Name Input */}
+        <div className="px-4 py-3 border-b">
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Customer Name</label>
+          <Input
+            placeholder="Enter customer name (optional)"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            className="h-8 text-sm"
+          />
         </div>
 
         {/* Order Type Toggle */}

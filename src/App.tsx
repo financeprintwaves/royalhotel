@@ -6,6 +6,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
+import NewOrder from "@/pages/NewOrder";
+import Orders from "@/pages/Orders";
+import Tables from "@/pages/Tables";
 import KitchenDisplay from "@/pages/KitchenDisplay";
 import NotFound from "@/pages/NotFound";
 
@@ -44,6 +47,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/new-order" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />
+      <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+      <Route path="/tables" element={<ProtectedRoute><Tables /></ProtectedRoute>} />
       <Route path="/kitchen" element={<ProtectedRoute><KitchenDisplay /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

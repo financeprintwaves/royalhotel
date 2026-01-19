@@ -13,6 +13,8 @@ import KitchenDisplay from "@/pages/KitchenDisplay";
 import Reports from "@/pages/Reports";
 import Reservations from "@/pages/Reservations";
 import StaffManagement from "@/pages/StaffManagement";
+import MenuManagement from "@/pages/MenuManagement";
+import Inventory from "@/pages/Inventory";
 import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -56,6 +58,8 @@ function AppRoutes() {
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/reservations" element={<ProtectedRoute><Reservations /></ProtectedRoute>} />
       <Route path="/staff" element={<ProtectedRoute><StaffManagement /></ProtectedRoute>} />
+      <Route path="/menu" element={<ProtectedRoute><MenuManagement /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

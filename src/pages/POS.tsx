@@ -70,6 +70,8 @@ export default function POS() {
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [splitCashAmount, setSplitCashAmount] = useState('');
   const [splitCardAmount, setSplitCardAmount] = useState('');
+  const [splitMobileAmount, setSplitMobileAmount] = useState('');
+  const [mobileTransactionRef, setMobileTransactionRef] = useState('');
   const [view, setView] = useState<ViewType>('floor');
   const [customerName, setCustomerName] = useState('');
   
@@ -1012,6 +1014,8 @@ export default function POS() {
           setIsSplitPayment(false);
           setSplitCashAmount('');
           setSplitCardAmount('');
+          setSplitMobileAmount('');
+          setMobileTransactionRef('');
         }
       }}>
         <DialogContent className="max-w-md">
@@ -1105,8 +1109,30 @@ export default function POS() {
                     onChange={e => setTransactionRef(e.target.value)}
                   />
                 )}
-                <div className="text-sm text-muted-foreground">
-                  Total: {(Number(splitCashAmount || 0) + Number(splitCardAmount || 0)).toFixed(3)} OMR
+                <div className="flex items-center gap-3">
+                  <Smartphone className="h-5 w-5 text-purple-600" />
+                  <div className="flex-1">
+                    <Label className="text-sm">Mobile Amount (OMR)</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="0.000"
+                      value={splitMobileAmount}
+                      onChange={e => setSplitMobileAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {Number(splitMobileAmount) > 0 && (
+                  <Input
+                    placeholder="Mobile Transaction Reference"
+                    value={mobileTransactionRef}
+                    onChange={e => setMobileTransactionRef(e.target.value)}
+                  />
+                )}
+                <Separator />
+                <div className="text-sm font-medium">
+                  Total: {(Number(splitCashAmount || 0) + Number(splitCardAmount || 0) + Number(splitMobileAmount || 0)).toFixed(3)} OMR
                 </div>
               </div>
             )}
@@ -1118,6 +1144,8 @@ export default function POS() {
               setIsSplitPayment(false);
               setSplitCashAmount('');
               setSplitCardAmount('');
+              setSplitMobileAmount('');
+              setMobileTransactionRef('');
             }}>
               Cancel
             </Button>
@@ -1130,10 +1158,21 @@ export default function POS() {
                 if (isSplitPayment) {
                   const cashAmt = Number(splitCashAmount || 0);
                   const cardAmt = Number(splitCardAmount || 0);
-                  const splitTotal = cashAmt + cardAmt;
+                  const mobileAmt = Number(splitMobileAmount || 0);
+                  const splitTotal = cashAmt + cardAmt + mobileAmt;
                   
                   if (splitTotal < orderTotal) {
                     toast({ variant: 'destructive', title: 'Error', description: 'Split amounts must cover the total' });
+                    return;
+                  }
+                  
+                  // Validate transaction references
+                  if (cardAmt > 0 && !transactionRef) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Card transaction reference required' });
+                    return;
+                  }
+                  if (mobileAmt > 0 && !mobileTransactionRef) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Mobile transaction reference required' });
                     return;
                   }
                   
@@ -1148,6 +1187,7 @@ export default function POS() {
                     const payments: { amount: number; payment_method: PaymentMethod }[] = [];
                     if (cashAmt > 0) payments.push({ amount: cashAmt, payment_method: 'cash' });
                     if (cardAmt > 0) payments.push({ amount: cardAmt, payment_method: 'card' });
+                    if (mobileAmt > 0) payments.push({ amount: mobileAmt, payment_method: 'mobile' });
                     
                     await processSplitPayment(orderId, payments);
                     
@@ -1156,7 +1196,14 @@ export default function POS() {
                     setIsSplitPayment(false);
                     setSplitCashAmount('');
                     setSplitCardAmount('');
-                    toast({ title: 'Split Payment Successful!', description: `Cash: ${cashAmt.toFixed(3)} + Card: ${cardAmt.toFixed(3)} OMR` });
+                    setSplitMobileAmount('');
+                    setMobileTransactionRef('');
+                    
+                    const parts = [];
+                    if (cashAmt > 0) parts.push(`Cash: ${cashAmt.toFixed(3)}`);
+                    if (cardAmt > 0) parts.push(`Card: ${cardAmt.toFixed(3)}`);
+                    if (mobileAmt > 0) parts.push(`Mobile: ${mobileAmt.toFixed(3)}`);
+                    toast({ title: 'Split Payment Successful!', description: `${parts.join(' + ')} OMR` });
                     loadAllOrders();
                   } catch (error: any) {
                     toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
@@ -1167,7 +1214,7 @@ export default function POS() {
                   selectedOrderForPayment ? handleProcessOrderPayment() : handleProcessPayment();
                 }
               }}
-              disabled={loading || (!isSplitPayment && paymentMethod !== 'cash' && !transactionRef) || (isSplitPayment && Number(splitCardAmount) > 0 && !transactionRef)}
+              disabled={loading || (!isSplitPayment && paymentMethod !== 'cash' && !transactionRef)}
             >
               Confirm Payment
             </Button>

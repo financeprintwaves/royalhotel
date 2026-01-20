@@ -95,10 +95,15 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 }
 
 // Create a new branch (admin only)
-export async function createBranch(name: string, address?: string, phone?: string): Promise<Branch> {
+export async function createBranch(
+  name: string, 
+  address?: string, 
+  phone?: string,
+  orderPrefix: string = 'INB'
+): Promise<Branch> {
   const { data, error } = await supabase
     .from('branches')
-    .insert({ name, address, phone })
+    .insert({ name, address, phone, order_prefix: orderPrefix })
     .select()
     .single();
 

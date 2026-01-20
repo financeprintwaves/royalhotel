@@ -23,6 +23,7 @@ export interface Branch {
   address: string | null;
   phone: string | null;
   is_active: boolean;
+  order_prefix: string;
   created_at: string;
   updated_at: string;
 }

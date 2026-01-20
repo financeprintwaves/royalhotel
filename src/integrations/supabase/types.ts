@@ -582,6 +582,50 @@ export type Database = {
           },
         ]
       }
+      staff_sessions: {
+        Row: {
+          branch_id: string | null
+          card_total: number | null
+          cash_total: number | null
+          created_at: string | null
+          id: string
+          login_time: string
+          logout_time: string | null
+          mobile_total: number | null
+          user_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          card_total?: number | null
+          cash_total?: number | null
+          created_at?: string | null
+          id?: string
+          login_time?: string
+          logout_time?: string | null
+          mobile_total?: number | null
+          user_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          card_total?: number | null
+          cash_total?: number | null
+          created_at?: string | null
+          id?: string
+          login_time?: string
+          logout_time?: string | null
+          mobile_total?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_sessions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null

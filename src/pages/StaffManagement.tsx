@@ -8,9 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, X, Shield, Building2, UserCog, KeyRound, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, X, Shield, Building2, UserCog, KeyRound, RefreshCw, Trash2, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   getStaffWithRoles, 
   getAllBranches, 
@@ -50,6 +51,14 @@ export default function StaffManagement() {
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [pinValue, setPinValue] = useState('');
   const [showPin, setShowPin] = useState(false);
+  
+  // Add Staff dialog state
+  const [addStaffDialogOpen, setAddStaffDialogOpen] = useState(false);
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffBranch, setNewStaffBranch] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState<AppRole | ''>('');
 
   useEffect(() => {
     if (!isAdmin) {
@@ -200,6 +209,52 @@ export default function StaffManagement() {
     }
   }
 
+  async function handleCreateStaff(e: React.FormEvent) {
+    e.preventDefault();
+    
+    if (!newStaffEmail || !newStaffPassword || !newStaffName) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Email, password, and name are required' });
+      return;
+    }
+    
+    if (newStaffPassword.length < 6) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters' });
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      
+      const response = await supabase.functions.invoke('create-staff', {
+        body: {
+          email: newStaffEmail,
+          password: newStaffPassword,
+          full_name: newStaffName,
+          branch_id: newStaffBranch || undefined,
+          role: newStaffRole || undefined,
+        },
+      });
+      
+      if (response.error) throw new Error(response.error.message);
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      toast({ title: 'Staff Created', description: `${newStaffName} has been added successfully` });
+      setAddStaffDialogOpen(false);
+      setNewStaffEmail('');
+      setNewStaffPassword('');
+      setNewStaffName('');
+      setNewStaffBranch('');
+      setNewStaffRole('');
+      loadData();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function getAvailableRoles(currentRoles: AppRole[]): AppRole[] {
     return ALL_ROLES.filter(role => !currentRoles.includes(role));
   }
@@ -228,6 +283,91 @@ export default function StaffManagement() {
           Staff Management
         </h1>
         <div className="ml-auto flex gap-2">
+          {/* Add Staff Dialog */}
+          <Dialog open={addStaffDialogOpen} onOpenChange={setAddStaffDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <UserPlus className="h-4 w-4 mr-2" />Add Staff
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Staff Member</DialogTitle>
+                <DialogDescription>
+                  Create a new staff account with login credentials.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateStaff} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Full Name *</Label>
+                  <Input
+                    value={newStaffName}
+                    onChange={(e) => setNewStaffName(e.target.value)}
+                    placeholder="John Doe"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={newStaffEmail}
+                    onChange={(e) => setNewStaffEmail(e.target.value)}
+                    placeholder="john@example.com"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password *</Label>
+                  <Input
+                    type="password"
+                    value={newStaffPassword}
+                    onChange={(e) => setNewStaffPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    minLength={6}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Branch</Label>
+                  <Select value={newStaffBranch} onValueChange={setNewStaffBranch}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Branch</SelectItem>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Initial Role</Label>
+                  <Select value={newStaffRole} onValueChange={(v) => setNewStaffRole(v as AppRole | '')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Role</SelectItem>
+                      {ALL_ROLES.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" className="w-full" disabled={actionLoading}>
+                  {actionLoading ? 'Creating...' : 'Create Staff Member'}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Branch Dialog */}
           <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" variant="outline">

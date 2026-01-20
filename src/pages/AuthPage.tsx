@@ -5,9 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useToast } from '@/hooks/use-toast';
-import { Utensils, Loader2, KeyRound } from 'lucide-react';
+import { Utensils, Loader2 } from 'lucide-react';
+import TouchKeypad from '@/components/TouchKeypad';
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -66,42 +66,23 @@ export default function AuthPage() {
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
           
-          {/* PIN Login Tab */}
+          {/* PIN Login Tab with Touch Keypad */}
           <TabsContent value="pin">
-            <CardContent className="space-y-6 pt-6">
-              <div className="text-center space-y-2">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-                  <KeyRound className="h-6 w-6 text-secondary-foreground" />
+            <CardContent className="pt-6">
+              <TouchKeypad
+                value={pin}
+                onChange={setPin}
+                onSubmit={handlePinSignIn}
+                maxLength={5}
+                disabled={isLoading}
+              />
+              {isLoading && (
+                <div className="flex items-center justify-center mt-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="ml-2 text-muted-foreground">Signing in...</span>
                 </div>
-                <p className="text-sm text-muted-foreground">Enter your 5-digit staff PIN</p>
-              </div>
-              <div className="flex justify-center">
-                <InputOTP 
-                  maxLength={5} 
-                  value={pin} 
-                  onChange={setPin}
-                  disabled={isLoading}
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} className="h-14 w-14 text-xl" />
-                    <InputOTPSlot index={1} className="h-14 w-14 text-xl" />
-                    <InputOTPSlot index={2} className="h-14 w-14 text-xl" />
-                    <InputOTPSlot index={3} className="h-14 w-14 text-xl" />
-                    <InputOTPSlot index={4} className="h-14 w-14 text-xl" />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
+              )}
             </CardContent>
-            <CardFooter>
-              <Button 
-                onClick={handlePinSignIn} 
-                className="w-full" 
-                disabled={isLoading || pin.length !== 5}
-              >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign In with PIN
-              </Button>
-            </CardFooter>
           </TabsContent>
 
           {/* Email/Password Login Tab */}

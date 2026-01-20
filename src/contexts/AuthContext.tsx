@@ -1,7 +1,15 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { AppRole, Profile } from '@/types/pos';
+import { 
+  startSession, 
+  getActiveSession, 
+  getSessionSummary, 
+  endSession,
+  SessionSummary,
+  PaymentTotals 
+} from '@/services/sessionService';
 
 interface AuthContextType {
   user: User | null;
@@ -9,13 +17,25 @@ interface AuthContextType {
   profile: Profile | null;
   roles: AppRole[];
   loading: boolean;
+  // Session tracking
+  currentSessionId: string | null;
+  sessionLoginTime: Date | null;
+  // Auth methods
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithPin: (pin: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  // Role checks
   hasRole: (role: AppRole) => boolean;
   isAdmin: () => boolean;
   isManagerOrAdmin: () => boolean;
+  // Logout flow with summary
+  initiateLogout: () => Promise<SessionSummary | null>;
+  confirmLogout: (paymentTotals: PaymentTotals) => Promise<void>;
+  showLogoutSummary: boolean;
+  setShowLogoutSummary: (show: boolean) => void;
+  sessionSummary: SessionSummary | null;
+  setSessionSummary: (summary: SessionSummary | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,30 +46,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Session tracking state
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessionLoginTime, setSessionLoginTime] = useState<Date | null>(null);
+  const [showLogoutSummary, setShowLogoutSummary] = useState(false);
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
 
   const fetchUserData = async (userId: string) => {
     const { data: profileData } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
     if (profileData) setProfile(profileData as Profile);
     const { data: rolesData } = await supabase.from('user_roles').select('role').eq('user_id', userId);
     if (rolesData) setRoles(rolesData.map(r => r.role as AppRole));
+    return profileData;
   };
 
+  // Initialize or restore session tracking
+  const initializeSessionTracking = useCallback(async (userId: string, branchId: string | null) => {
+    // Check for existing active session
+    const existingSession = await getActiveSession(userId);
+    
+    if (existingSession) {
+      setCurrentSessionId(existingSession.id);
+      setSessionLoginTime(new Date(existingSession.login_time));
+    } else {
+      // Start a new session
+      const newSession = await startSession(userId, branchId);
+      if (newSession) {
+        setCurrentSessionId(newSession.id);
+        setSessionLoginTime(new Date(newSession.login_time));
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) setTimeout(() => fetchUserData(session.user.id), 0);
-      else { setProfile(null); setRoles([]); }
+      if (session?.user) {
+        const profileData = await fetchUserData(session.user.id);
+        // Initialize session tracking after profile is loaded
+        if (profileData) {
+          initializeSessionTracking(session.user.id, profileData.branch_id);
+        }
+      } else { 
+        setProfile(null); 
+        setRoles([]); 
+        setCurrentSessionId(null);
+        setSessionLoginTime(null);
+      }
       setLoading(false);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchUserData(session.user.id);
+      if (session?.user) {
+        const profileData = await fetchUserData(session.user.id);
+        // Initialize session tracking after profile is loaded
+        if (profileData) {
+          initializeSessionTracking(session.user.id, profileData.branch_id);
+        }
+      }
       setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [initializeSessionTracking]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -97,12 +158,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error as Error | null };
   };
 
-  const signOut = async () => { await supabase.auth.signOut(); setUser(null); setSession(null); setProfile(null); setRoles([]); };
+  const signOut = async () => { 
+    setCurrentSessionId(null);
+    setSessionLoginTime(null);
+    await supabase.auth.signOut(); 
+    setUser(null); 
+    setSession(null); 
+    setProfile(null); 
+    setRoles([]); 
+  };
+
   const hasRole = (role: AppRole) => roles.includes(role);
   const isAdmin = () => hasRole('admin');
   const isManagerOrAdmin = () => hasRole('manager') || hasRole('admin');
 
-  return <AuthContext.Provider value={{ user, session, profile, roles, loading, signIn, signInWithPin, signUp, signOut, hasRole, isAdmin, isManagerOrAdmin }}>{children}</AuthContext.Provider>;
+  const initiateLogout = async (): Promise<SessionSummary | null> => {
+    if (!user) return null;
+    
+    const userName = profile?.full_name || user.email || 'Unknown';
+    const summary = await getSessionSummary(user.id, userName);
+    
+    if (summary) {
+      setSessionSummary(summary);
+      setShowLogoutSummary(true);
+    }
+    
+    return summary;
+  };
+
+  const confirmLogout = async (paymentTotals: PaymentTotals) => {
+    if (currentSessionId) {
+      await endSession(currentSessionId, paymentTotals);
+    }
+    
+    setShowLogoutSummary(false);
+    setSessionSummary(null);
+    await signOut();
+  };
+
+  return (
+    <AuthContext.Provider value={{ 
+      user, session, profile, roles, loading, 
+      currentSessionId, sessionLoginTime,
+      signIn, signInWithPin, signUp, signOut, 
+      hasRole, isAdmin, isManagerOrAdmin,
+      initiateLogout, confirmLogout,
+      showLogoutSummary, setShowLogoutSummary,
+      sessionSummary, setSessionSummary
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

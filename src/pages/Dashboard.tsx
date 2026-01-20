@@ -3,25 +3,28 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Plus, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, AlertTriangle, MonitorPlay } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrders } from '@/services/orderService';
 import { getTables } from '@/services/tableService';
 import { getInventoryAlertsCount } from '@/services/inventoryService';
 import { useToast } from '@/hooks/use-toast';
 import type { Order, RestaurantTable } from '@/types/pos';
+import LogoutSummaryDialog from '@/components/LogoutSummaryDialog';
 
 const DEMO_BRANCH_ID = 'a1111111-1111-1111-1111-111111111111';
 
 export default function Dashboard() {
-  const { user, profile, roles, signOut } = useAuth();
+  const { user, profile, roles, initiateLogout, confirmLogout, showLogoutSummary, setShowLogoutSummary, sessionSummary } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [hasBranch, setHasBranch] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     if (profile?.branch_id) {
@@ -61,6 +64,29 @@ export default function Dashboard() {
     }
   }
 
+  const handleLogout = async () => {
+    await initiateLogout();
+  };
+
+  const handleSwitchUser = async () => {
+    await initiateLogout();
+  };
+
+  const handleConfirmLogout = async () => {
+    if (!sessionSummary) return;
+    setIsLoggingOut(true);
+    try {
+      await confirmLogout({
+        cash: sessionSummary.cashTotal,
+        card: sessionSummary.cardTotal,
+        mobile: sessionSummary.mobileTotal,
+      });
+      navigate('/auth');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   const activeOrders = orders.filter(o => !['PAID', 'CLOSED'].includes(o.order_status));
   const pendingBills = orders.filter(o => o.order_status === 'BILL_REQUESTED');
   const occupiedTables = tables.filter(t => t.status === 'occupied');
@@ -70,156 +96,75 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-card px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <UtensilsCrossed className="h-8 w-8 text-primary" />
             <div>
               <h1 className="text-xl font-bold">Restaurant POS</h1>
-              <p className="text-sm text-muted-foreground">
-                Welcome, {profile?.full_name || user?.email}
-              </p>
+              <p className="text-sm text-muted-foreground">Welcome, {profile?.full_name || user?.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
-              {roles.map(role => (
-                <Badge key={role} variant="secondary" className="capitalize">{role}</Badge>
-              ))}
+              {roles.map(role => (<Badge key={role} variant="secondary" className="capitalize">{role}</Badge>))}
             </div>
-            <Button variant="outline" size="sm" onClick={signOut}>
+            <Button variant="outline" size="sm" onClick={handleSwitchUser}>
+              <RefreshCw className="h-4 w-4 mr-2" />Switch User
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />Sign Out
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="p-6">
         {!hasBranch ? (
           <Card className="max-w-lg mx-auto">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                Get Started with Demo Data
+                <Sparkles className="h-5 w-5 text-primary" />Get Started with Demo Data
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Click below to become the admin of "Downtown Bistro" with sample menu items and tables ready for testing.
-              </p>
-              <Button onClick={handleBootstrap} disabled={bootstrapping} className="w-full">
-                {bootstrapping ? 'Setting up...' : 'Claim Admin Role & Demo Branch'}
-              </Button>
+              <p className="text-muted-foreground">Click below to become the admin of "Downtown Bistro" with sample menu items and tables ready for testing.</p>
+              <Button onClick={handleBootstrap} disabled={bootstrapping} className="w-full">{bootstrapping ? 'Setting up...' : 'Claim Admin Role & Demo Branch'}</Button>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {/* Quick Actions */}
             <Card className="col-span-full">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
               <CardContent className="flex flex-wrap gap-4">
-                <Button size="lg" className="gap-2" asChild>
-                  <Link to="/pos">
-                    <MonitorPlay className="h-5 w-5" />POS Terminal
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2" asChild>
-                  <Link to="/orders">
-                    <Receipt className="h-5 w-5" />View Orders
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2" asChild>
-                  <Link to="/tables">
-                    <Users className="h-5 w-5" />Tables
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2" asChild>
-                  <Link to="/kitchen">
-                    <ChefHat className="h-5 w-5" />Kitchen Display
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2" asChild>
-                  <Link to="/reports">
-                    <BarChart3 className="h-5 w-5" />Reports
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2" asChild>
-                  <Link to="/reservations">
-                    <Calendar className="h-5 w-5" />Reservations
-                  </Link>
-                </Button>
+                <Button size="lg" className="gap-2" asChild><Link to="/pos"><MonitorPlay className="h-5 w-5" />POS Terminal</Link></Button>
+                <Button size="lg" variant="outline" className="gap-2" asChild><Link to="/orders"><Receipt className="h-5 w-5" />View Orders</Link></Button>
+                <Button size="lg" variant="outline" className="gap-2" asChild><Link to="/tables"><Users className="h-5 w-5" />Tables</Link></Button>
+                <Button size="lg" variant="outline" className="gap-2" asChild><Link to="/kitchen"><ChefHat className="h-5 w-5" />Kitchen Display</Link></Button>
+                <Button size="lg" variant="outline" className="gap-2" asChild><Link to="/reports"><BarChart3 className="h-5 w-5" />Reports</Link></Button>
+                <Button size="lg" variant="outline" className="gap-2" asChild><Link to="/reservations"><Calendar className="h-5 w-5" />Reservations</Link></Button>
                 {(roles.includes('admin') || roles.includes('manager')) && (
                   <>
-                    <Button size="lg" variant="outline" className="gap-2" asChild>
-                      <Link to="/menu">
-                        <BookOpen className="h-5 w-5" />Menu Management
-                      </Link>
-                    </Button>
+                    <Button size="lg" variant="outline" className="gap-2" asChild><Link to="/menu"><BookOpen className="h-5 w-5" />Menu Management</Link></Button>
                     <Button size="lg" variant="outline" className="gap-2 relative" asChild>
-                      <Link to="/inventory">
-                        <Package className="h-5 w-5" />Inventory
-                        {lowStockCount > 0 && (
-                          <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
-                            {lowStockCount}
-                          </Badge>
-                        )}
+                      <Link to="/inventory"><Package className="h-5 w-5" />Inventory
+                        {lowStockCount > 0 && (<Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">{lowStockCount}</Badge>)}
                       </Link>
                     </Button>
                   </>
                 )}
-                {roles.includes('admin') && (
-                  <Button size="lg" variant="outline" className="gap-2" asChild>
-                    <Link to="/staff">
-                      <UserCog className="h-5 w-5" />Staff Management
-                    </Link>
-                  </Button>
-                )}
+                {roles.includes('admin') && (<Button size="lg" variant="outline" className="gap-2" asChild><Link to="/staff"><UserCog className="h-5 w-5" />Staff Management</Link></Button>)}
               </CardContent>
             </Card>
-
-            {/* Stats Cards */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{activeOrders.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Tables Occupied</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{occupiedTables.length} / {tables.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Today's Revenue</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">${todayRevenue.toFixed(2)}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Pending Bills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{pendingBills.length}</div>
-              </CardContent>
-            </Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{activeOrders.length}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Tables Occupied</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{occupiedTables.length} / {tables.length}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Today's Revenue</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">${todayRevenue.toFixed(2)}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Pending Bills</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{pendingBills.length}</div></CardContent></Card>
           </div>
         )}
       </main>
+
+      <LogoutSummaryDialog open={showLogoutSummary} onOpenChange={setShowLogoutSummary} summary={sessionSummary} onConfirmLogout={handleConfirmLogout} isLoading={isLoggingOut} />
     </div>
   );
 }

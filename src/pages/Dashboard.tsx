@@ -120,7 +120,7 @@ export default function Dashboard() {
       </header>
 
       <main className="p-6">
-        {!hasBranch ? (
+        {!hasBranch && roles.includes('admin') ? (
           <Card className="max-w-lg mx-auto">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -130,6 +130,17 @@ export default function Dashboard() {
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">Click below to become the admin of "Downtown Bistro" with sample menu items and tables ready for testing.</p>
               <Button onClick={handleBootstrap} disabled={bootstrapping} className="w-full">{bootstrapping ? 'Setting up...' : 'Claim Admin Role & Demo Branch'}</Button>
+            </CardContent>
+          </Card>
+        ) : !hasBranch ? (
+          <Card className="max-w-lg mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />No Branch Assigned
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">You haven't been assigned to a branch yet. Please contact your manager or administrator to get access to the POS system.</p>
             </CardContent>
           </Card>
         ) : (

@@ -10,6 +10,7 @@ interface AuthContextType {
   roles: AppRole[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithPin: (pin: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
@@ -55,6 +56,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error as Error | null };
   };
 
+  const signInWithPin = async (pin: string) => {
+    try {
+      // Call the edge function to validate PIN and get auth token
+      const { data, error: invokeError } = await supabase.functions.invoke('pin-login', {
+        body: { pin }
+      });
+
+      if (invokeError) {
+        return { error: new Error(invokeError.message || 'PIN login failed') };
+      }
+
+      if (data?.error) {
+        return { error: new Error(data.error) };
+      }
+
+      if (!data?.token) {
+        return { error: new Error('No authentication token received') };
+      }
+
+      // Use the token to verify OTP (magic link token)
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: data.token,
+        type: 'magiclink',
+      });
+
+      if (verifyError) {
+        return { error: new Error(verifyError.message || 'Failed to authenticate') };
+      }
+
+      return { error: null };
+    } catch (err: any) {
+      return { error: new Error(err.message || 'PIN login failed') };
+    }
+  };
+
   const signUp = async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/`, data: { full_name: fullName } } });
     if (!error && data.user) await supabase.from('profiles').insert({ user_id: data.user.id, full_name: fullName });
@@ -66,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = () => hasRole('admin');
   const isManagerOrAdmin = () => hasRole('manager') || hasRole('admin');
 
-  return <AuthContext.Provider value={{ user, session, profile, roles, loading, signIn, signUp, signOut, hasRole, isAdmin, isManagerOrAdmin }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, session, profile, roles, loading, signIn, signInWithPin, signUp, signOut, hasRole, isAdmin, isManagerOrAdmin }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

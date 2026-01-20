@@ -401,6 +401,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          staff_pin: string | null
           updated_at: string | null
           user_id: string
         }
@@ -411,6 +412,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          staff_pin?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -421,6 +423,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          staff_pin?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -654,6 +657,14 @@ export type Database = {
           p_order_id: string
         }
         Returns: Json
+      }
+      validate_staff_pin: {
+        Args: { p_pin: string }
+        Returns: {
+          email: string
+          full_name: string
+          user_id: string
+        }[]
       }
     }
     Enums: {

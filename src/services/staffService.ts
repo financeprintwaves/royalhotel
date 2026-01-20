@@ -9,6 +9,7 @@ export interface StaffMember {
   branch_name: string | null;
   roles: AppRole[];
   created_at: string;
+  staff_pin?: string | null;
 }
 
 // Get all staff members with their roles (admin only)
@@ -129,4 +130,61 @@ export async function deactivateBranch(branchId: string): Promise<void> {
     .eq('id', branchId);
 
   if (error) throw error;
+}
+
+// Set staff PIN (admin only)
+export async function setStaffPin(userId: string, pin: string | null): Promise<void> {
+  // Validate PIN format if provided
+  if (pin && !/^\d{5}$/.test(pin)) {
+    throw new Error('PIN must be exactly 5 digits');
+  }
+  
+  const { error } = await supabase
+    .from('profiles')
+    .update({ staff_pin: pin })
+    .eq('user_id', userId);
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('This PIN is already in use by another staff member');
+    }
+    throw error;
+  }
+}
+
+// Generate a unique 5-digit PIN
+export async function generateUniquePin(): Promise<string> {
+  // Get all existing PINs
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('staff_pin')
+    .not('staff_pin', 'is', null);
+
+  if (error) throw error;
+
+  const existingPins = new Set((data || []).map((p: any) => p.staff_pin));
+  
+  // Generate random PIN until we find a unique one
+  let attempts = 0;
+  while (attempts < 1000) {
+    const pin = String(Math.floor(10000 + Math.random() * 90000));
+    if (!existingPins.has(pin)) {
+      return pin;
+    }
+    attempts++;
+  }
+  
+  throw new Error('Unable to generate unique PIN. Too many PINs in use.');
+}
+
+// Get staff PIN (admin only - for display purposes)
+export async function getStaffPin(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('staff_pin')
+    .eq('user_id', userId)
+    .single();
+
+  if (error) throw error;
+  return data?.staff_pin || null;
 }

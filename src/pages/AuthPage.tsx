@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useToast } from '@/hooks/use-toast';
-import { Utensils, Loader2 } from 'lucide-react';
+import { Utensils, Loader2, KeyRound } from 'lucide-react';
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const [pin, setPin] = useState('');
+  const { signIn, signInWithPin, signUp } = useAuth();
   const { toast } = useToast();
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -19,6 +21,20 @@ export default function AuthPage() {
     const formData = new FormData(e.currentTarget);
     const { error } = await signIn(formData.get('email') as string, formData.get('password') as string);
     if (error) toast({ variant: 'destructive', title: 'Sign in failed', description: error.message });
+    setIsLoading(false);
+  };
+
+  const handlePinSignIn = async () => {
+    if (pin.length !== 5) {
+      toast({ variant: 'destructive', title: 'Invalid PIN', description: 'Please enter a 5-digit PIN' });
+      return;
+    }
+    setIsLoading(true);
+    const { error } = await signInWithPin(pin);
+    if (error) {
+      toast({ variant: 'destructive', title: 'PIN login failed', description: error.message });
+      setPin('');
+    }
     setIsLoading(false);
   };
 
@@ -43,11 +59,52 @@ export default function AuthPage() {
           </div>
           <div><CardTitle className="text-2xl font-bold">Restaurant POS</CardTitle><CardDescription>Sign in to access your dashboard</CardDescription></div>
         </CardHeader>
-        <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mx-4" style={{ width: 'calc(100% - 32px)' }}>
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
+        <Tabs defaultValue="pin" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mx-4" style={{ width: 'calc(100% - 32px)' }}>
+            <TabsTrigger value="pin">PIN</TabsTrigger>
+            <TabsTrigger value="signin">Email</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
+          
+          {/* PIN Login Tab */}
+          <TabsContent value="pin">
+            <CardContent className="space-y-6 pt-6">
+              <div className="text-center space-y-2">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                  <KeyRound className="h-6 w-6 text-secondary-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">Enter your 5-digit staff PIN</p>
+              </div>
+              <div className="flex justify-center">
+                <InputOTP 
+                  maxLength={5} 
+                  value={pin} 
+                  onChange={setPin}
+                  disabled={isLoading}
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} className="h-14 w-14 text-xl" />
+                    <InputOTPSlot index={1} className="h-14 w-14 text-xl" />
+                    <InputOTPSlot index={2} className="h-14 w-14 text-xl" />
+                    <InputOTPSlot index={3} className="h-14 w-14 text-xl" />
+                    <InputOTPSlot index={4} className="h-14 w-14 text-xl" />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                onClick={handlePinSignIn} 
+                className="w-full" 
+                disabled={isLoading || pin.length !== 5}
+              >
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Sign In with PIN
+              </Button>
+            </CardFooter>
+          </TabsContent>
+
+          {/* Email/Password Login Tab */}
           <TabsContent value="signin">
             <form onSubmit={handleSignIn}>
               <CardContent className="space-y-4">
@@ -57,6 +114,8 @@ export default function AuthPage() {
               <CardFooter><Button type="submit" className="w-full" disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sign In</Button></CardFooter>
             </form>
           </TabsContent>
+
+          {/* Sign Up Tab */}
           <TabsContent value="signup">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">

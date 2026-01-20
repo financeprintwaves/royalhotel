@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, X, Shield, Building2, UserCog } from 'lucide-react';
+import { ArrowLeft, Plus, X, Shield, Building2, UserCog, KeyRound, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -18,6 +18,8 @@ import {
   removeRole, 
   assignUserToBranch,
   createBranch,
+  setStaffPin,
+  generateUniquePin,
   type StaffMember 
 } from '@/services/staffService';
 import type { AppRole, Branch } from '@/types/pos';
@@ -42,6 +44,12 @@ export default function StaffManagement() {
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
+  
+  // PIN dialog state
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [pinValue, setPinValue] = useState('');
+  const [showPin, setShowPin] = useState(false);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -58,7 +66,18 @@ export default function StaffManagement() {
         getStaffWithRoles(),
         getAllBranches(),
       ]);
-      setStaff(staffData);
+      // Also fetch staff PINs
+      const staffWithPins = await Promise.all(
+        staffData.map(async (s) => {
+          const { data } = await (await import('@/integrations/supabase/client')).supabase
+            .from('profiles')
+            .select('staff_pin')
+            .eq('user_id', s.user_id)
+            .single();
+          return { ...s, staff_pin: data?.staff_pin || null };
+        })
+      );
+      setStaff(staffWithPins);
       setBranches(branchesData);
     } catch (error: any) {
       console.error('Failed to load data:', error);
@@ -124,8 +143,70 @@ export default function StaffManagement() {
     }
   }
 
+  function openPinDialog(member: StaffMember) {
+    setSelectedStaff(member);
+    setPinValue(member.staff_pin || '');
+    setShowPin(false);
+    setPinDialogOpen(true);
+  }
+
+  async function handleGeneratePin() {
+    setActionLoading(true);
+    try {
+      const newPin = await generateUniquePin();
+      setPinValue(newPin);
+      setShowPin(true);
+      toast({ title: 'PIN Generated', description: 'A unique PIN has been generated. Click Save to apply.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSavePin() {
+    if (!selectedStaff) return;
+    
+    if (pinValue && !/^\d{5}$/.test(pinValue)) {
+      toast({ variant: 'destructive', title: 'Invalid PIN', description: 'PIN must be exactly 5 digits' });
+      return;
+    }
+    
+    setActionLoading(true);
+    try {
+      await setStaffPin(selectedStaff.user_id, pinValue || null);
+      toast({ title: 'PIN Updated', description: pinValue ? 'Staff PIN has been set' : 'Staff PIN has been removed' });
+      setPinDialogOpen(false);
+      loadData();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleRemovePin() {
+    if (!selectedStaff) return;
+    setActionLoading(true);
+    try {
+      await setStaffPin(selectedStaff.user_id, null);
+      toast({ title: 'PIN Removed', description: 'Staff PIN has been removed' });
+      setPinDialogOpen(false);
+      loadData();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function getAvailableRoles(currentRoles: AppRole[]): AppRole[] {
     return ALL_ROLES.filter(role => !currentRoles.includes(role));
+  }
+
+  function formatPin(pin: string | null | undefined): string {
+    if (!pin) return 'No PIN';
+    return `•••${pin.slice(-2)}`;
   }
 
   if (loading) {
@@ -219,6 +300,7 @@ export default function StaffManagement() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>PIN</TableHead>
                   <TableHead>Branch</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Add Role</TableHead>
@@ -232,6 +314,19 @@ export default function StaffManagement() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {member.email || 'No email'}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 gap-1"
+                        onClick={() => openPinDialog(member)}
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        <span className={member.staff_pin ? 'font-mono' : 'text-muted-foreground'}>
+                          {formatPin(member.staff_pin)}
+                        </span>
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <Select
@@ -297,6 +392,80 @@ export default function StaffManagement() {
           </CardContent>
         </Card>
       </main>
+
+      {/* PIN Management Dialog */}
+      <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Manage Staff PIN
+            </DialogTitle>
+            <DialogDescription>
+              Set a 5-digit PIN for {selectedStaff?.full_name || selectedStaff?.email || 'this staff member'} to enable quick login.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>5-Digit PIN</Label>
+              <div className="flex gap-2">
+                <Input
+                  type={showPin ? 'text' : 'password'}
+                  value={pinValue}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 5);
+                    setPinValue(value);
+                  }}
+                  placeholder="Enter 5 digits"
+                  className="font-mono text-lg tracking-widest"
+                  maxLength={5}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowPin(!showPin)}
+                >
+                  {showPin ? '🙈' : '👁️'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {pinValue.length}/5 digits
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={handleGeneratePin}
+              disabled={actionLoading}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Generate Random PIN
+            </Button>
+          </div>
+          <DialogFooter className="flex gap-2">
+            {selectedStaff?.staff_pin && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleRemovePin}
+                disabled={actionLoading}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove PIN
+              </Button>
+            )}
+            <Button
+              type="button"
+              onClick={handleSavePin}
+              disabled={actionLoading || (pinValue.length > 0 && pinValue.length !== 5)}
+            >
+              {actionLoading ? 'Saving...' : 'Save PIN'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

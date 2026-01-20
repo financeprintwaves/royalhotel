@@ -1,1 +1,4 @@
 project_id = "qgslbdonaicowrbasepw"
+
+[functions.pin-login]
+verify_jwt = false

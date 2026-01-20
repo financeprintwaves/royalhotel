@@ -45,6 +45,7 @@ export default function StaffManagement() {
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
+  const [newBranchPrefix, setNewBranchPrefix] = useState('INB');
   
   // PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -137,13 +138,21 @@ export default function StaffManagement() {
 
   async function handleCreateBranch(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Validate prefix format
+    if (!/^[A-Z]{2,5}$/.test(newBranchPrefix)) {
+      toast({ variant: 'destructive', title: 'Invalid Prefix', description: 'Prefix must be 2-5 uppercase letters' });
+      return;
+    }
+    
     setActionLoading(true);
     try {
-      await createBranch(newBranchName, newBranchAddress);
-      toast({ title: 'Branch Created', description: `${newBranchName} has been created` });
+      await createBranch(newBranchName, newBranchAddress, undefined, newBranchPrefix);
+      toast({ title: 'Branch Created', description: `${newBranchName} has been created with prefix ${newBranchPrefix}` });
       setBranchDialogOpen(false);
       setNewBranchName('');
       setNewBranchAddress('');
+      setNewBranchPrefix('INB');
       loadData();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -384,7 +393,7 @@ export default function StaffManagement() {
                   <Input
                     value={newBranchName}
                     onChange={(e) => setNewBranchName(e.target.value)}
-                    placeholder="Downtown Branch"
+                    placeholder="Arabic Bar"
                     required
                   />
                 </div>
@@ -395,6 +404,19 @@ export default function StaffManagement() {
                     onChange={(e) => setNewBranchAddress(e.target.value)}
                     placeholder="123 Main St"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Order Number Prefix *</Label>
+                  <Input
+                    value={newBranchPrefix}
+                    onChange={(e) => setNewBranchPrefix(e.target.value.toUpperCase().slice(0, 5))}
+                    placeholder="ARB"
+                    maxLength={5}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    2-5 uppercase letters. Orders will be: {newBranchPrefix}2601001
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={actionLoading}>
                   {actionLoading ? 'Creating...' : 'Create Branch'}
@@ -418,6 +440,7 @@ export default function StaffManagement() {
             <div className="flex flex-wrap gap-2">
               {branches.map((branch) => (
                 <Badge key={branch.id} variant="outline" className="text-sm">
+                  <span className="font-mono mr-2 text-primary">[{(branch as any).order_prefix || 'INB'}]</span>
                   {branch.name}
                   {branch.address && <span className="ml-1 text-muted-foreground">• {branch.address}</span>}
                 </Badge>

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,7 +23,7 @@ import {
   createOrder, addOrderItem, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
   markAsServed, requestBill, searchOrders
 } from '@/services/orderService';
-import { finalizePayment } from '@/services/paymentService';
+import { finalizePayment, processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { supabase } from '@/integrations/supabase/client';
 import ReceiptDialog from '@/components/ReceiptDialog';
@@ -64,6 +65,11 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
+  
+  // Split payment state
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitCashAmount, setSplitCashAmount] = useState('');
+  const [splitCardAmount, setSplitCardAmount] = useState('');
   const [view, setView] = useState<ViewType>('floor');
   const [customerName, setCustomerName] = useState('');
   
@@ -1000,8 +1006,15 @@ export default function POS() {
       )}
 
       {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent>
+      <Dialog open={showPaymentDialog} onOpenChange={(open) => {
+        setShowPaymentDialog(open);
+        if (!open) {
+          setIsSplitPayment(false);
+          setSplitCashAmount('');
+          setSplitCardAmount('');
+        }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
               Process Payment - {selectedOrderForPayment 
@@ -1010,41 +1023,151 @@ export default function POS() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { method: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash' },
-                { method: 'card' as PaymentMethod, icon: CreditCard, label: 'Card' },
-                { method: 'mobile' as PaymentMethod, icon: Smartphone, label: 'Mobile' },
-              ].map(({ method, icon: Icon, label }) => (
-                <Button
-                  key={method}
-                  variant={paymentMethod === method ? 'default' : 'outline'}
-                  className="h-20 flex-col gap-2"
-                  onClick={() => setPaymentMethod(method)}
-                >
-                  <Icon className="h-6 w-6" />
-                  {label}
-                </Button>
-              ))}
+            {/* Payment Method Toggle */}
+            <div className="flex items-center gap-2 mb-2">
+              <Button
+                variant={!isSplitPayment ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setIsSplitPayment(false)}
+              >
+                Single Payment
+              </Button>
+              <Button
+                variant={isSplitPayment ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setIsSplitPayment(true)}
+              >
+                Split Payment
+              </Button>
             </div>
-            {paymentMethod !== 'cash' && (
-              <Input
-                placeholder="Transaction Reference"
-                value={transactionRef}
-                onChange={e => setTransactionRef(e.target.value)}
-              />
+
+            {!isSplitPayment ? (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { method: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash' },
+                    { method: 'card' as PaymentMethod, icon: CreditCard, label: 'Card' },
+                    { method: 'mobile' as PaymentMethod, icon: Smartphone, label: 'Mobile' },
+                  ].map(({ method, icon: Icon, label }) => (
+                    <Button
+                      key={method}
+                      variant={paymentMethod === method ? 'default' : 'outline'}
+                      className="h-20 flex-col gap-2"
+                      onClick={() => setPaymentMethod(method)}
+                    >
+                      <Icon className="h-6 w-6" />
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {paymentMethod !== 'cash' && (
+                  <Input
+                    placeholder="Transaction Reference"
+                    value={transactionRef}
+                    onChange={e => setTransactionRef(e.target.value)}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Banknote className="h-5 w-5 text-green-600" />
+                  <div className="flex-1">
+                    <Label className="text-sm">Cash Amount (OMR)</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="0.000"
+                      value={splitCashAmount}
+                      onChange={e => setSplitCashAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CreditCard className="h-5 w-5 text-blue-600" />
+                  <div className="flex-1">
+                    <Label className="text-sm">Card Amount (OMR)</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="0.000"
+                      value={splitCardAmount}
+                      onChange={e => setSplitCardAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {Number(splitCardAmount) > 0 && (
+                  <Input
+                    placeholder="Card Transaction Reference"
+                    value={transactionRef}
+                    onChange={e => setTransactionRef(e.target.value)}
+                  />
+                )}
+                <div className="text-sm text-muted-foreground">
+                  Total: {(Number(splitCashAmount || 0) + Number(splitCardAmount || 0)).toFixed(3)} OMR
+                </div>
+              </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowPaymentDialog(false);
               setSelectedOrderForPayment(null);
+              setIsSplitPayment(false);
+              setSplitCashAmount('');
+              setSplitCardAmount('');
             }}>
               Cancel
             </Button>
             <Button 
-              onClick={selectedOrderForPayment ? handleProcessOrderPayment : handleProcessPayment} 
-              disabled={loading || (paymentMethod !== 'cash' && !transactionRef)}
+              onClick={async () => {
+                const orderTotal = selectedOrderForPayment 
+                  ? Number(selectedOrderForPayment.total_amount || 0) 
+                  : grandTotal;
+                
+                if (isSplitPayment) {
+                  const cashAmt = Number(splitCashAmount || 0);
+                  const cardAmt = Number(splitCardAmount || 0);
+                  const splitTotal = cashAmt + cardAmt;
+                  
+                  if (splitTotal < orderTotal) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Split amounts must cover the total' });
+                    return;
+                  }
+                  
+                  const orderId = selectedOrderForPayment?.id;
+                  if (!orderId) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'No order selected' });
+                    return;
+                  }
+                  
+                  setLoading(true);
+                  try {
+                    const payments: { amount: number; payment_method: PaymentMethod }[] = [];
+                    if (cashAmt > 0) payments.push({ amount: cashAmt, payment_method: 'cash' });
+                    if (cardAmt > 0) payments.push({ amount: cardAmt, payment_method: 'card' });
+                    
+                    await processSplitPayment(orderId, payments);
+                    
+                    setShowPaymentDialog(false);
+                    setSelectedOrderForPayment(null);
+                    setIsSplitPayment(false);
+                    setSplitCashAmount('');
+                    setSplitCardAmount('');
+                    toast({ title: 'Split Payment Successful!', description: `Cash: ${cashAmt.toFixed(3)} + Card: ${cardAmt.toFixed(3)} OMR` });
+                    loadAllOrders();
+                  } catch (error: any) {
+                    toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
+                  } finally {
+                    setLoading(false);
+                  }
+                } else {
+                  selectedOrderForPayment ? handleProcessOrderPayment() : handleProcessPayment();
+                }
+              }}
+              disabled={loading || (!isSplitPayment && paymentMethod !== 'cash' && !transactionRef) || (isSplitPayment && Number(splitCardAmount) > 0 && !transactionRef)}
             >
               Confirm Payment
             </Button>

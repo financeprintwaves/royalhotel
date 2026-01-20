@@ -232,6 +232,44 @@ export type Database = {
           },
         ]
       }
+      order_sequences: {
+        Row: {
+          branch_id: string
+          created_at: string | null
+          id: string
+          last_sequence: number
+          prefix: string
+          updated_at: string | null
+          year_month: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string | null
+          id?: string
+          last_sequence?: number
+          prefix?: string
+          updated_at?: string | null
+          year_month: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string | null
+          id?: string
+          last_sequence?: number
+          prefix?: string
+          updated_at?: string | null
+          year_month?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_sequences_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_log: {
         Row: {
           changed_by: string | null
@@ -277,6 +315,7 @@ export type Database = {
           id: string
           locked_at: string | null
           notes: string | null
+          order_number: string | null
           order_status: Database["public"]["Enums"]["order_status"]
           payment_status: Database["public"]["Enums"]["payment_status"]
           subtotal: number | null
@@ -294,6 +333,7 @@ export type Database = {
           id?: string
           locked_at?: string | null
           notes?: string | null
+          order_number?: string | null
           order_status?: Database["public"]["Enums"]["order_status"]
           payment_status?: Database["public"]["Enums"]["payment_status"]
           subtotal?: number | null
@@ -311,6 +351,7 @@ export type Database = {
           id?: string
           locked_at?: string | null
           notes?: string | null
+          order_number?: string | null
           order_status?: Database["public"]["Enums"]["order_status"]
           payment_status?: Database["public"]["Enums"]["payment_status"]
           subtotal?: number | null
@@ -664,6 +705,7 @@ export type Database = {
         }
         Returns: Json
       }
+      generate_order_number: { Args: { p_branch_id: string }; Returns: string }
       get_staff_with_roles: {
         Args: never
         Returns: {

@@ -1,5 +1,19 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Category, MenuItem } from '@/types/pos';
+import type { Category, MenuItem, BillingType } from '@/types/pos';
+
+// Extended menu item creation options for bar products
+export interface CreateMenuItemOptions {
+  name: string;
+  price: number;
+  categoryId?: string;
+  description?: string;
+  imageUrl?: string;
+  bottleSizeMl?: number;
+  costPrice?: number;
+  servingSizeMl?: number;
+  servingPrice?: number;
+  billingType?: BillingType;
+}
 
 // Get all categories for branch
 export async function getCategories(): Promise<Category[]> {
@@ -125,13 +139,20 @@ export async function getMenuItem(menuItemId: string): Promise<MenuItem | null> 
   return data as unknown as MenuItem | null;
 }
 
-// Create menu item (Manager/Admin)
+// Create menu item (Manager/Admin) - Extended for bar products
 export async function createMenuItem(
   name: string,
   price: number,
   categoryId?: string,
   description?: string,
-  imageUrl?: string
+  imageUrl?: string,
+  options?: {
+    bottleSizeMl?: number;
+    costPrice?: number;
+    servingSizeMl?: number;
+    servingPrice?: number;
+    billingType?: BillingType;
+  }
 ): Promise<MenuItem> {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error('Not authenticated');
@@ -153,6 +174,11 @@ export async function createMenuItem(
       price,
       description,
       image_url: imageUrl,
+      bottle_size_ml: options?.bottleSizeMl,
+      cost_price: options?.costPrice,
+      serving_size_ml: options?.servingSizeMl,
+      serving_price: options?.servingPrice,
+      billing_type: options?.billingType || 'bottle_only',
     })
     .select(`
       *,

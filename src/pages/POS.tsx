@@ -27,6 +27,7 @@ import { finalizePayment, processSplitPayment } from '@/services/paymentService'
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { supabase } from '@/integrations/supabase/client';
 import ReceiptDialog from '@/components/ReceiptDialog';
+import ServingSelectionDialog from '@/components/ServingSelectionDialog';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch } from '@/types/pos';
 
 type OrderType = 'dine-in' | 'take-out' | 'delivery';
@@ -89,6 +90,10 @@ export default function POS() {
   
   // Kitchen view state
   const [kitchenOrders, setKitchenOrders] = useState<Order[]>([]);
+
+  // Serving selection dialog state
+  const [showServingDialog, setShowServingDialog] = useState(false);
+  const [selectedServingItem, setSelectedServingItem] = useState<MenuItem | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -244,19 +249,52 @@ export default function POS() {
     setView('menu');
   }
 
-  function addToCart(item: MenuItem) {
+  // Handle menu item click - check if serving selection needed
+  function handleMenuItemClick(item: MenuItem) {
+    if (!item.is_available) return;
+    
+    // If item is by_serving type, show selection dialog
+    if (item.billing_type === 'by_serving' && item.serving_price) {
+      setSelectedServingItem(item);
+      setShowServingDialog(true);
+    } else {
+      // For bottle_only or service items, add directly
+      addToCart(item, false);
+    }
+  }
+
+  // Add item to cart with serving type consideration
+  function addToCart(item: MenuItem, isServing: boolean = false) {
+    const price = isServing ? (item.serving_price || item.price) : item.price;
+    const cartKey = `${item.id}-${isServing ? 'serving' : 'bottle'}`;
+    
     setCart(prev => {
-      const existing = prev.find(c => c.menuItem.id === item.id);
-      if (existing) {
-        return prev.map(c => c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
+      // Find existing cart item with same id AND same serving type
+      const existingIndex = prev.findIndex(c => 
+        c.menuItem.id === item.id && c.isServing === isServing
+      );
+      
+      if (existingIndex >= 0) {
+        return prev.map((c, i) => 
+          i === existingIndex ? { ...c, quantity: c.quantity + 1 } : c
+        );
       }
-      return [...prev, { menuItem: item, quantity: 1 }];
+      return [...prev, { 
+        menuItem: { ...item, price }, // Override price based on serving type
+        quantity: 1, 
+        isServing 
+      }];
     });
   }
 
-  function updateCartQuantity(itemId: string, delta: number) {
+  // Handle serving selection from dialog
+  function handleServingSelect(item: MenuItem, isServing: boolean) {
+    addToCart(item, isServing);
+  }
+
+  function updateCartQuantity(itemId: string, isServing: boolean | undefined, delta: number) {
     setCart(prev => prev.map(c => {
-      if (c.menuItem.id === itemId) {
+      if (c.menuItem.id === itemId && c.isServing === isServing) {
         const newQty = c.quantity + delta;
         return newQty > 0 ? { ...c, quantity: newQty } : c;
       }
@@ -264,8 +302,8 @@ export default function POS() {
     }).filter(c => c.quantity > 0));
   }
 
-  function removeFromCart(itemId: string) {
-    setCart(prev => prev.filter(c => c.menuItem.id !== itemId));
+  function removeFromCart(itemId: string, isServing: boolean | undefined) {
+    setCart(prev => prev.filter(c => !(c.menuItem.id === itemId && c.isServing === isServing)));
   }
 
   const [discount, setDiscount] = useState<number>(0);
@@ -635,14 +673,24 @@ export default function POS() {
                   <Card
                     key={item.id}
                     className={`cursor-pointer hover:shadow-lg transition-all ${!item.is_available ? 'opacity-50' : ''}`}
-                    onClick={() => item.is_available && addToCart(item)}
+                    onClick={() => handleMenuItemClick(item)}
                   >
                     <CardContent className="p-3">
                       <h4 className="font-semibold text-sm truncate">{item.name}</h4>
                       <div className="flex items-center justify-between mt-2">
-                        <span className="font-bold text-primary text-sm">{item.price.toFixed(3)} OMR</span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-primary text-sm">{item.price.toFixed(3)} OMR</span>
+                          {item.billing_type === 'by_serving' && item.serving_price && (
+                            <span className="text-xs text-muted-foreground">
+                              Shot: {item.serving_price.toFixed(3)}
+                            </span>
+                          )}
+                        </div>
                         {!item.is_available && (
                           <Badge variant="destructive" className="text-xs">Out</Badge>
+                        )}
+                        {item.billing_type === 'service' && (
+                          <Badge variant="outline" className="text-xs">Service</Badge>
                         )}
                       </div>
                     </CardContent>
@@ -894,10 +942,13 @@ export default function POS() {
               </div>
             ) : (
               <div className="space-y-2">
-                {cart.map(item => (
-                  <div key={item.menuItem.id} className="flex items-center gap-2 bg-muted/50 rounded p-2">
+                {cart.map((item, idx) => (
+                  <div key={`${item.menuItem.id}-${item.isServing ? 'serving' : 'bottle'}-${idx}`} className="flex items-center gap-2 bg-muted/50 rounded p-2">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
+                      <p className="font-medium text-sm truncate">
+                        {item.menuItem.name}
+                        {item.isServing && <span className="text-xs ml-1 text-muted-foreground">(Shot)</span>}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {item.menuItem.price.toFixed(3)} OMR × {item.quantity}
                       </p>
@@ -907,7 +958,7 @@ export default function POS() {
                         size="icon" 
                         variant="ghost" 
                         className="h-6 w-6" 
-                        onClick={() => updateCartQuantity(item.menuItem.id, -1)}
+                        onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1)}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
@@ -916,7 +967,7 @@ export default function POS() {
                         size="icon" 
                         variant="ghost" 
                         className="h-6 w-6" 
-                        onClick={() => updateCartQuantity(item.menuItem.id, 1)}
+                        onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1)}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -924,7 +975,7 @@ export default function POS() {
                         size="icon" 
                         variant="ghost" 
                         className="h-6 w-6 text-destructive" 
-                        onClick={() => removeFromCart(item.menuItem.id)}
+                        onClick={() => removeFromCart(item.menuItem.id, item.isServing)}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -1230,6 +1281,14 @@ export default function POS() {
           onOpenChange={setShowReceiptDialog}
         />
       )}
+
+      {/* Serving Selection Dialog */}
+      <ServingSelectionDialog
+        open={showServingDialog}
+        onOpenChange={setShowServingDialog}
+        item={selectedServingItem}
+        onSelect={handleServingSelect}
+      />
     </div>
   );
 }

@@ -94,6 +94,7 @@ export type Database = {
           id: string
           low_stock_threshold: number | null
           menu_item_id: string
+          ml_remaining: number | null
           quantity: number
           updated_at: string | null
         }
@@ -102,6 +103,7 @@ export type Database = {
           id?: string
           low_stock_threshold?: number | null
           menu_item_id: string
+          ml_remaining?: number | null
           quantity?: number
           updated_at?: string | null
         }
@@ -110,6 +112,7 @@ export type Database = {
           id?: string
           low_stock_threshold?: number | null
           menu_item_id?: string
+          ml_remaining?: number | null
           quantity?: number
           updated_at?: string | null
         }
@@ -132,8 +135,11 @@ export type Database = {
       }
       menu_items: {
         Row: {
+          billing_type: string | null
+          bottle_size_ml: number | null
           branch_id: string
           category_id: string | null
+          cost_price: number | null
           created_at: string | null
           description: string | null
           id: string
@@ -142,11 +148,16 @@ export type Database = {
           is_available: boolean | null
           name: string
           price: number
+          serving_price: number | null
+          serving_size_ml: number | null
           updated_at: string | null
         }
         Insert: {
+          billing_type?: string | null
+          bottle_size_ml?: number | null
           branch_id: string
           category_id?: string | null
+          cost_price?: number | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -155,11 +166,16 @@ export type Database = {
           is_available?: boolean | null
           name: string
           price: number
+          serving_price?: number | null
+          serving_size_ml?: number | null
           updated_at?: string | null
         }
         Update: {
+          billing_type?: string | null
+          bottle_size_ml?: number | null
           branch_id?: string
           category_id?: string | null
+          cost_price?: number | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -168,6 +184,8 @@ export type Database = {
           is_available?: boolean | null
           name?: string
           price?: number
+          serving_price?: number | null
+          serving_size_ml?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -191,6 +209,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_serving: boolean | null
           menu_item_id: string | null
           notes: string | null
           order_id: string
@@ -201,6 +220,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          is_serving?: boolean | null
           menu_item_id?: string | null
           notes?: string | null
           order_id: string
@@ -211,6 +231,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          is_serving?: boolean | null
           menu_item_id?: string | null
           notes?: string | null
           order_id?: string

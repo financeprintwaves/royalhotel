@@ -8,6 +8,9 @@ export type OrderStatus =
   | 'PAID' 
   | 'CLOSED';
 
+// Billing type for bar products
+export type BillingType = 'bottle_only' | 'by_serving' | 'service';
+
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded';
 
 export type AppRole = 'admin' | 'manager' | 'cashier' | 'kitchen';
@@ -69,6 +72,12 @@ export interface MenuItem {
   created_at: string;
   updated_at: string;
   category?: Category;
+  // Bar product fields
+  bottle_size_ml: number | null;
+  cost_price: number | null;
+  serving_size_ml: number | null;
+  serving_price: number | null;
+  billing_type: BillingType;
 }
 
 export interface Inventory {
@@ -193,6 +202,7 @@ export interface CartItem {
   menuItem: MenuItem;
   quantity: number;
   notes?: string;
+  isServing?: boolean; // true if ordering by shot/glass for by_serving items
 }
 
 // Order workflow helpers

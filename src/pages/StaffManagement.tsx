@@ -339,12 +339,12 @@ export default function StaffManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label>Branch</Label>
-                  <Select value={newStaffBranch} onValueChange={setNewStaffBranch}>
+                  <Select value={newStaffBranch} onValueChange={(v) => setNewStaffBranch(v === 'none' ? '' : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select branch (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Branch</SelectItem>
+                      <SelectItem value="none">No Branch</SelectItem>
                       {branches.map((branch) => (
                         <SelectItem key={branch.id} value={branch.id}>
                           {branch.name}
@@ -355,12 +355,12 @@ export default function StaffManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label>Initial Role</Label>
-                  <Select value={newStaffRole} onValueChange={(v) => setNewStaffRole(v as AppRole | '')}>
+                  <Select value={newStaffRole || 'none'} onValueChange={(v) => setNewStaffRole(v === 'none' ? '' : v as AppRole)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select role (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Role</SelectItem>
+                      <SelectItem value="none">No Role</SelectItem>
                       {ALL_ROLES.map((role) => (
                         <SelectItem key={role} value={role}>
                           {role.charAt(0).toUpperCase() + role.slice(1)}

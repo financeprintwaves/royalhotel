@@ -260,11 +260,10 @@ export default function POS() {
     setCart(prev => prev.filter(c => c.menuItem.id !== itemId));
   }
 
+  const [discount, setDiscount] = useState<number>(0);
+  
   const subtotal = cart.reduce((sum, c) => sum + c.menuItem.price * c.quantity, 0);
-  const taxRate = 0.05;
-  const tax = subtotal * taxRate;
-  const discount = 0;
-  const total = subtotal + tax - discount;
+  const total = subtotal - discount;
   const existingTotal = existingOrder?.total_amount ? Number(existingOrder.total_amount) : 0;
   const grandTotal = existingTotal + total;
 
@@ -380,13 +379,14 @@ export default function POS() {
       setShowPaymentDialog(false);
       toast({ 
         title: 'Payment Successful!', 
-        description: `$${paymentTotal.toFixed(2)} received via ${paymentMethod}` 
+        description: `${paymentTotal.toFixed(3)} OMR received via ${paymentMethod}` 
       });
       
       setCart([]);
       setExistingOrder(null);
       setSelectedTable(null);
       setCustomerName('');
+      setDiscount(0);
       setView('floor');
       setTransactionRef('');
       loadTables();
@@ -436,7 +436,7 @@ export default function POS() {
       setShowPaymentDialog(false);
       setSelectedOrderForPayment(null);
       setTransactionRef('');
-      toast({ title: 'Payment Successful!', description: `$${paymentTotal.toFixed(2)} received` });
+      toast({ title: 'Payment Successful!', description: `${paymentTotal.toFixed(3)} OMR received` });
       
       // Show receipt
       const updatedOrder = await getOrder(selectedOrderForPayment.id);
@@ -632,7 +632,7 @@ export default function POS() {
                     <CardContent className="p-3">
                       <h4 className="font-semibold text-sm truncate">{item.name}</h4>
                       <div className="flex items-center justify-between mt-2">
-                        <span className="font-bold text-primary text-sm">${item.price.toFixed(2)}</span>
+                        <span className="font-bold text-primary text-sm">{item.price.toFixed(3)} OMR</span>
                         {!item.is_available && (
                           <Badge variant="destructive" className="text-xs">Out</Badge>
                         )}
@@ -683,7 +683,7 @@ export default function POS() {
                         <Separator />
                         <div className="flex justify-between font-semibold">
                           <span>Total</span>
-                          <span>${Number(order.total_amount || 0).toFixed(2)}</span>
+                          <span>{Number(order.total_amount || 0).toFixed(3)} OMR</span>
                         </div>
                         <div className="flex gap-2 pt-2">
                           {order.order_status === 'CREATED' && (
@@ -737,7 +737,7 @@ export default function POS() {
                       <CardContent>
                         <div className="flex justify-between font-semibold">
                           <span>Total</span>
-                          <span>${Number(order.total_amount || 0).toFixed(2)}</span>
+                          <span>{Number(order.total_amount || 0).toFixed(3)} OMR</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
                           {new Date(order.created_at).toLocaleString()}
@@ -867,13 +867,13 @@ export default function POS() {
               {existingOrder.order_items.map((item: any) => (
                 <div key={item.id} className="flex justify-between text-xs py-1 opacity-70">
                   <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
-                  <span>${Number(item.total_price).toFixed(2)}</span>
+                  <span>{Number(item.total_price).toFixed(3)} OMR</span>
                 </div>
               ))}
               <Separator className="my-2" />
               <div className="flex justify-between text-xs font-medium">
                 <span>Previous Total</span>
-                <span>${existingTotal.toFixed(2)}</span>
+                <span>{existingTotal.toFixed(3)} OMR</span>
               </div>
             </div>
           )}
@@ -891,7 +891,7 @@ export default function POS() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        ${item.menuItem.price.toFixed(2)} × {item.quantity}
+                        {item.menuItem.price.toFixed(3)} OMR × {item.quantity}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -936,35 +936,41 @@ export default function POS() {
               </div>
             </div>
             
-            <div className="px-4 py-3 space-y-1 text-sm">
+            <div className="px-4 py-3 space-y-2 text-sm">
               {cart.length > 0 && (
-                <>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>New Items Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Tax (5%)</span>
-                    <span>${tax.toFixed(2)}</span>
-                  </div>
-                </>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{subtotal.toFixed(3)} OMR</span>
+                </div>
               )}
               {existingOrder && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Previous Order</span>
-                  <span>${existingTotal.toFixed(2)}</span>
+                  <span>{existingTotal.toFixed(3)} OMR</span>
                 </div>
               )}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Discount</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="0.000"
+                  value={discount || ''}
+                  onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-28 h-7 text-sm text-right"
+                />
+              </div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-500">
-                  <span>DISCOUNT</span>
-                  <span>-${discount.toFixed(2)}</span>
+                  <span>Discount Applied</span>
+                  <span>-{discount.toFixed(3)} OMR</span>
                 </div>
               )}
               <Separator className="my-2" />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>${grandTotal.toFixed(2)}</span>
+                <span>{grandTotal.toFixed(3)} OMR</span>
               </div>
             </div>
 
@@ -998,9 +1004,9 @@ export default function POS() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Process Payment - ${selectedOrderForPayment 
-                ? Number(selectedOrderForPayment.total_amount || 0).toFixed(2) 
-                : grandTotal.toFixed(2)}
+              Process Payment - {selectedOrderForPayment 
+                ? Number(selectedOrderForPayment.total_amount || 0).toFixed(3) 
+                : grandTotal.toFixed(3)} OMR
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">

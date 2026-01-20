@@ -102,7 +102,10 @@ export default function KitchenDisplay() {
               <Card key={order.id} className="border-2 border-yellow-500/50">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center justify-between">
-                    <span>{(order as any).table?.table_number || 'Takeaway'}</span>
+                    <div className="flex flex-col">
+                      <span className="text-lg font-bold">{order.order_number || order.id.slice(-8).toUpperCase()}</span>
+                      <span className="text-sm font-normal text-muted-foreground">{(order as any).table?.table_number || 'Takeaway'}</span>
+                    </div>
                     <Badge className="bg-yellow-500">{order.order_status}</Badge>
                   </CardTitle>
                 </CardHeader>

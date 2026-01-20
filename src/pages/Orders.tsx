@@ -250,7 +250,8 @@ export default function Orders() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
                       <div className="flex flex-col">
-                        <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                        <span className="font-bold text-primary">{order.order_number || order.id.slice(-8).toUpperCase()}</span>
+                        <span className="text-sm font-normal">{(order as any).table?.table_number || 'Takeaway'}</span>
                         {(order as any).customer_name && (
                           <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
                             <User className="h-3 w-3" />
@@ -328,7 +329,8 @@ export default function Orders() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
                       <div className="flex flex-col">
-                        <span className="font-bold">{(order as any).table?.table_number || 'Takeaway'}</span>
+                        <span className="font-bold text-primary">{order.order_number || order.id.slice(-8).toUpperCase()}</span>
+                        <span className="text-sm font-normal">{(order as any).table?.table_number || 'Takeaway'}</span>
                         {(order as any).customer_name && (
                           <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
                             <User className="h-3 w-3" />

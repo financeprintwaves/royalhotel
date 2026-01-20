@@ -96,6 +96,7 @@ export interface Order {
   branch_id: string;
   table_id: string | null;
   created_by: string | null;
+  order_number: string | null;
   order_status: OrderStatus;
   payment_status: PaymentStatus;
   subtotal: number;

@@ -38,8 +38,8 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
 
         {/* Order Info */}
         <div className="border-b border-dashed border-gray-400 pb-4 mb-4">
-          <p className="text-xs">
-            <span className="font-bold">Order #:</span> {order.id.slice(-8).toUpperCase()}
+          <p className="text-base font-bold text-center mb-2">
+            {order.order_number || order.id.slice(-8).toUpperCase()}
           </p>
           {customerName && (
             <p className="text-xs">

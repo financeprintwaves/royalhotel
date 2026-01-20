@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import type { Category, MenuItem, BillingType } from '@/types/pos';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -47,7 +48,7 @@ import {
   toggleMenuItemAvailability,
 } from '@/services/menuService';
 import { createInventoryEntry } from '@/services/inventoryService';
-import type { Category, MenuItem } from '@/types/pos';
+
 
 export default function MenuManagement() {
   const { roles } = useAuth();
@@ -74,6 +75,13 @@ export default function MenuManagement() {
   const [itemCategoryId, setItemCategoryId] = useState<string>('');
   const [createInventory, setCreateInventory] = useState(true);
   const [initialStock, setInitialStock] = useState('50');
+  
+  // Bar product fields
+  const [billingType, setBillingType] = useState<BillingType>('bottle_only');
+  const [bottleSizeMl, setBottleSizeMl] = useState('');
+  const [costPrice, setCostPrice] = useState('');
+  const [servingSizeMl, setServingSizeMl] = useState('60');
+  const [servingPrice, setServingPrice] = useState('');
 
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -151,6 +159,12 @@ export default function MenuManagement() {
       setItemImageUrl(item.image_url || '');
       setItemCategoryId(item.category_id || '');
       setCreateInventory(false);
+      // Bar fields
+      setBillingType(item.billing_type || 'bottle_only');
+      setBottleSizeMl(item.bottle_size_ml?.toString() || '');
+      setCostPrice(item.cost_price?.toString() || '');
+      setServingSizeMl(item.serving_size_ml?.toString() || '60');
+      setServingPrice(item.serving_price?.toString() || '');
     } else {
       setEditingItem(null);
       setItemName('');
@@ -160,6 +174,12 @@ export default function MenuManagement() {
       setItemCategoryId(selectedCategory || '');
       setCreateInventory(true);
       setInitialStock('50');
+      // Reset bar fields
+      setBillingType('bottle_only');
+      setBottleSizeMl('');
+      setCostPrice('');
+      setServingSizeMl('60');
+      setServingPrice('');
     }
     setItemDialogOpen(true);
   }

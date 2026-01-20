@@ -28,7 +28,22 @@ import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { supabase } from '@/integrations/supabase/client';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import ServingSelectionDialog from '@/components/ServingSelectionDialog';
+import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch } from '@/types/pos';
+
+// Category color mapping for colorful UI
+const CATEGORY_COLORS: Record<string, string> = {
+  'Beer': 'bg-amber-500 hover:bg-amber-600 text-white',
+  'Whiskey': 'bg-orange-700 hover:bg-orange-800 text-white',
+  'Vodka': 'bg-sky-400 hover:bg-sky-500 text-white',
+  'Rum': 'bg-amber-800 hover:bg-amber-900 text-white',
+  'Gin': 'bg-teal-500 hover:bg-teal-600 text-white',
+  'Wine': 'bg-rose-700 hover:bg-rose-800 text-white',
+  'Champagne': 'bg-yellow-500 hover:bg-yellow-600 text-black',
+  'Soft Drink': 'bg-green-500 hover:bg-green-600 text-white',
+  'Tequila': 'bg-lime-600 hover:bg-lime-700 text-white',
+  'Service': 'bg-purple-500 hover:bg-purple-600 text-white',
+};
 
 type OrderType = 'dine-in' | 'take-out' | 'delivery';
 type ViewType = 'floor' | 'menu' | 'orders' | 'kitchen';
@@ -94,6 +109,11 @@ export default function POS() {
   // Serving selection dialog state
   const [showServingDialog, setShowServingDialog] = useState(false);
   const [selectedServingItem, setSelectedServingItem] = useState<MenuItem | null>(null);
+
+  // Payment success overlay state
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [paymentSuccessAmount, setPaymentSuccessAmount] = useState(0);
+  const [autoPrintOrder, setAutoPrintOrder] = useState<Order | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -423,10 +443,15 @@ export default function POS() {
       await finalizePayment(orderId, paymentTotal, paymentMethod, ref);
       
       setShowPaymentDialog(false);
-      toast({ 
-        title: 'Payment Successful!', 
-        description: `${paymentTotal.toFixed(3)} OMR received via ${paymentMethod}` 
-      });
+      
+      // Show celebration overlay and trigger auto-print
+      setPaymentSuccessAmount(paymentTotal);
+      setShowPaymentSuccess(true);
+      
+      const updatedOrder = await getOrder(orderId);
+      if (updatedOrder) {
+        setAutoPrintOrder(updatedOrder);
+      }
       
       setCart([]);
       setExistingOrder(null);
@@ -482,13 +507,14 @@ export default function POS() {
       setShowPaymentDialog(false);
       setSelectedOrderForPayment(null);
       setTransactionRef('');
-      toast({ title: 'Payment Successful!', description: `${paymentTotal.toFixed(3)} OMR received` });
       
-      // Show receipt
+      // Show celebration overlay and trigger auto-print
+      setPaymentSuccessAmount(paymentTotal);
+      setShowPaymentSuccess(true);
+      
       const updatedOrder = await getOrder(selectedOrderForPayment.id);
       if (updatedOrder) {
-        setReceiptOrder(updatedOrder);
-        setShowReceiptDialog(true);
+        setAutoPrintOrder(updatedOrder);
       }
       
       loadAllOrders();
@@ -526,11 +552,11 @@ export default function POS() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b bg-card px-4 py-2 flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-4 py-2 flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/20">
             <ArrowLeft className="h-4 w-4 mr-2" />Back
           </Button>
-          <h1 className="font-bold text-lg">POS</h1>
+          <h1 className="font-bold text-lg text-white">🍸 POS Terminal</h1>
           <div className="flex gap-2 ml-4">
             <Button 
               variant={view === 'floor' ? 'default' : 'outline'} 
@@ -1279,6 +1305,7 @@ export default function POS() {
           order={receiptOrder}
           open={showReceiptDialog}
           onOpenChange={setShowReceiptDialog}
+          autoPrint={true}
         />
       )}
 
@@ -1288,6 +1315,20 @@ export default function POS() {
         onOpenChange={setShowServingDialog}
         item={selectedServingItem}
         onSelect={handleServingSelect}
+      />
+
+      {/* Payment Success Overlay */}
+      <PaymentSuccessOverlay
+        show={showPaymentSuccess}
+        amount={paymentSuccessAmount}
+        onComplete={() => {
+          setShowPaymentSuccess(false);
+          if (autoPrintOrder) {
+            setReceiptOrder(autoPrintOrder);
+            setShowReceiptDialog(true);
+            setAutoPrintOrder(null);
+          }
+        }}
       />
     </div>
   );

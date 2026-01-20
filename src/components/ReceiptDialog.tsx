@@ -10,19 +10,33 @@ interface ReceiptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order: Order | null;
+  autoPrint?: boolean;
 }
 
-export default function ReceiptDialog({ open, onOpenChange, order }: ReceiptDialogProps) {
+export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = false }: ReceiptDialogProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [hasPrinted, setHasPrinted] = useState(false);
 
   useEffect(() => {
     if (order && open) {
       getOrderPayments(order.id)
         .then(setPayments)
         .catch(console.error);
+      setHasPrinted(false);
     }
   }, [order, open]);
+
+  // Auto-print when dialog opens with autoPrint flag
+  useEffect(() => {
+    if (open && autoPrint && !hasPrinted && receiptRef.current) {
+      const timer = setTimeout(() => {
+        handlePrint();
+        setHasPrinted(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [open, autoPrint, hasPrinted]);
 
   function handlePrint() {
     if (!receiptRef.current) return;

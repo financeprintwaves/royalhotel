@@ -2,26 +2,34 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
-  Smartphone, User, ChefHat, ShoppingCart, LayoutGrid
+  Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
+  Wifi, Clock, Check, Receipt
 } from 'lucide-react';
 import { getTables } from '@/services/tableService';
+import { getAllBranches } from '@/services/staffService';
 import { getCategories, getMenuItems } from '@/services/menuService';
 import { 
-  createOrder, addOrderItem, sendToKitchen, getOrder 
+  createOrder, addOrderItem, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
+  markAsServed, requestBill, searchOrders
 } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
+import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { supabase } from '@/integrations/supabase/client';
-import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod } from '@/types/pos';
+import ReceiptDialog from '@/components/ReceiptDialog';
+import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch } from '@/types/pos';
 
 type OrderType = 'dine-in' | 'take-out' | 'delivery';
+type ViewType = 'floor' | 'menu' | 'orders' | 'kitchen';
 
 const TABLE_STATUS_COLORS: Record<string, string> = {
   available: 'border-green-500 bg-green-500/10',
@@ -30,10 +38,20 @@ const TABLE_STATUS_COLORS: Record<string, string> = {
   cleaning: 'border-yellow-500 bg-yellow-500/10',
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  CREATED: 'bg-gray-500',
+  SENT_TO_KITCHEN: 'bg-yellow-500',
+  SERVED: 'bg-blue-500',
+  BILL_REQUESTED: 'bg-orange-500',
+  PAID: 'bg-green-500',
+  CLOSED: 'bg-muted',
+};
+
 export default function POS() {
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // Core POS state
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -46,18 +64,52 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
-  const [view, setView] = useState<'floor' | 'menu'>('floor');
+  const [view, setView] = useState<ViewType>('floor');
   const [customerName, setCustomerName] = useState('');
+  
+  // Branch state
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  
+  // Orders view state
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [ordersTab, setOrdersTab] = useState<'active' | 'completed'>('active');
+  const [isConnected, setIsConnected] = useState(false);
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  
+  // Kitchen view state
+  const [kitchenOrders, setKitchenOrders] = useState<Order[]>([]);
 
+  // Load initial data
   useEffect(() => {
-    loadTables();
+    loadBranches();
     loadCategories();
     loadMenuItems();
   }, []);
 
+  // Load tables when branch changes
+  useEffect(() => {
+    loadTables();
+  }, [selectedBranch]);
+
+  async function loadBranches() {
+    try {
+      const data = await getAllBranches();
+      setBranches(data);
+      // Set default branch from user profile or first branch
+      if (data.length > 0 && !selectedBranch) {
+        setSelectedBranch(data[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to load branches:', error);
+    }
+  }
+
   async function loadTables() {
     try {
-      const data = await getTables();
+      const data = await getTables(selectedBranch || undefined);
       setTables(data);
     } catch (error) {
       console.error('Failed to load tables:', error);
@@ -81,6 +133,58 @@ export default function POS() {
       console.error('Failed to load menu items:', error);
     }
   }
+
+  // Orders view functions
+  const loadAllOrders = useCallback(async () => {
+    try {
+      const data = await getOrders();
+      setAllOrders(data);
+      setIsConnected(true);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      setIsConnected(false);
+    }
+  }, []);
+
+  // Kitchen view functions  
+  const loadKitchenOrders = useCallback(async () => {
+    try {
+      const data = await getKitchenOrders();
+      setKitchenOrders(data);
+      setIsConnected(true);
+    } catch (error) {
+      console.error('Failed to load kitchen orders:', error);
+      setIsConnected(false);
+    }
+  }, []);
+
+  // Load orders data when view changes
+  useEffect(() => {
+    if (view === 'orders') {
+      loadAllOrders();
+    } else if (view === 'kitchen') {
+      loadKitchenOrders();
+    }
+  }, [view, loadAllOrders, loadKitchenOrders]);
+
+  // Realtime subscription for orders
+  useOrdersRealtime(
+    useCallback(() => {
+      if (view === 'orders') loadAllOrders();
+      if (view === 'kitchen') {
+        loadKitchenOrders();
+        toast({ title: 'New Order!', description: 'A new order has arrived' });
+      }
+    }, [view, loadAllOrders, loadKitchenOrders, toast]),
+    useCallback(() => {
+      if (view === 'orders') loadAllOrders();
+      if (view === 'kitchen') loadKitchenOrders();
+    }, [view, loadAllOrders, loadKitchenOrders]),
+    useCallback((deletedId: string) => {
+      setAllOrders(prev => prev.filter(o => o.id !== deletedId));
+      setKitchenOrders(prev => prev.filter(o => o.id !== deletedId));
+    }, [])
+  );
 
   // Check if table has existing order
   async function checkExistingOrder(tableId: string): Promise<Order | null> {
@@ -113,7 +217,6 @@ export default function POS() {
     setSelectedTable(table);
     setView('menu');
     
-    // Check for existing order on this table
     const existing = await checkExistingOrder(table.id);
     if (existing) {
       setExistingOrder(existing);
@@ -158,12 +261,10 @@ export default function POS() {
   }
 
   const subtotal = cart.reduce((sum, c) => sum + c.menuItem.price * c.quantity, 0);
-  const taxRate = 0.05; // 5% tax
+  const taxRate = 0.05;
   const tax = subtotal * taxRate;
   const discount = 0;
   const total = subtotal + tax - discount;
-
-  // Combined total including existing order
   const existingTotal = existingOrder?.total_amount ? Number(existingOrder.total_amount) : 0;
   const grandTotal = existingTotal + total;
 
@@ -178,15 +279,12 @@ export default function POS() {
       let orderId: string;
       
       if (existingOrder) {
-        // Add items to existing order
         orderId = existingOrder.id;
         for (const item of cart) {
           await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
         }
         
-        // If order was SERVED or later, send back to kitchen for new items
         if (existingOrder.order_status !== 'CREATED' && existingOrder.order_status !== 'SENT_TO_KITCHEN') {
-          // Update to SENT_TO_KITCHEN status again
           await supabase
             .from('orders')
             .update({ order_status: 'SENT_TO_KITCHEN', updated_at: new Date().toISOString() })
@@ -200,7 +298,6 @@ export default function POS() {
           description: `${cart.length} items sent to kitchen for ${selectedTable?.table_number || 'Takeaway'}` 
         });
       } else {
-        // Create new order with customer name
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
         
@@ -215,7 +312,6 @@ export default function POS() {
         });
       }
       
-      // Clear cart and refresh
       setCart([]);
       setExistingOrder(null);
       setSelectedTable(null);
@@ -247,18 +343,15 @@ export default function POS() {
       if (existingOrder) {
         orderId = existingOrder.id;
         
-        // Add any new cart items first
         if (cart.length > 0) {
           for (const item of cart) {
             await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
           }
         }
         
-        // Refetch order to get updated total
         const updatedOrder = await getOrder(orderId);
         paymentTotal = Number(updatedOrder?.total_amount || 0);
         
-        // If not already at BILL_REQUESTED, update status
         if (existingOrder.order_status !== 'BILL_REQUESTED') {
           await supabase.rpc('update_order_status', {
             p_order_id: orderId,
@@ -266,7 +359,6 @@ export default function POS() {
           });
         }
       } else {
-        // Create new order for immediate payment with customer name
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
         
@@ -274,26 +366,14 @@ export default function POS() {
           await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
         }
         
-        // Get updated total
         const updatedOrder = await getOrder(orderId);
         paymentTotal = Number(updatedOrder?.total_amount || 0);
         
-        // Send to kitchen and immediately request bill
         await sendToKitchen(orderId);
-        
-        // Wait briefly for status to update, then request bill
-        await supabase.rpc('update_order_status', {
-          p_order_id: orderId,
-          p_new_status: 'SERVED'
-        });
-        
-        await supabase.rpc('update_order_status', {
-          p_order_id: orderId,
-          p_new_status: 'BILL_REQUESTED'
-        });
+        await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SERVED' });
+        await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
       }
       
-      // Process payment
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
       await finalizePayment(orderId, paymentTotal, paymentMethod, ref);
       
@@ -303,7 +383,6 @@ export default function POS() {
         description: `$${paymentTotal.toFixed(2)} received via ${paymentMethod}` 
       });
       
-      // Reset state
       setCart([]);
       setExistingOrder(null);
       setSelectedTable(null);
@@ -319,9 +398,82 @@ export default function POS() {
     }
   }
 
+  // Order view handlers
+  async function handleOrderStatusUpdate(orderId: string, action: 'kitchen' | 'served' | 'bill') {
+    setLoading(true);
+    try {
+      if (action === 'kitchen') {
+        await sendToKitchen(orderId);
+        toast({ title: 'Sent to Kitchen' });
+      } else if (action === 'served') {
+        await markAsServed(orderId);
+        toast({ title: 'Marked as Served' });
+      } else if (action === 'bill') {
+        await requestBill(orderId);
+        toast({ title: 'Bill Requested' });
+      }
+      loadAllOrders();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOrderPayment(order: Order) {
+    setSelectedOrderForPayment(order);
+    setShowPaymentDialog(true);
+  }
+
+  async function handleProcessOrderPayment() {
+    if (!selectedOrderForPayment) return;
+    setLoading(true);
+    try {
+      const paymentTotal = Number(selectedOrderForPayment.total_amount || 0);
+      const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
+      await finalizePayment(selectedOrderForPayment.id, paymentTotal, paymentMethod, ref);
+      
+      setShowPaymentDialog(false);
+      setSelectedOrderForPayment(null);
+      setTransactionRef('');
+      toast({ title: 'Payment Successful!', description: `$${paymentTotal.toFixed(2)} received` });
+      
+      // Show receipt
+      const updatedOrder = await getOrder(selectedOrderForPayment.id);
+      if (updatedOrder) {
+        setReceiptOrder(updatedOrder);
+        setShowReceiptDialog(true);
+      }
+      
+      loadAllOrders();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Kitchen view handlers
+  async function handleMarkServed(orderId: string) {
+    setLoading(true);
+    try {
+      await markAsServed(orderId);
+      toast({ title: 'Order Served!' });
+      setKitchenOrders(prev => prev.filter(o => o.id !== orderId));
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      loadKitchenOrders();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const filteredItems = selectedCategory
     ? menuItems.filter(i => i.category_id === selectedCategory)
     : menuItems;
+
+  const activeOrders = allOrders.filter(o => !['PAID', 'CLOSED'].includes(o.order_status));
+  const completedOrders = allOrders.filter(o => ['PAID', 'CLOSED'].includes(o.order_status));
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -350,12 +502,34 @@ export default function POS() {
               <ShoppingCart className="h-4 w-4 mr-1" />
               Menu
             </Button>
+            <Button 
+              variant={view === 'orders' ? 'default' : 'outline'} 
+              size="sm"
+              onClick={() => setView('orders')}
+            >
+              <ClipboardList className="h-4 w-4 mr-1" />
+              Orders
+            </Button>
+            <Button 
+              variant={view === 'kitchen' ? 'default' : 'outline'} 
+              size="sm"
+              onClick={() => setView('kitchen')}
+            >
+              <ChefHat className="h-4 w-4 mr-1" />
+              Kitchen
+            </Button>
           </div>
           {selectedTable && (
             <Badge variant="secondary" className="ml-2">
               {selectedTable.table_number}
             </Badge>
           )}
+          <div className="ml-auto flex items-center gap-2">
+            <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`} />
+            <span className="text-xs text-muted-foreground">
+              {isConnected ? 'Live' : 'Connecting...'}
+            </span>
+          </div>
         </header>
 
         {/* Floor View */}
@@ -366,16 +540,31 @@ export default function POS() {
                 <LayoutGrid className="h-5 w-5" />
                 FLOOR STATUS
               </h2>
-              <div className="flex gap-3 text-xs">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500" /> FREE
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-orange-500" /> ACTIVE
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500" /> RESERVED
-                </span>
+              <div className="flex items-center gap-4">
+                {/* Branch Selector */}
+                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Select Branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-3 text-xs">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500" /> FREE
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" /> ACTIVE
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" /> RESERVED
+                  </span>
+                </div>
               </div>
             </div>
             
@@ -389,17 +578,13 @@ export default function POS() {
                   <CardContent className="p-4 text-center">
                     <div className="text-xl font-bold">{table.table_number}</div>
                     <div className="text-xs text-muted-foreground">{table.capacity} seats</div>
-                    <Badge 
-                      variant="outline" 
-                      className="mt-2 text-xs capitalize"
-                    >
+                    <Badge variant="outline" className="mt-2 text-xs capitalize">
                       {table.status}
                     </Badge>
                   </CardContent>
                 </Card>
               ))}
               
-              {/* Takeout Option */}
               <Card
                 className="cursor-pointer transition-all hover:shadow-lg border-2 border-dashed border-muted-foreground/30"
                 onClick={handleTakeout}
@@ -416,7 +601,6 @@ export default function POS() {
         {/* Menu View */}
         {view === 'menu' && (
           <div className="flex-1 flex overflow-hidden">
-            {/* Categories */}
             <aside className="w-32 border-r bg-muted/30 p-2 overflow-auto">
               <Button
                 variant={selectedCategory === null ? 'default' : 'ghost'}
@@ -437,7 +621,6 @@ export default function POS() {
               ))}
             </aside>
 
-            {/* Menu Items Grid */}
             <main className="flex-1 p-4 overflow-auto">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {filteredItems.map(item => (
@@ -461,191 +644,364 @@ export default function POS() {
             </main>
           </div>
         )}
-      </div>
 
-      {/* Right Sidebar - Current Order */}
-      <aside className="w-80 border-l bg-card flex flex-col">
-        {/* Order Header */}
-        <div className="p-4 border-b">
-          <div className="flex items-center gap-2 text-lg font-semibold">
-            <ShoppingCart className="h-5 w-5" />
-            Current Order
-          </div>
-          {selectedTable && (
-            <div className="text-sm text-muted-foreground mt-1">
-              {selectedTable.table_number}
-            </div>
-          )}
-        </div>
-
-        {/* Customer Name Input */}
-        <div className="px-4 py-3 border-b">
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Customer Name</label>
-          <Input
-            placeholder="Enter customer name (optional)"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            className="h-8 text-sm"
-          />
-        </div>
-
-        {/* Order Type Toggle */}
-        <div className="px-4 py-3 border-b">
-          <div className="grid grid-cols-3 gap-1">
-            {(['dine-in', 'take-out', 'delivery'] as OrderType[]).map(type => (
-              <Button
-                key={type}
-                variant={orderType === type ? 'default' : 'outline'}
-                size="sm"
-                className="text-xs capitalize"
-                onClick={() => setOrderType(type)}
-              >
-                {type}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {/* Existing Order Items */}
-        {existingOrder && existingOrder.order_items && existingOrder.order_items.length > 0 && (
-          <div className="px-4 py-2 bg-muted/50 border-b">
-            <div className="text-xs font-medium text-muted-foreground mb-2">Previous Items</div>
-            {existingOrder.order_items.map((item: any) => (
-              <div key={item.id} className="flex justify-between text-xs py-1 opacity-70">
-                <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
-                <span>${Number(item.total_price).toFixed(2)}</span>
+        {/* Orders View */}
+        {view === 'orders' && (
+          <main className="flex-1 p-4 overflow-auto">
+            <Tabs value={ordersTab} onValueChange={(v) => setOrdersTab(v as 'active' | 'completed')}>
+              <div className="flex items-center justify-between mb-4">
+                <TabsList>
+                  <TabsTrigger value="active">Active ({activeOrders.length})</TabsTrigger>
+                  <TabsTrigger value="completed">Completed ({completedOrders.length})</TabsTrigger>
+                </TabsList>
               </div>
-            ))}
-            <Separator className="my-2" />
-            <div className="flex justify-between text-xs font-medium">
-              <span>Previous Total</span>
-              <span>${existingTotal.toFixed(2)}</span>
-            </div>
-          </div>
+
+              <TabsContent value="active" className="mt-0">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {activeOrders.map(order => (
+                    <Card key={order.id} className="border-l-4" style={{ borderLeftColor: STATUS_COLORS[order.order_status]?.replace('bg-', '') }}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center justify-between text-base">
+                          <span>{(order as any).table?.table_number || 'Takeaway'}</span>
+                          <Badge className={STATUS_COLORS[order.order_status]}>{order.order_status}</Badge>
+                        </CardTitle>
+                        {(order as any).customer_name && (
+                          <p className="text-sm text-muted-foreground">{(order as any).customer_name}</p>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="text-sm space-y-1">
+                          {((order as any).order_items || []).slice(0, 3).map((item: any) => (
+                            <div key={item.id} className="flex justify-between">
+                              <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
+                            </div>
+                          ))}
+                          {((order as any).order_items || []).length > 3 && (
+                            <p className="text-muted-foreground">+{((order as any).order_items || []).length - 3} more</p>
+                          )}
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between font-semibold">
+                          <span>Total</span>
+                          <span>${Number(order.total_amount || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          {order.order_status === 'CREATED' && (
+                            <Button size="sm" className="flex-1" onClick={() => handleOrderStatusUpdate(order.id, 'kitchen')}>
+                              <Send className="h-3 w-3 mr-1" />Kitchen
+                            </Button>
+                          )}
+                          {order.order_status === 'SENT_TO_KITCHEN' && (
+                            <Button size="sm" className="flex-1" onClick={() => handleOrderStatusUpdate(order.id, 'served')}>
+                              <Check className="h-3 w-3 mr-1" />Served
+                            </Button>
+                          )}
+                          {order.order_status === 'SERVED' && (
+                            <Button size="sm" className="flex-1" onClick={() => handleOrderStatusUpdate(order.id, 'bill')}>
+                              <Receipt className="h-3 w-3 mr-1" />Bill
+                            </Button>
+                          )}
+                          {order.order_status === 'BILL_REQUESTED' && (
+                            <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleOrderPayment(order)}>
+                              <CreditCard className="h-3 w-3 mr-1" />Pay
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {activeOrders.length === 0 && (
+                    <Card className="col-span-full">
+                      <CardContent className="py-12 text-center">
+                        <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-lg font-medium">No active orders</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="completed" className="mt-0">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {completedOrders.slice(0, 20).map(order => (
+                    <Card key={order.id} className="opacity-75">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center justify-between text-base">
+                          <span>{(order as any).table?.table_number || 'Takeaway'}</span>
+                          <Badge className="bg-green-500">PAID</Badge>
+                        </CardTitle>
+                        {(order as any).customer_name && (
+                          <p className="text-sm text-muted-foreground">{(order as any).customer_name}</p>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex justify-between font-semibold">
+                          <span>Total</span>
+                          <span>${Number(order.total_amount || 0).toFixed(2)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {new Date(order.created_at).toLocaleString()}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {completedOrders.length === 0 && (
+                    <Card className="col-span-full">
+                      <CardContent className="py-12 text-center">
+                        <p className="text-muted-foreground">No completed orders yet</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </main>
         )}
 
-        {/* Cart Items */}
-        <ScrollArea className="flex-1 p-4">
-          {cart.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">TICKET IS EMPTY</p>
+        {/* Kitchen View */}
+        {view === 'kitchen' && (
+          <main className="flex-1 p-4 overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ChefHat className="h-5 w-5 text-primary" />
+                <h2 className="font-semibold">Kitchen Display</h2>
+              </div>
+              <Badge variant="secondary">{kitchenOrders.length} orders</Badge>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {cart.map(item => (
-                <div key={item.menuItem.id} className="flex items-center gap-2 bg-muted/50 rounded p-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ${item.menuItem.price.toFixed(2)} × {item.quantity}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-6 w-6" 
-                      onClick={() => updateCartQuantity(item.menuItem.id, -1)}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-5 text-center text-sm">{item.quantity}</span>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-6 w-6" 
-                      onClick={() => updateCartQuantity(item.menuItem.id, 1)}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-6 w-6 text-destructive" 
-                      onClick={() => removeFromCart(item.menuItem.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
+
+            {kitchenOrders.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium">No orders in queue</p>
+                  <p className="text-sm text-muted-foreground">New orders will appear here automatically</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {kitchenOrders.map(order => (
+                  <Card key={order.id} className="border-2 border-yellow-500/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center justify-between">
+                        <span>{(order as any).table?.table_number || 'Takeaway'}</span>
+                        <Badge className="bg-yellow-500">{order.order_status}</Badge>
+                      </CardTitle>
+                      {(order as any).customer_name && (
+                        <p className="text-sm text-muted-foreground">{(order as any).customer_name}</p>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-1">
+                        {((order as any).order_items || []).map((item: any) => (
+                          <div key={item.id} className="flex justify-between text-sm">
+                            <span className="font-medium">{item.quantity}x {item.menu_item?.name || 'Item'}</span>
+                            {item.notes && <span className="text-muted-foreground italic">{item.notes}</span>}
+                          </div>
+                        ))}
+                      </div>
+                      {order.notes && (
+                        <div className="text-sm bg-muted p-2 rounded">
+                          <strong>Note:</strong> {order.notes}
+                        </div>
+                      )}
+                      <Button 
+                        className="w-full" 
+                        onClick={() => handleMarkServed(order.id)} 
+                        disabled={loading}
+                      >
+                        <Check className="h-4 w-4 mr-2" />Mark as Served
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </main>
+        )}
+      </div>
+
+      {/* Right Sidebar - Current Order (only show for floor/menu views) */}
+      {(view === 'floor' || view === 'menu') && (
+        <aside className="w-80 border-l bg-card flex flex-col">
+          <div className="p-4 border-b">
+            <div className="flex items-center gap-2 text-lg font-semibold">
+              <ShoppingCart className="h-5 w-5" />
+              Current Order
+            </div>
+            {selectedTable && (
+              <div className="text-sm text-muted-foreground mt-1">
+                {selectedTable.table_number}
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 py-3 border-b">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Customer Name</label>
+            <Input
+              placeholder="Enter customer name (optional)"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          <div className="px-4 py-3 border-b">
+            <div className="grid grid-cols-3 gap-1">
+              {(['dine-in', 'take-out', 'delivery'] as OrderType[]).map(type => (
+                <Button
+                  key={type}
+                  variant={orderType === type ? 'default' : 'outline'}
+                  size="sm"
+                  className="text-xs capitalize"
+                  onClick={() => setOrderType(type)}
+                >
+                  {type}
+                </Button>
               ))}
             </div>
-          )}
-        </ScrollArea>
-
-        {/* Customer & Totals */}
-        <div className="border-t">
-          <div className="px-4 py-3 border-b flex items-center gap-3">
-            <User className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">CUSTOMER</div>
-              <div className="text-sm font-medium">Guest</div>
-            </div>
           </div>
-          
-          <div className="px-4 py-3 space-y-1 text-sm">
-            {cart.length > 0 && (
-              <>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>New Items Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
+
+          {existingOrder && existingOrder.order_items && existingOrder.order_items.length > 0 && (
+            <div className="px-4 py-2 bg-muted/50 border-b">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Previous Items</div>
+              {existingOrder.order_items.map((item: any) => (
+                <div key={item.id} className="flex justify-between text-xs py-1 opacity-70">
+                  <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
+                  <span>${Number(item.total_price).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Tax (5%)</span>
-                  <span>${tax.toFixed(2)}</span>
-                </div>
-              </>
-            )}
-            {existingOrder && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>Previous Order</span>
+              ))}
+              <Separator className="my-2" />
+              <div className="flex justify-between text-xs font-medium">
+                <span>Previous Total</span>
                 <span>${existingTotal.toFixed(2)}</span>
               </div>
-            )}
-            {discount > 0 && (
-              <div className="flex justify-between text-green-500">
-                <span>DISCOUNT</span>
-                <span>-${discount.toFixed(2)}</span>
+            </div>
+          )}
+
+          <ScrollArea className="flex-1 p-4">
+            {cart.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">TICKET IS EMPTY</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {cart.map(item => (
+                  <div key={item.menuItem.id} className="flex items-center gap-2 bg-muted/50 rounded p-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ${item.menuItem.price.toFixed(2)} × {item.quantity}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-6 w-6" 
+                        onClick={() => updateCartQuantity(item.menuItem.id, -1)}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-5 text-center text-sm">{item.quantity}</span>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-6 w-6" 
+                        onClick={() => updateCartQuantity(item.menuItem.id, 1)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-6 w-6 text-destructive" 
+                        onClick={() => removeFromCart(item.menuItem.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-            <Separator className="my-2" />
-            <div className="flex justify-between font-bold text-lg">
-              <span>Total</span>
-              <span>${grandTotal.toFixed(2)}</span>
+          </ScrollArea>
+
+          <div className="border-t">
+            <div className="px-4 py-3 border-b flex items-center gap-3">
+              <User className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">CUSTOMER</div>
+                <div className="text-sm font-medium">{customerName || 'Guest'}</div>
+              </div>
+            </div>
+            
+            <div className="px-4 py-3 space-y-1 text-sm">
+              {cart.length > 0 && (
+                <>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>New Items Subtotal</span>
+                    <span>${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Tax (5%)</span>
+                    <span>${tax.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+              {existingOrder && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Previous Order</span>
+                  <span>${existingTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex justify-between text-green-500">
+                  <span>DISCOUNT</span>
+                  <span>-${discount.toFixed(2)}</span>
+                </div>
+              )}
+              <Separator className="my-2" />
+              <div className="flex justify-between font-bold text-lg">
+                <span>Total</span>
+                <span>${grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="p-4 grid grid-cols-2 gap-2">
+              <Button 
+                variant="secondary" 
+                size="lg"
+                className="flex items-center gap-2"
+                onClick={handleSendToKitchen}
+                disabled={cart.length === 0 || loading}
+              >
+                <ChefHat className="h-4 w-4" />
+                KITCHEN
+              </Button>
+              <Button 
+                size="lg"
+                className="flex items-center gap-2 bg-primary"
+                onClick={handlePayNow}
+                disabled={(cart.length === 0 && !existingOrder) || loading}
+              >
+                <CreditCard className="h-4 w-4" />
+                PAY NOW
+              </Button>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="p-4 grid grid-cols-2 gap-2">
-            <Button 
-              variant="secondary" 
-              size="lg"
-              className="flex items-center gap-2"
-              onClick={handleSendToKitchen}
-              disabled={cart.length === 0 || loading}
-            >
-              <ChefHat className="h-4 w-4" />
-              KITCHEN
-            </Button>
-            <Button 
-              size="lg"
-              className="flex items-center gap-2 bg-primary"
-              onClick={handlePayNow}
-              disabled={(cart.length === 0 && !existingOrder) || loading}
-            >
-              <CreditCard className="h-4 w-4" />
-              PAY NOW
-            </Button>
-          </div>
-        </div>
-      </aside>
+        </aside>
+      )}
 
       {/* Payment Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Process Payment - ${grandTotal.toFixed(2)}</DialogTitle>
+            <DialogTitle>
+              Process Payment - ${selectedOrderForPayment 
+                ? Number(selectedOrderForPayment.total_amount || 0).toFixed(2) 
+                : grandTotal.toFixed(2)}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">
@@ -674,11 +1030,14 @@ export default function POS() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowPaymentDialog(false);
+              setSelectedOrderForPayment(null);
+            }}>
               Cancel
             </Button>
             <Button 
-              onClick={handleProcessPayment} 
+              onClick={selectedOrderForPayment ? handleProcessOrderPayment : handleProcessPayment} 
               disabled={loading || (paymentMethod !== 'cash' && !transactionRef)}
             >
               Confirm Payment
@@ -686,6 +1045,15 @@ export default function POS() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receipt Dialog */}
+      {receiptOrder && (
+        <ReceiptDialog
+          order={receiptOrder}
+          open={showReceiptDialog}
+          onOpenChange={setShowReceiptDialog}
+        />
+      )}
     </div>
   );
 }

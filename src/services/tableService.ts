@@ -1,14 +1,19 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { RestaurantTable, TableStatus } from '@/types/pos';
 
-// Get all tables for branch
-export async function getTables(): Promise<RestaurantTable[]> {
-  const { data, error } = await supabase
+// Get all tables for branch (optionally filter by branchId)
+export async function getTables(branchId?: string): Promise<RestaurantTable[]> {
+  let query = supabase
     .from('restaurant_tables')
     .select('*')
     .eq('is_active', true)
     .order('table_number', { ascending: true });
+  
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
 
+  const { data, error } = await query;
   if (error) throw error;
   return (data || []) as RestaurantTable[];
 }

@@ -290,6 +290,50 @@ async function recalculateOrderTotals(orderId: string): Promise<void> {
     .eq('id', orderId);
 }
 
+// BATCH: Add multiple items to order in a single operation (MAJOR PERFORMANCE BOOST)
+export async function addOrderItemsBatch(
+  orderId: string,
+  items: { menuItem: MenuItem; quantity: number; notes?: string; isServing?: boolean }[]
+): Promise<void> {
+  if (items.length === 0) return;
+
+  // Check if order is editable once
+  const { data: order } = await supabase
+    .from('orders')
+    .select('locked_at, order_status')
+    .eq('id', orderId)
+    .single();
+
+  if (order?.locked_at) {
+    throw new Error('Order is locked and cannot be modified');
+  }
+
+  if (order?.order_status === 'PAID' || order?.order_status === 'CLOSED') {
+    throw new Error('Cannot modify paid or closed orders');
+  }
+
+  // Prepare bulk insert data
+  const insertData = items.map(item => ({
+    order_id: orderId,
+    menu_item_id: item.menuItem.id,
+    quantity: item.quantity,
+    unit_price: item.menuItem.price,
+    total_price: item.menuItem.price * item.quantity,
+    notes: item.notes || null,
+    is_serving: item.isServing || false,
+  }));
+
+  // Single bulk insert
+  const { error } = await supabase
+    .from('order_items')
+    .insert(insertData);
+
+  if (error) throw error;
+
+  // Single recalculation at the end
+  await recalculateOrderTotals(orderId);
+}
+
 // Update order status via RPC
 export async function updateOrderStatus(
   orderId: string,

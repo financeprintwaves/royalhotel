@@ -14,17 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
   Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
-  Wifi, Clock, Check, Receipt
+  Wifi, Clock, Check, Receipt, RefreshCw
 } from 'lucide-react';
-import { getTables } from '@/services/tableService';
-import { getAllBranches } from '@/services/staffService';
-import { getCategories, getMenuItems } from '@/services/menuService';
 import { 
-  createOrder, addOrderItem, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
-  markAsServed, requestBill, searchOrders
+  createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
+  markAsServed, requestBill
 } from '@/services/orderService';
 import { finalizePayment, processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
 import { supabase } from '@/integrations/supabase/client';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import ServingSelectionDialog from '@/components/ServingSelectionDialog';
@@ -68,10 +66,16 @@ export default function POS() {
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // Use cached data hooks (MAJOR PERFORMANCE BOOST)
+  const { data: categories = [], isLoading: categoriesLoading } = useCategories();
+  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems();
+  const { refreshTables, refreshMenu } = useRefreshCache();
+  
   // Core POS state
-  const [tables, setTables] = useState<RestaurantTable[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const { data: branches = [] } = useBranches();
+  const { data: tables = [], refetch: refetchTables } = useTables(selectedBranch || undefined);
+  
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -90,10 +94,6 @@ export default function POS() {
   const [mobileTransactionRef, setMobileTransactionRef] = useState('');
   const [view, setView] = useState<ViewType>('floor');
   const [customerName, setCustomerName] = useState('');
-  
-  // Branch state
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
   
   // Orders view state
   const [allOrders, setAllOrders] = useState<Order[]>([]);
@@ -115,57 +115,12 @@ export default function POS() {
   const [paymentSuccessAmount, setPaymentSuccessAmount] = useState(0);
   const [autoPrintOrder, setAutoPrintOrder] = useState<Order | null>(null);
 
-  // Load initial data
+  // Set default branch when branches load
   useEffect(() => {
-    loadBranches();
-    loadCategories();
-    loadMenuItems();
-  }, []);
-
-  // Load tables when branch changes
-  useEffect(() => {
-    loadTables();
-  }, [selectedBranch]);
-
-  async function loadBranches() {
-    try {
-      const data = await getAllBranches();
-      setBranches(data);
-      // Set default branch from user profile or first branch
-      if (data.length > 0 && !selectedBranch) {
-        setSelectedBranch(data[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to load branches:', error);
+    if (branches.length > 0 && !selectedBranch) {
+      setSelectedBranch(branches[0].id);
     }
-  }
-
-  async function loadTables() {
-    try {
-      const data = await getTables(selectedBranch || undefined);
-      setTables(data);
-    } catch (error) {
-      console.error('Failed to load tables:', error);
-    }
-  }
-
-  async function loadCategories() {
-    try {
-      const data = await getCategories();
-      setCategories(data);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
-    }
-  }
-
-  async function loadMenuItems() {
-    try {
-      const data = await getMenuItems();
-      setMenuItems(data);
-    } catch (error) {
-      console.error('Failed to load menu items:', error);
-    }
-  }
+  }, [branches, selectedBranch]);
 
   // Orders view functions
   const loadAllOrders = useCallback(async () => {
@@ -343,11 +298,19 @@ export default function POS() {
     try {
       let orderId: string;
       
+      // Prepare cart items for batch insert
+      const batchItems = cart.map(item => ({
+        menuItem: item.menuItem,
+        quantity: item.quantity,
+        notes: item.notes,
+        isServing: item.isServing,
+      }));
+      
       if (existingOrder) {
         orderId = existingOrder.id;
-        for (const item of cart) {
-          await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
-        }
+        
+        // BATCH: Single database call for all items
+        await addOrderItemsBatch(orderId, batchItems);
         
         if (existingOrder.order_status !== 'CREATED' && existingOrder.order_status !== 'SENT_TO_KITCHEN') {
           await supabase
@@ -366,9 +329,8 @@ export default function POS() {
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
         
-        for (const item of cart) {
-          await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
-        }
+        // BATCH: Single database call for all items
+        await addOrderItemsBatch(orderId, batchItems);
         
         await sendToKitchen(orderId);
         toast({ 
@@ -382,7 +344,7 @@ export default function POS() {
       setSelectedTable(null);
       setCustomerName('');
       setView('floor');
-      loadTables();
+      refetchTables(); // Use React Query refetch instead of manual load
       
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Failed', description: error.message });
@@ -405,13 +367,20 @@ export default function POS() {
       let orderId: string;
       let paymentTotal = grandTotal;
       
+      // Prepare cart items for batch insert
+      const batchItems = cart.map(item => ({
+        menuItem: item.menuItem,
+        quantity: item.quantity,
+        notes: item.notes,
+        isServing: item.isServing,
+      }));
+      
       if (existingOrder) {
         orderId = existingOrder.id;
         
         if (cart.length > 0) {
-          for (const item of cart) {
-            await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
-          }
+          // BATCH: Single database call for all items
+          await addOrderItemsBatch(orderId, batchItems);
         }
         
         const updatedOrder = await getOrder(orderId);
@@ -427,9 +396,8 @@ export default function POS() {
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
         
-        for (const item of cart) {
-          await addOrderItem(orderId, item.menuItem, item.quantity, item.notes);
-        }
+        // BATCH: Single database call for all items
+        await addOrderItemsBatch(orderId, batchItems);
         
         const updatedOrder = await getOrder(orderId);
         paymentTotal = Number(updatedOrder?.total_amount || 0);
@@ -460,7 +428,7 @@ export default function POS() {
       setDiscount(0);
       setView('floor');
       setTransactionRef('');
-      loadTables();
+      refetchTables(); // Use React Query refetch instead of manual load
       
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });

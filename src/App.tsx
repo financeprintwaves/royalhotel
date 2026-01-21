@@ -17,7 +17,19 @@ import StaffManagement from "@/pages/StaffManagement";
 import MenuManagement from "@/pages/MenuManagement";
 import Inventory from "@/pages/Inventory";
 import NotFound from "@/pages/NotFound";
-const queryClient = new QueryClient();
+
+// Optimized React Query configuration for performance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,      // Data stays fresh for 5 minutes
+      gcTime: 30 * 60 * 1000,        // Keep in cache for 30 minutes
+      refetchOnWindowFocus: false,   // Don't refetch on tab switch
+      refetchOnMount: false,         // Don't refetch on component mount if data exists
+      retry: 2,                       // Retry failed requests twice
+    },
+  },
+});
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

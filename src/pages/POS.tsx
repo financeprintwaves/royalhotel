@@ -67,7 +67,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function POS() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAdmin, isManagerOrAdmin, profile } = useAuth();
+  const { isAdmin, isManagerOrAdmin, profile, roles } = useAuth();
   
   // Use cached data hooks (MAJOR PERFORMANCE BOOST)
   const { data: categories = [], isLoading: categoriesLoading } = useCategories();
@@ -80,9 +80,12 @@ export default function POS() {
   const { data: tables = [], refetch: refetchTables } = useTables(selectedBranch || undefined);
   
   // Check if user can switch branches (admin only)
+  // NOTE: These depend on roles which load asynchronously, so they update when roles load
   const canSwitchBranch = isAdmin();
   const isManagerOrAdminUser = isManagerOrAdmin();
   
+  // Debug log for role checking
+  console.log('POS roles check:', { roles, isManagerOrAdminUser, canSwitchBranch });
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);

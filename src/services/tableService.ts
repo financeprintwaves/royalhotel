@@ -63,23 +63,30 @@ export async function updateTableStatus(
 export async function createTable(
   tableNumber: string,
   capacity: number = 4,
-  tableType: TableType = 'dining'
+  tableType: TableType = 'dining',
+  branchId?: string // Optional branch override for admins viewing other branches
 ): Promise<RestaurantTable> {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error('Not authenticated');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('branch_id')
-    .eq('user_id', userData.user.id)
-    .single();
+  // Use provided branchId OR fall back to user's assigned branch
+  let targetBranchId = branchId;
+  
+  if (!targetBranchId) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('branch_id')
+      .eq('user_id', userData.user.id)
+      .single();
+    targetBranchId = profile?.branch_id ?? undefined;
+  }
 
-  if (!profile?.branch_id) throw new Error('User not assigned to a branch');
+  if (!targetBranchId) throw new Error('No branch specified');
 
   const { data, error } = await supabase
     .from('restaurant_tables')
     .insert({
-      branch_id: profile.branch_id,
+      branch_id: targetBranchId,
       table_number: tableNumber,
       capacity,
       status: 'available',

@@ -17,6 +17,7 @@ interface FloorCanvasProps {
   selectedTableId?: string;
   isManagerOrAdmin?: boolean;
   onTablesChange?: () => void;
+  selectedBranchId?: string; // Branch context for creating tables
 }
 
 export function FloorCanvas({
@@ -26,6 +27,7 @@ export function FloorCanvas({
   selectedTableId,
   isManagerOrAdmin = false,
   onTablesChange,
+  selectedBranchId,
 }: FloorCanvasProps) {
   const [editMode, setEditMode] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -81,8 +83,8 @@ export function FloorCanvas({
     const newX = tables.length > 0 ? maxX + 140 : 20;
     const newY = 20;
 
-    // Create table with position and type
-    const newTable = await createTable(data.tableNumber, data.capacity, data.tableType);
+    // Create table with position and type - pass the selected branch for admins
+    const newTable = await createTable(data.tableNumber, data.capacity, data.tableType, selectedBranchId);
     
     // Update with shape and position
     await updateTable(newTable.id, {

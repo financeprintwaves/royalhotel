@@ -90,6 +90,8 @@ export interface Inventory {
   menu_item?: MenuItem;
 }
 
+export type TableType = 'dining' | 'bar' | 'booth' | 'outdoor';
+
 export interface RestaurantTable {
   id: string;
   branch_id: string;
@@ -105,6 +107,10 @@ export interface RestaurantTable {
   width?: number;
   height?: number;
   shape?: 'square' | 'round' | 'rectangle';
+  // Table type and merge fields
+  table_type?: TableType;
+  merged_with?: string[];
+  is_merged?: boolean;
 }
 
 export interface Order {

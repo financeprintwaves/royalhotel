@@ -614,11 +614,14 @@ export type Database = {
           height: number | null
           id: string
           is_active: boolean | null
+          is_merged: boolean | null
+          merged_with: string[] | null
           position_x: number | null
           position_y: number | null
           shape: string | null
           status: string | null
           table_number: string
+          table_type: string | null
           updated_at: string | null
           width: number | null
         }
@@ -629,11 +632,14 @@ export type Database = {
           height?: number | null
           id?: string
           is_active?: boolean | null
+          is_merged?: boolean | null
+          merged_with?: string[] | null
           position_x?: number | null
           position_y?: number | null
           shape?: string | null
           status?: string | null
           table_number: string
+          table_type?: string | null
           updated_at?: string | null
           width?: number | null
         }
@@ -644,11 +650,14 @@ export type Database = {
           height?: number | null
           id?: string
           is_active?: boolean | null
+          is_merged?: boolean | null
+          merged_with?: string[] | null
           position_x?: number | null
           position_y?: number | null
           shape?: string | null
           status?: string | null
           table_number?: string
+          table_type?: string | null
           updated_at?: string | null
           width?: number | null
         }

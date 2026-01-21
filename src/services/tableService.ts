@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { RestaurantTable, TableStatus } from '@/types/pos';
+import type { RestaurantTable, TableStatus, TableType } from '@/types/pos';
 
 // Get all tables for branch (optionally filter by branchId)
 export async function getTables(branchId?: string): Promise<RestaurantTable[]> {
@@ -62,7 +62,8 @@ export async function updateTableStatus(
 // Create table (Manager/Admin)
 export async function createTable(
   tableNumber: string,
-  capacity: number = 4
+  capacity: number = 4,
+  tableType: TableType = 'dining'
 ): Promise<RestaurantTable> {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error('Not authenticated');
@@ -82,6 +83,7 @@ export async function createTable(
       table_number: tableNumber,
       capacity,
       status: 'available',
+      table_type: tableType,
     })
     .select()
     .single();
@@ -93,7 +95,7 @@ export async function createTable(
 // Update table details
 export async function updateTable(
   tableId: string,
-  updates: Partial<Pick<RestaurantTable, 'table_number' | 'capacity' | 'status' | 'position_x' | 'position_y' | 'width' | 'height' | 'shape'>>
+  updates: Partial<Pick<RestaurantTable, 'table_number' | 'capacity' | 'status' | 'position_x' | 'position_y' | 'width' | 'height' | 'shape' | 'table_type' | 'merged_with' | 'is_merged'>>
 ): Promise<RestaurantTable> {
   const { data, error } = await supabase
     .from('restaurant_tables')
@@ -175,4 +177,93 @@ export async function getTableStats(): Promise<{
     reserved: tables.filter(t => t.status === 'reserved').length,
     cleaning: tables.filter(t => t.status === 'cleaning').length,
   };
+}
+
+// Merge tables together
+export async function mergeTables(
+  primaryTableId: string,
+  tableIdsToMerge: string[]
+): Promise<RestaurantTable> {
+  // Get all tables to calculate combined capacity
+  const { data: tables, error: fetchError } = await supabase
+    .from('restaurant_tables')
+    .select('*')
+    .in('id', [primaryTableId, ...tableIdsToMerge]);
+  
+  if (fetchError) throw fetchError;
+  
+  const primaryTable = tables?.find(t => t.id === primaryTableId);
+  const mergeTables = tables?.filter(t => t.id !== primaryTableId) || [];
+  
+  if (!primaryTable) throw new Error('Primary table not found');
+  
+  // Calculate new width for merged tables (visual expansion)
+  const totalWidth = (primaryTable.width || 120) + mergeTables.reduce((sum, t) => sum + (t.width || 120) * 0.5, 0);
+  
+  // Update primary table with merged info
+  const { data: updatedPrimary, error: primaryError } = await supabase
+    .from('restaurant_tables')
+    .update({
+      merged_with: tableIdsToMerge,
+      is_merged: true,
+      width: Math.min(totalWidth, 300), // Cap at 300px
+    })
+    .eq('id', primaryTableId)
+    .select()
+    .single();
+  
+  if (primaryError) throw primaryError;
+  
+  // Mark merged tables as merged (hide them from view but keep data)
+  const { error: mergeError } = await supabase
+    .from('restaurant_tables')
+    .update({
+      is_merged: true,
+      status: 'occupied', // Mark as occupied when merged
+    })
+    .in('id', tableIdsToMerge);
+  
+  if (mergeError) throw mergeError;
+  
+  return updatedPrimary as RestaurantTable;
+}
+
+// Split merged tables back to individual
+export async function splitTables(tableId: string): Promise<void> {
+  // Get the table with its merged_with info
+  const { data: table, error: fetchError } = await supabase
+    .from('restaurant_tables')
+    .select('*')
+    .eq('id', tableId)
+    .single();
+  
+  if (fetchError) throw fetchError;
+  if (!table) throw new Error('Table not found');
+  
+  const mergedIds = table.merged_with || [];
+  
+  // Reset primary table
+  const { error: primaryError } = await supabase
+    .from('restaurant_tables')
+    .update({
+      merged_with: [],
+      is_merged: false,
+      width: 120, // Reset to default
+    })
+    .eq('id', tableId);
+  
+  if (primaryError) throw primaryError;
+  
+  // Reset merged tables
+  if (mergedIds.length > 0) {
+    const { error: mergeError } = await supabase
+      .from('restaurant_tables')
+      .update({
+        is_merged: false,
+        status: 'available',
+      })
+      .in('id', mergedIds);
+    
+    if (mergeError) throw mergeError;
+  }
 }

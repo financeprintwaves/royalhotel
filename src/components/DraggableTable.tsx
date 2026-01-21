@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { RestaurantTable } from '@/types/pos';
 import { cn } from '@/lib/utils';
-import { Users, GripVertical } from 'lucide-react';
+import { Users, GripVertical, Merge, Wine, UtensilsCrossed, Sofa, TreePine } from 'lucide-react';
 
 interface DraggableTableProps {
   table: RestaurantTable;
@@ -10,6 +10,7 @@ interface DraggableTableProps {
   onDragEnd?: (x: number, y: number) => void;
   editable?: boolean;
   isSelected?: boolean;
+  onMergeClick?: () => void;
 }
 
 const STATUS_CONFIG = {
@@ -39,6 +40,66 @@ const STATUS_CONFIG = {
   },
 };
 
+// Table type configurations with distinct styling
+const TABLE_TYPE_CONFIG = {
+  dining: {
+    icon: UtensilsCrossed,
+    emoji: '🍽️',
+    bgAccent: '',
+    label: 'Dining',
+  },
+  bar: {
+    icon: Wine,
+    emoji: '🍸',
+    bgAccent: 'bg-gradient-to-br from-purple-50/50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/20',
+    label: 'Bar',
+  },
+  booth: {
+    icon: Sofa,
+    emoji: '🛋️',
+    bgAccent: 'bg-gradient-to-br from-amber-50/50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-800/20',
+    label: 'Booth',
+  },
+  outdoor: {
+    icon: TreePine,
+    emoji: '🌳',
+    bgAccent: 'bg-gradient-to-br from-emerald-50/50 to-emerald-100/50 dark:from-emerald-900/20 dark:to-emerald-800/20',
+    label: 'Outdoor',
+  },
+};
+
+// Shape-specific dimensions and styles
+const getShapeStyles = (shape: string | undefined, tableType: string | undefined) => {
+  const isBar = tableType === 'bar';
+  
+  switch (shape) {
+    case 'round':
+      return {
+        className: 'rounded-full',
+        width: isBar ? 100 : 120,
+        height: isBar ? 100 : 120,
+        minWidth: isBar ? 80 : 100,
+        minHeight: isBar ? 80 : 100,
+      };
+    case 'rectangle':
+      return {
+        className: 'rounded-xl',
+        width: isBar ? 160 : 180,
+        height: isBar ? 70 : 90,
+        minWidth: isBar ? 140 : 160,
+        minHeight: isBar ? 60 : 80,
+      };
+    default: // square
+      return {
+        className: 'rounded-xl',
+        width: isBar ? 90 : 120,
+        height: isBar ? 90 : 120,
+        minWidth: isBar ? 80 : 100,
+        minHeight: isBar ? 80 : 100,
+      };
+  }
+};
+
 export function DraggableTable({
   table,
   billAmount,
@@ -46,9 +107,14 @@ export function DraggableTable({
   onDragEnd,
   editable = false,
   isSelected = false,
+  onMergeClick,
 }: DraggableTableProps) {
   const [isDragging, setIsDragging] = useState(false);
   const config = STATUS_CONFIG[table.status] || STATUS_CONFIG.available;
+  const tableType = table.table_type || 'dining';
+  const typeConfig = TABLE_TYPE_CONFIG[tableType] || TABLE_TYPE_CONFIG.dining;
+  const shapeStyles = getShapeStyles(table.shape, table.table_type);
+  const isMerged = table.is_merged || (table.merged_with && table.merged_with.length > 0);
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!editable) {
@@ -73,11 +139,14 @@ export function DraggableTable({
     }
   };
 
-  const shapeClass = table.shape === 'round' 
-    ? 'rounded-full' 
-    : table.shape === 'rectangle' 
-      ? 'rounded-lg aspect-[2/1]' 
-      : 'rounded-xl';
+  const handleMergeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMergeClick?.();
+  };
+
+  // Calculate display dimensions
+  const displayWidth = table.width || shapeStyles.width;
+  const displayHeight = table.height || shapeStyles.height;
 
   return (
     <div
@@ -86,61 +155,86 @@ export function DraggableTable({
       onDragEnd={handleDragEnd}
       onClick={onSelect}
       className={cn(
-        'absolute flex flex-col items-center justify-center p-3 border-2 shadow-lg transition-all duration-200',
-        shapeClass,
+        'absolute flex flex-col items-center justify-center p-2 border-2 shadow-lg transition-all duration-200',
+        shapeStyles.className,
         config.className,
+        typeConfig.bgAccent,
         isDragging && 'opacity-50 scale-110 rotate-2',
         isSelected && 'ring-4 ring-primary ring-offset-2',
         editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         'hover:scale-105 hover:shadow-xl',
-        'min-w-[100px] min-h-[100px]'
+        isMerged && 'ring-2 ring-purple-500 ring-offset-1'
       )}
       style={{
         left: table.position_x || 0,
         top: table.position_y || 0,
-        width: table.width || 120,
-        height: table.shape === 'rectangle' ? (table.height || 120) / 1.5 : (table.height || 120),
+        width: displayWidth,
+        height: displayHeight,
+        minWidth: shapeStyles.minWidth,
+        minHeight: shapeStyles.minHeight,
       }}
     >
+      {/* Merge indicator */}
+      {isMerged && (
+        <div className="absolute -top-2 -right-2 bg-purple-500 text-white rounded-full p-1 shadow-lg z-10">
+          <Merge className="h-3 w-3" />
+        </div>
+      )}
+
       {/* Drag handle for edit mode */}
       {editable && (
-        <div className="absolute top-1 right-1 p-1 rounded bg-white/50 dark:bg-black/30">
+        <div className="absolute top-1 right-1 p-0.5 rounded bg-white/50 dark:bg-black/30">
           <GripVertical className="h-3 w-3 text-muted-foreground" />
         </div>
       )}
 
-      {/* Table number with emoji */}
-      <div className="flex items-center gap-1 font-bold text-lg">
-        <span className="text-xl">🍽️</span>
+      {/* Merge button for managers in edit mode */}
+      {editable && onMergeClick && (
+        <button
+          onClick={handleMergeClick}
+          className="absolute top-1 left-1 p-1 rounded bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
+          title={isMerged ? 'Split tables' : 'Merge tables'}
+        >
+          <Merge className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+        </button>
+      )}
+
+      {/* Table number with type emoji */}
+      <div className="flex items-center gap-1 font-bold text-sm">
+        <span className="text-base">{typeConfig.emoji}</span>
         <span className={config.textClass}>{table.table_number}</span>
       </div>
 
       {/* Bill amount for occupied tables */}
       {billAmount !== undefined && billAmount > 0 && (
-        <div className="flex items-center gap-1 text-sm font-semibold animate-bill-bounce mt-1">
+        <div className="flex items-center gap-0.5 text-xs font-semibold animate-bill-bounce">
           <span>💰</span>
           <span className="text-orange-600 dark:text-orange-400">
-            {billAmount.toFixed(3)} OMR
+            {billAmount.toFixed(3)}
           </span>
         </div>
       )}
 
-      {/* Capacity */}
-      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-        <Users className="h-3 w-3" />
-        <span>{table.capacity} seats</span>
-      </div>
+      {/* Capacity - hide on small tables */}
+      {displayHeight >= 90 && (
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Users className="h-2.5 w-2.5" />
+          <span>{table.capacity}</span>
+        </div>
+      )}
 
-      {/* Status badge */}
+      {/* Status badge - compact for round/small tables */}
       <div className={cn(
-        'flex items-center gap-1 text-xs font-medium mt-1 px-2 py-0.5 rounded-full',
+        'flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full',
         config.className.includes('green') && 'bg-green-200/50 dark:bg-green-800/50',
         config.className.includes('orange') && 'bg-orange-200/50 dark:bg-orange-800/50',
         config.className.includes('blue') && 'bg-blue-200/50 dark:bg-blue-800/50',
         config.className.includes('yellow') && 'bg-yellow-200/50 dark:bg-yellow-800/50',
       )}>
         <span>{config.emoji}</span>
-        <span className={config.textClass}>{config.label}</span>
+        {table.shape !== 'round' && displayWidth >= 100 && (
+          <span className={config.textClass}>{config.label}</span>
+        )}
       </div>
     </div>
   );

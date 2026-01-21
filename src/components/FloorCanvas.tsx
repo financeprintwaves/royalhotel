@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import type { RestaurantTable, Order } from '@/types/pos';
+import type { RestaurantTable, Order, TableType } from '@/types/pos';
 import { DraggableTable } from './DraggableTable';
 import { AddTableDialog } from './AddTableDialog';
+import { TableMergeDialog } from './TableMergeDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit3, Lock, Unlock, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { createTable, updateTable } from '@/services/tableService';
+import { createTable, updateTable, mergeTables, splitTables } from '@/services/tableService';
 import { toast } from 'sonner';
 
 interface FloorCanvasProps {
@@ -29,6 +29,8 @@ export function FloorCanvas({
 }: FloorCanvasProps) {
   const [editMode, setEditMode] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [selectedTableForMerge, setSelectedTableForMerge] = useState<RestaurantTable | null>(null);
   const [tableBills, setTableBills] = useState<Record<string, number>>({});
 
   // Calculate bill amounts for occupied tables
@@ -60,7 +62,7 @@ export function FloorCanvas({
     const y = Math.max(0, Math.round((e.clientY - rect.top - 60) / 10) * 10);
 
     try {
-      await updateTable(tableId, { position_x: x, position_y: y } as any);
+      await updateTable(tableId, { position_x: x, position_y: y });
       onTablesChange?.();
     } catch (error) {
       console.error('Failed to update table position:', error);
@@ -72,21 +74,22 @@ export function FloorCanvas({
     tableNumber: string;
     capacity: number;
     shape: 'square' | 'round' | 'rectangle';
+    tableType: TableType;
   }) => {
     // Find next available position
     const maxX = Math.max(0, ...tables.map(t => (t.position_x || 0)));
     const newX = tables.length > 0 ? maxX + 140 : 20;
     const newY = 20;
 
-    // Create table with position
-    const newTable = await createTable(data.tableNumber, data.capacity);
+    // Create table with position and type
+    const newTable = await createTable(data.tableNumber, data.capacity, data.tableType);
     
     // Update with shape and position
     await updateTable(newTable.id, {
       shape: data.shape,
       position_x: newX,
       position_y: newY,
-    } as any);
+    });
     
     onTablesChange?.();
   };
@@ -95,12 +98,35 @@ export function FloorCanvas({
     try {
       const snappedX = Math.round(x / 10) * 10;
       const snappedY = Math.round(y / 10) * 10;
-      await updateTable(tableId, { position_x: snappedX, position_y: snappedY } as any);
+      await updateTable(tableId, { position_x: snappedX, position_y: snappedY });
       onTablesChange?.();
     } catch (error) {
       console.error('Failed to update table position:', error);
     }
   };
+
+  const handleMergeClick = (table: RestaurantTable) => {
+    setSelectedTableForMerge(table);
+    setShowMergeDialog(true);
+  };
+
+  const handleMergeTables = async (primaryTableId: string, tableIds: string[]) => {
+    await mergeTables(primaryTableId, tableIds);
+    onTablesChange?.();
+  };
+
+  const handleSplitTables = async (tableId: string) => {
+    await splitTables(tableId);
+    onTablesChange?.();
+  };
+
+  // Filter out tables that are merged into another table (hide them)
+  const visibleTables = tables.filter(t => {
+    // Show if not merged, or if it's a primary merged table
+    if (!t.is_merged) return true;
+    if (t.merged_with && t.merged_with.length > 0) return true;
+    return false;
+  });
 
   // Stats
   const stats = {
@@ -170,7 +196,7 @@ export function FloorCanvas({
         <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center gap-2">
           <Edit3 className="h-4 w-4 text-primary animate-pulse" />
           <span className="text-sm text-primary font-medium">
-            ✨ Edit Mode: Drag tables to rearrange • Click "Lock Layout" when done
+            ✨ Edit Mode: Drag tables to rearrange • Click 🔗 to merge/split tables • Click "Lock Layout" when done
           </span>
         </div>
       )}
@@ -187,14 +213,14 @@ export function FloorCanvas({
         onDrop={handleDrop}
         style={{ minHeight: '500px' }}
       >
-        {tables.length === 0 ? (
+        {visibleTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <LayoutGrid className="h-16 w-16 mb-4 opacity-50" />
             <p className="text-lg font-medium">No tables yet</p>
             <p className="text-sm">Click "Add Table" to create your first table</p>
           </div>
         ) : (
-          tables.map(table => (
+          visibleTables.map(table => (
             <DraggableTable
               key={table.id}
               table={table}
@@ -203,24 +229,35 @@ export function FloorCanvas({
               onDragEnd={(x, y) => handleTableDragEnd(table.id, x, y)}
               editable={editMode}
               isSelected={table.id === selectedTableId}
+              onMergeClick={editMode ? () => handleMergeClick(table) : undefined}
             />
           ))
         )}
       </div>
 
       {/* Legend */}
-      <div className="p-3 border-t bg-card flex items-center justify-center gap-6 text-sm">
+      <div className="p-3 border-t bg-card flex items-center justify-center gap-6 text-sm flex-wrap">
         <span className="flex items-center gap-1">🟢 Available</span>
         <span className="flex items-center gap-1">🟠 Occupied</span>
         <span className="flex items-center gap-1">🔵 Reserved</span>
         <span className="flex items-center gap-1">🟡 Cleaning</span>
         <span className="flex items-center gap-1">💰 Bill Amount</span>
+        <span className="flex items-center gap-1">🔗 Merged</span>
       </div>
 
       <AddTableDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onCreateTable={handleCreateTable}
+      />
+
+      <TableMergeDialog
+        open={showMergeDialog}
+        onOpenChange={setShowMergeDialog}
+        tables={tables}
+        selectedTable={selectedTableForMerge}
+        onMergeTables={handleMergeTables}
+        onSplitTables={handleSplitTables}
       />
     </div>
   );

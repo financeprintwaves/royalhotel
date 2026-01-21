@@ -611,31 +611,46 @@ export type Database = {
           branch_id: string
           capacity: number | null
           created_at: string | null
+          height: number | null
           id: string
           is_active: boolean | null
+          position_x: number | null
+          position_y: number | null
+          shape: string | null
           status: string | null
           table_number: string
           updated_at: string | null
+          width: number | null
         }
         Insert: {
           branch_id: string
           capacity?: number | null
           created_at?: string | null
+          height?: number | null
           id?: string
           is_active?: boolean | null
+          position_x?: number | null
+          position_y?: number | null
+          shape?: string | null
           status?: string | null
           table_number: string
           updated_at?: string | null
+          width?: number | null
         }
         Update: {
           branch_id?: string
           capacity?: number | null
           created_at?: string | null
+          height?: number | null
           id?: string
           is_active?: boolean | null
+          position_x?: number | null
+          position_y?: number | null
+          shape?: string | null
           status?: string | null
           table_number?: string
           updated_at?: string | null
+          width?: number | null
         }
         Relationships: [
           {

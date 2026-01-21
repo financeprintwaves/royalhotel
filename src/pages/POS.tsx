@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
   Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
-  Wifi, Clock, Check, Receipt, RefreshCw
+  Wifi, Clock, Check, Receipt, RefreshCw, Lock
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
@@ -24,6 +25,7 @@ import { finalizePayment, processSplitPayment } from '@/services/paymentService'
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
 import { supabase } from '@/integrations/supabase/client';
+import { FloorCanvas } from '@/components/FloorCanvas';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import ServingSelectionDialog from '@/components/ServingSelectionDialog';
 import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
@@ -65,6 +67,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function POS() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin, isManagerOrAdmin, profile } = useAuth();
   
   // Use cached data hooks (MAJOR PERFORMANCE BOOST)
   const { data: categories = [], isLoading: categoriesLoading } = useCategories();
@@ -75,6 +78,10 @@ export default function POS() {
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const { data: branches = [] } = useBranches();
   const { data: tables = [], refetch: refetchTables } = useTables(selectedBranch || undefined);
+  
+  // Check if user can switch branches (admin only)
+  const canSwitchBranch = isAdmin();
+  const isManagerOrAdminUser = isManagerOrAdmin();
   
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -115,12 +122,17 @@ export default function POS() {
   const [paymentSuccessAmount, setPaymentSuccessAmount] = useState(0);
   const [autoPrintOrder, setAutoPrintOrder] = useState<Order | null>(null);
 
-  // Set default branch when branches load
+  // Set default branch when branches load - use user's branch for non-admins
   useEffect(() => {
     if (branches.length > 0 && !selectedBranch) {
-      setSelectedBranch(branches[0].id);
+      // For non-admins, lock to their assigned branch
+      if (!canSwitchBranch && profile?.branch_id) {
+        setSelectedBranch(profile.branch_id);
+      } else {
+        setSelectedBranch(branches[0].id);
+      }
     }
-  }, [branches, selectedBranch]);
+  }, [branches, selectedBranch, canSwitchBranch, profile?.branch_id]);
 
   // Orders view functions
   const loadAllOrders = useCallback(async () => {
@@ -574,67 +586,68 @@ export default function POS() {
 
         {/* Floor View */}
         {view === 'floor' && (
-          <main className="flex-1 p-4 overflow-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold flex items-center gap-2">
-                <LayoutGrid className="h-5 w-5" />
-                FLOOR STATUS
-              </h2>
+          <main className="flex-1 flex flex-col overflow-hidden">
+            {/* Branch Selector Header */}
+            <div className="flex items-center justify-between p-4 border-b bg-card">
               <div className="flex items-center gap-4">
-                {/* Branch Selector */}
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select Branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map(branch => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-3 text-xs">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-green-500" /> FREE
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-orange-500" /> ACTIVE
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" /> RESERVED
-                  </span>
-                </div>
+                {/* Branch Selector - Admin Only */}
+                {canSwitchBranch ? (
+                  <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline" className="text-sm py-2 px-4 flex items-center gap-2">
+                    <Lock className="h-3 w-3" />
+                    📍 {branches.find(b => b.id === selectedBranch)?.name || 'My Branch'}
+                  </Badge>
+                )}
+                
+                {/* Takeaway Button */}
+                <Button 
+                  variant="outline" 
+                  onClick={handleTakeout}
+                  className="flex items-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  🛍️ Takeaway
+                </Button>
               </div>
+              
+              {/* Refresh Button */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  refreshTables();
+                  refetchTables();
+                  toast({ title: '🔄 Floor refreshed!' });
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
             
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {tables.map(table => (
-                <Card
-                  key={table.id}
-                  className={`cursor-pointer transition-all hover:shadow-lg border-2 ${TABLE_STATUS_COLORS[table.status] || 'border-muted'}`}
-                  onClick={() => handleSelectTable(table)}
-                >
-                  <CardContent className="p-4 text-center">
-                    <div className="text-xl font-bold">{table.table_number}</div>
-                    <div className="text-xs text-muted-foreground">{table.capacity} seats</div>
-                    <Badge variant="outline" className="mt-2 text-xs capitalize">
-                      {table.status}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
-              
-              <Card
-                className="cursor-pointer transition-all hover:shadow-lg border-2 border-dashed border-muted-foreground/30"
-                onClick={handleTakeout}
-              >
-                <CardContent className="p-4 text-center">
-                  <User className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-sm font-medium">Takeaway</div>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Floor Canvas */}
+            <FloorCanvas
+              tables={tables}
+              orders={allOrders}
+              onTableSelect={handleSelectTable}
+              selectedTableId={selectedTable?.id}
+              isManagerOrAdmin={isManagerOrAdminUser}
+              onTablesChange={() => {
+                refreshTables();
+                refetchTables();
+              }}
+            />
           </main>
         )}
 

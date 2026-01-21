@@ -93,7 +93,7 @@ export async function createTable(
 // Update table details
 export async function updateTable(
   tableId: string,
-  updates: Partial<Pick<RestaurantTable, 'table_number' | 'capacity' | 'status'>>
+  updates: Partial<Pick<RestaurantTable, 'table_number' | 'capacity' | 'status' | 'position_x' | 'position_y' | 'width' | 'height' | 'shape'>>
 ): Promise<RestaurantTable> {
   const { data, error } = await supabase
     .from('restaurant_tables')
@@ -104,6 +104,15 @@ export async function updateTable(
 
   if (error) throw error;
   return data as RestaurantTable;
+}
+
+// Update table position (for drag-and-drop)
+export async function updateTablePosition(
+  tableId: string,
+  positionX: number,
+  positionY: number
+): Promise<RestaurantTable> {
+  return updateTable(tableId, { position_x: positionX, position_y: positionY });
 }
 
 // Delete table (soft delete)

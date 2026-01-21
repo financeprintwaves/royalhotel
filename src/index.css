@@ -58,6 +58,12 @@ All colors MUST be HSL.
     --info: 199 95% 54%;
     --info-foreground: 0 0% 100%;
 
+    /* Table Status Colors - semantic tokens */
+    --table-available: 142 76% 36%;
+    --table-occupied: 25 95% 53%;
+    --table-reserved: 217 91% 60%;
+    --table-cleaning: 48 96% 53%;
+
     /* Category Colors for visual grouping */
     --cat-beer: 47 100% 50%;
     --cat-whiskey: 25 95% 35%;

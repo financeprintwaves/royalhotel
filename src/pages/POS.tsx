@@ -650,6 +650,7 @@ export default function POS() {
                 refreshTables();
                 refetchTables();
               }}
+              selectedBranchId={selectedBranch}
             />
           </main>
         )}

@@ -99,6 +99,12 @@ export interface RestaurantTable {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Floor layout fields
+  position_x?: number;
+  position_y?: number;
+  width?: number;
+  height?: number;
+  shape?: 'square' | 'round' | 'rectangle';
 }
 
 export interface Order {

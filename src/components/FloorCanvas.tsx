@@ -5,7 +5,7 @@ import { AddTableDialog } from './AddTableDialog';
 import { TableMergeDialog } from './TableMergeDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit3, Lock, Unlock, LayoutGrid } from 'lucide-react';
+import { Plus, Edit3, Lock, Unlock, LayoutGrid, Grid3X3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createTable, updateTable, mergeTables, splitTables } from '@/services/tableService';
 import { toast } from 'sonner';
@@ -108,6 +108,57 @@ export function FloorCanvas({
     }
   };
 
+  const handleTableResizeEnd = async (tableId: string, width: number, height: number) => {
+    try {
+      const snappedWidth = Math.round(width / 10) * 10;
+      const snappedHeight = Math.round(height / 10) * 10;
+      await updateTable(tableId, { width: snappedWidth, height: snappedHeight });
+      onTablesChange?.();
+    } catch (error) {
+      console.error('Failed to update table size:', error);
+      toast.error('Failed to save table size');
+    }
+  };
+
+  // Filter out tables that are merged into another table (hide them)
+  const visibleTables = tables.filter(t => {
+    // Show if not merged, or if it's a primary merged table
+    if (!t.is_merged) return true;
+    if (t.merged_with && t.merged_with.length > 0) return true;
+    return false;
+  });
+
+  // Auto-arrange tables in a neat grid
+  const handleAutoArrange = async () => {
+    if (visibleTables.length === 0) return;
+    
+    const PADDING = 20;
+    const GAP = 30;
+    const TABLE_SIZE = 130; // Base size for grid cells
+    
+    // Calculate columns based on canvas width (estimate 800px if not available)
+    const canvas = document.getElementById('floor-canvas');
+    const canvasWidth = canvas?.clientWidth || 800;
+    const columns = Math.max(1, Math.floor((canvasWidth - PADDING * 2) / (TABLE_SIZE + GAP)));
+    
+    try {
+      const updates = visibleTables.map((table, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        const x = PADDING + col * (TABLE_SIZE + GAP);
+        const y = PADDING + row * (TABLE_SIZE + GAP);
+        return updateTable(table.id, { position_x: x, position_y: y });
+      });
+      
+      await Promise.all(updates);
+      onTablesChange?.();
+      toast.success(`Arranged ${visibleTables.length} tables in a grid`);
+    } catch (error) {
+      console.error('Failed to auto-arrange tables:', error);
+      toast.error('Failed to arrange tables');
+    }
+  };
+
   const handleMergeClick = (table: RestaurantTable) => {
     setSelectedTableForMerge(table);
     setShowMergeDialog(true);
@@ -122,14 +173,6 @@ export function FloorCanvas({
     await splitTables(tableId);
     onTablesChange?.();
   };
-
-  // Filter out tables that are merged into another table (hide them)
-  const visibleTables = tables.filter(t => {
-    // Show if not merged, or if it's a primary merged table
-    if (!t.is_merged) return true;
-    if (t.merged_with && t.merged_with.length > 0) return true;
-    return false;
-  });
 
   // Stats
   const stats = {
@@ -163,6 +206,18 @@ export function FloorCanvas({
 
         {isManagerOrAdmin && (
           <div className="flex items-center gap-2">
+            {editMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAutoArrange}
+                className="gap-2"
+                title="Arrange all tables in a neat grid"
+              >
+                <Grid3X3 className="h-4 w-4" />
+                Auto-Arrange
+              </Button>
+            )}
             <Button
               variant={editMode ? 'default' : 'outline'}
               size="sm"
@@ -230,6 +285,7 @@ export function FloorCanvas({
               billAmount={tableBills[table.id]}
               onSelect={() => onTableSelect(table)}
               onDragEnd={(x, y) => handleTableDragEnd(table.id, x, y)}
+              onResizeEnd={(w, h) => handleTableResizeEnd(table.id, w, h)}
               editable={editMode}
               isSelected={table.id === selectedTableId}
               onMergeClick={editMode ? () => handleMergeClick(table) : undefined}

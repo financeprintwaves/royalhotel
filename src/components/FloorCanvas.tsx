@@ -104,6 +104,7 @@ export function FloorCanvas({
       onTablesChange?.();
     } catch (error) {
       console.error('Failed to update table position:', error);
+      toast.error('Failed to save table position');
     }
   };
 

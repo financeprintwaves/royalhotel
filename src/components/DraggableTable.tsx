@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { RestaurantTable } from '@/types/pos';
 import { cn } from '@/lib/utils';
 import { Users, GripVertical, Merge, Wine, UtensilsCrossed, Sofa, TreePine } from 'lucide-react';
@@ -110,38 +110,106 @@ export function DraggableTable({
   onMergeClick,
 }: DraggableTableProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [didDrag, setDidDrag] = useState(false);
+
+  // Local position so the table moves immediately in the UI while dragging.
+  const [pos, setPos] = useState(() => ({
+    x: table.position_x || 0,
+    y: table.position_y || 0,
+  }));
+
+  const dragRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startLeft: number;
+    startTop: number;
+  } | null>(null);
   const config = STATUS_CONFIG[table.status] || STATUS_CONFIG.available;
   const tableType = table.table_type || 'dining';
   const typeConfig = TABLE_TYPE_CONFIG[tableType] || TABLE_TYPE_CONFIG.dining;
   const shapeStyles = getShapeStyles(table.shape, table.table_type);
   const isMerged = table.is_merged || (table.merged_with && table.merged_with.length > 0);
 
-  const handleDragStart = (e: React.DragEvent) => {
-    if (!editable) {
-      e.preventDefault();
-      return;
-    }
+  // Keep local position in sync with backend updates (when not actively dragging).
+  useEffect(() => {
+    if (isDragging) return;
+    setPos({
+      x: table.position_x || 0,
+      y: table.position_y || 0,
+    });
+  }, [table.position_x, table.position_y, isDragging]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!editable) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-no-drag="true"]')) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
     setIsDragging(true);
-    e.dataTransfer.setData('tableId', table.id);
-    e.dataTransfer.effectAllowed = 'move';
+    setDidDrag(false);
+
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startLeft: pos.x,
+      startTop: pos.y,
+    };
+
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
-    setIsDragging(false);
-    if (onDragEnd) {
-      const canvas = document.getElementById('floor-canvas');
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.max(0, e.clientX - rect.left - 60);
-        const y = Math.max(0, e.clientY - rect.top - 60);
-        onDragEnd(x, y);
-      }
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!editable || !isDragging) return;
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - dragRef.current.startClientX;
+    const dy = e.clientY - dragRef.current.startClientY;
+
+    if (!didDrag && Math.abs(dx) + Math.abs(dy) > 3) {
+      setDidDrag(true);
     }
+
+    setPos({
+      x: Math.max(0, dragRef.current.startLeft + dx),
+      y: Math.max(0, dragRef.current.startTop + dy),
+    });
+  };
+
+  const finishPointerDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!editable || !isDragging) return;
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - dragRef.current.startClientX;
+    const dy = e.clientY - dragRef.current.startClientY;
+    const finalX = Math.max(0, dragRef.current.startLeft + dx);
+    const finalY = Math.max(0, dragRef.current.startTop + dy);
+
+    setIsDragging(false);
+    dragRef.current = null;
+
+    setPos({ x: finalX, y: finalY });
+    // Persist position (snapping handled by parent)
+    onDragEnd?.(finalX, finalY);
   };
 
   const handleMergeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onMergeClick?.();
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // In edit mode, a drag should not trigger a click/select.
+    if (editable && didDrag) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onSelect();
   };
 
   // Calculate display dimensions
@@ -150,10 +218,12 @@ export function DraggableTable({
 
   return (
     <div
-      draggable={editable}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onClick={onSelect}
+      draggable={false}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
+      onPointerCancel={finishPointerDrag}
+      onClick={handleClick}
       className={cn(
         'absolute flex flex-col items-center justify-center p-2 border-2 shadow-lg transition-all duration-200',
         shapeStyles.className,
@@ -161,13 +231,13 @@ export function DraggableTable({
         typeConfig.bgAccent,
         isDragging && 'opacity-50 scale-110 rotate-2',
         isSelected && 'ring-4 ring-primary ring-offset-2',
-        editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+        editable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : 'cursor-pointer',
         'hover:scale-105 hover:shadow-xl',
         isMerged && 'ring-2 ring-purple-500 ring-offset-1'
       )}
       style={{
-        left: table.position_x || 0,
-        top: table.position_y || 0,
+        left: pos.x,
+        top: pos.y,
         width: displayWidth,
         height: displayHeight,
         minWidth: shapeStyles.minWidth,
@@ -183,7 +253,7 @@ export function DraggableTable({
 
       {/* Drag handle for edit mode */}
       {editable && (
-        <div className="absolute top-1 right-1 p-0.5 rounded bg-white/50 dark:bg-black/30">
+        <div className="absolute top-1 right-1 p-0.5 rounded bg-white/50 dark:bg-black/30" data-no-drag="true">
           <GripVertical className="h-3 w-3 text-muted-foreground" />
         </div>
       )}
@@ -192,6 +262,10 @@ export function DraggableTable({
       {editable && onMergeClick && (
         <button
           onClick={handleMergeClick}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
+          data-no-drag="true"
           className="absolute top-1 left-1 p-1 rounded bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
           title={isMerged ? 'Split tables' : 'Merge tables'}
         >

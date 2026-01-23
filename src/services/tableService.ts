@@ -66,6 +66,13 @@ export async function createTable(
   tableType: TableType = 'dining',
   branchId?: string // Optional branch override for admins viewing other branches
 ): Promise<RestaurantTable> {
+  const normalizedTableNumber = (() => {
+    const trimmed = (tableNumber || '').trim();
+    // If user typed only a number, standardize to the common T{n} format.
+    if (/^\d+$/.test(trimmed)) return `T${trimmed}`;
+    return trimmed;
+  })();
+
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error('Not authenticated');
 
@@ -87,7 +94,7 @@ export async function createTable(
     .from('restaurant_tables')
     .insert({
       branch_id: targetBranchId,
-      table_number: tableNumber,
+      table_number: normalizedTableNumber,
       capacity,
       status: 'available',
       table_type: tableType,

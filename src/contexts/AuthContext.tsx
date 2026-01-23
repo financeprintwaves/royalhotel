@@ -80,15 +80,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Set loading to false ASAP - don't block on async operations
+    let isMounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
+      if (!isMounted) return;
+      
       setSession(session);
       setUser(session?.user ?? null);
+      
       if (session?.user) {
-        const profileData = await fetchUserData(session.user.id);
-        // Initialize session tracking after profile is loaded
-        if (profileData) {
-          initializeSessionTracking(session.user.id, profileData.branch_id);
-        }
+        // Fetch profile but don't block the main render
+        fetchUserData(session.user.id).then((profileData) => {
+          if (!isMounted) return;
+          // Initialize session tracking in background (non-blocking)
+          if (profileData?.branch_id) {
+            initializeSessionTracking(session.user.id, profileData.branch_id);
+          }
+        }).catch(console.error);
       } else { 
         setProfile(null); 
         setRoles([]); 
@@ -97,19 +106,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setLoading(false);
     });
+
+    // Initial session check
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
+      
       setSession(session);
       setUser(session?.user ?? null);
+      
       if (session?.user) {
-        const profileData = await fetchUserData(session.user.id);
-        // Initialize session tracking after profile is loaded
-        if (profileData) {
-          initializeSessionTracking(session.user.id, profileData.branch_id);
-        }
+        // Fetch profile but don't block loading state
+        fetchUserData(session.user.id).then((profileData) => {
+          if (!isMounted) return;
+          // Initialize session tracking in background
+          if (profileData?.branch_id) {
+            initializeSessionTracking(session.user.id, profileData.branch_id);
+          }
+        }).catch(console.error);
       }
       setLoading(false);
+    }).catch(() => {
+      if (isMounted) setLoading(false);
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [initializeSessionTracking]);
 
   const signIn = async (email: string, password: string) => {

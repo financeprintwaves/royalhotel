@@ -6,10 +6,11 @@ interface ReceiptProps {
   payments?: Payment[];
   branchName?: string;
   branchAddress?: string;
+  branchPhone?: string;
 }
 
 const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
-  ({ order, payments = [], branchName = 'Restaurant POS', branchAddress }, ref) => {
+  ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone }, ref) => {
     const orderItems = (order as any).order_items || [];
     const tableNumber = (order as any).table?.table_number;
     const customerName = (order as any).customer_name;
@@ -20,113 +21,185 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
     const discountAmount = Number(order.discount_amount) || 0;
     const totalAmount = Number(order.total_amount) || 0;
 
+    // Inline styles for print compatibility
+    const styles = {
+      container: {
+        backgroundColor: 'white',
+        color: 'black',
+        padding: '24px',
+        fontFamily: "'Courier New', Courier, monospace",
+        fontSize: '12px',
+        width: '280px',
+        margin: '0 auto',
+        lineHeight: '1.4',
+      },
+      header: {
+        textAlign: 'center' as const,
+        borderBottom: '1px dashed #999',
+        paddingBottom: '16px',
+        marginBottom: '16px',
+      },
+      title: {
+        fontSize: '16px',
+        fontWeight: 'bold',
+        margin: '0 0 4px 0',
+      },
+      subtitle: {
+        fontSize: '10px',
+        margin: '2px 0',
+        color: '#444',
+      },
+      section: {
+        borderBottom: '1px dashed #999',
+        paddingBottom: '12px',
+        marginBottom: '12px',
+      },
+      orderNumber: {
+        fontSize: '14px',
+        fontWeight: 'bold',
+        textAlign: 'center' as const,
+        marginBottom: '8px',
+      },
+      row: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '4px',
+        fontSize: '11px',
+      },
+      itemRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '6px',
+        fontSize: '11px',
+      },
+      itemName: {
+        flex: 1,
+        marginRight: '8px',
+      },
+      totalRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontWeight: 'bold',
+        fontSize: '14px',
+        borderTop: '1px solid #333',
+        paddingTop: '8px',
+        marginTop: '8px',
+      },
+      discountRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        color: '#228B22',
+        marginBottom: '4px',
+        fontSize: '11px',
+      },
+      paymentSection: {
+        borderTop: '1px dashed #999',
+        marginTop: '16px',
+        paddingTop: '12px',
+      },
+      footer: {
+        textAlign: 'center' as const,
+        marginTop: '20px',
+        paddingTop: '16px',
+        borderTop: '1px dashed #999',
+        fontSize: '11px',
+      },
+      label: {
+        fontWeight: 'bold',
+      },
+    };
+
     return (
-      <div 
-        ref={ref}
-        className="bg-white text-black p-6 font-mono text-sm w-[300px] mx-auto"
-        style={{ fontFamily: "'Courier New', monospace" }}
-      >
+      <div ref={ref} style={styles.container}>
         {/* Header */}
-        <div className="text-center border-b border-dashed border-gray-400 pb-4 mb-4">
-          <h1 className="text-lg font-bold">{branchName}</h1>
-          {branchAddress && <p className="text-xs mt-1">{branchAddress}</p>}
-          <div className="text-xs mt-2">
-            <p>Date: {createdAt.toLocaleDateString()}</p>
-            <p>Time: {createdAt.toLocaleTimeString()}</p>
+        <div style={styles.header}>
+          <h1 style={styles.title}>{branchName}</h1>
+          {branchAddress && <p style={styles.subtitle}>{branchAddress}</p>}
+          {branchPhone && <p style={styles.subtitle}>Tel: {branchPhone}</p>}
+          <div style={{ marginTop: '8px' }}>
+            <p style={styles.subtitle}>Date: {createdAt.toLocaleDateString()}</p>
+            <p style={styles.subtitle}>Time: {createdAt.toLocaleTimeString()}</p>
           </div>
         </div>
 
         {/* Order Info */}
-        <div className="border-b border-dashed border-gray-400 pb-4 mb-4">
-          <p className="text-base font-bold text-center mb-2">
-            {order.order_number || order.id.slice(-8).toUpperCase()}
+        <div style={styles.section}>
+          <p style={styles.orderNumber}>
+            #{order.order_number || order.id.slice(-8).toUpperCase()}
           </p>
           {customerName && (
-            <p className="text-xs">
-              <span className="font-bold">Customer:</span> {customerName}
-            </p>
+            <div style={styles.row}>
+              <span style={styles.label}>Customer:</span>
+              <span>{customerName}</span>
+            </div>
           )}
           {tableNumber && (
-            <p className="text-xs">
-              <span className="font-bold">Table:</span> {tableNumber}
-            </p>
+            <div style={styles.row}>
+              <span style={styles.label}>Table:</span>
+              <span>{tableNumber}</span>
+            </div>
           )}
         </div>
 
+        {/* Items Header */}
+        <div style={{ ...styles.row, fontWeight: 'bold', marginBottom: '8px' }}>
+          <span>Item</span>
+          <span>Total</span>
+        </div>
+
         {/* Items */}
-        <div className="border-b border-dashed border-gray-400 pb-4 mb-4">
-          <div className="flex justify-between font-bold text-xs mb-2">
-            <span>Item</span>
-            <span>Total</span>
-          </div>
+        <div style={styles.section}>
           {orderItems.map((item: any) => (
-            <div key={item.id} className="flex justify-between text-xs mb-1">
-              <span className="flex-1">
+            <div key={item.id} style={styles.itemRow}>
+              <span style={styles.itemName}>
                 {item.quantity}x {item.menu_item?.name || 'Item'}
               </span>
-              <span className="ml-2">${Number(item.total_price).toFixed(2)}</span>
+              <span>{Number(item.total_price).toFixed(2)} OMR</span>
             </div>
           ))}
         </div>
 
         {/* Totals */}
-        <div className="space-y-1 text-xs">
-          <div className="flex justify-between">
+        <div>
+          <div style={styles.row}>
             <span>Subtotal:</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{subtotal.toFixed(2)} OMR</span>
           </div>
-          <div className="flex justify-between">
-            <span>Tax:</span>
-            <span>${taxAmount.toFixed(2)}</span>
+          <div style={styles.row}>
+            <span>Tax (10%):</span>
+            <span>{taxAmount.toFixed(2)} OMR</span>
           </div>
           {discountAmount > 0 && (
-            <div className="flex justify-between text-green-700">
+            <div style={styles.discountRow}>
               <span>Discount:</span>
-              <span>-${discountAmount.toFixed(2)}</span>
+              <span>-{discountAmount.toFixed(2)} OMR</span>
             </div>
           )}
-          <div className="flex justify-between font-bold text-base border-t border-gray-400 pt-2 mt-2">
+          <div style={styles.totalRow}>
             <span>TOTAL:</span>
-            <span>${totalAmount.toFixed(2)}</span>
+            <span>{totalAmount.toFixed(2)} OMR</span>
           </div>
         </div>
 
         {/* Payment Info */}
         {payments.length > 0 && (
-          <div className="border-t border-dashed border-gray-400 mt-4 pt-4">
-            <p className="font-bold text-xs mb-2">Payment Details:</p>
+          <div style={styles.paymentSection}>
+            <p style={{ ...styles.label, marginBottom: '8px', fontSize: '11px' }}>Payment Details:</p>
             {payments.map((payment) => (
-              <div key={payment.id} className="flex justify-between text-xs">
-                <span className="capitalize">{payment.payment_method}</span>
-                <span>${Number(payment.amount).toFixed(2)}</span>
+              <div key={payment.id} style={styles.row}>
+                <span style={{ textTransform: 'capitalize' }}>{payment.payment_method}</span>
+                <span>{Number(payment.amount).toFixed(2)} OMR</span>
               </div>
             ))}
           </div>
         )}
 
         {/* Footer */}
-        <div className="text-center mt-6 pt-4 border-t border-dashed border-gray-400">
-          {customerName && <p className="text-xs font-medium mb-2">Thank you, {customerName}!</p>}
-          <p className="text-xs">Thank you for your visit!</p>
-          <p className="text-xs mt-1">Please come again</p>
+        <div style={styles.footer}>
+          {customerName && <p style={{ fontWeight: 500, marginBottom: '8px' }}>Thank you, {customerName}!</p>}
+          <p>Thank you for your visit!</p>
+          <p style={{ marginTop: '4px' }}>Please come again</p>
         </div>
-
-        {/* Print-only styles */}
-        <style>{`
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            #receipt-print-area, #receipt-print-area * {
-              visibility: visible;
-            }
-            #receipt-print-area {
-              position: absolute;
-              left: 0;
-              top: 0;
-            }
-          }
-        `}</style>
       </div>
     );
   }

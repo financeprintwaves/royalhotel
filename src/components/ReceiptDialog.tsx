@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import Receipt from './Receipt';
 import { getOrderPayments } from '@/services/paymentService';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Order, Payment } from '@/types/pos';
 
 interface ReceiptDialogProps {
@@ -13,10 +15,18 @@ interface ReceiptDialogProps {
   autoPrint?: boolean;
 }
 
+interface BranchInfo {
+  name: string;
+  address?: string;
+  phone?: string;
+}
+
 export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = false }: ReceiptDialogProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [hasPrinted, setHasPrinted] = useState(false);
+  const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
+  const { profile } = useAuth();
 
   useEffect(() => {
     if (order && open) {
@@ -26,6 +36,25 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
       setHasPrinted(false);
     }
   }, [order, open]);
+
+  // Fetch branch info
+  useEffect(() => {
+    async function fetchBranchInfo() {
+      if (!profile?.branch_id) return;
+      
+      const { data } = await supabase
+        .from('branches')
+        .select('name, address, phone')
+        .eq('id', profile.branch_id)
+        .single();
+      
+      if (data) {
+        setBranchInfo(data);
+      }
+    }
+    
+    fetchBranchInfo();
+  }, [profile?.branch_id]);
 
   // Auto-print when dialog opens with autoPrint flag
   useEffect(() => {
@@ -50,15 +79,27 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Receipt</title>
+          <title>Receipt - ${order?.order_number || ''}</title>
           <style>
-            body {
-              font-family: 'Courier New', monospace;
-              margin: 0;
-              padding: 20px;
-            }
             * {
+              margin: 0;
+              padding: 0;
               box-sizing: border-box;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              padding: 0;
+              margin: 0;
+              background: white;
+            }
+            @page {
+              size: 80mm auto;
+              margin: 5mm;
+            }
+            @media print {
+              body {
+                width: 80mm;
+              }
             }
           </style>
         </head>
@@ -70,8 +111,12 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
     
     printWindow.document.close();
     printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+    
+    // Wait for content to load before printing
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   }
 
   if (!order) return null;
@@ -83,13 +128,14 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
           <DialogTitle>Receipt Preview</DialogTitle>
         </DialogHeader>
         
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border rounded-lg overflow-hidden bg-white">
           <Receipt 
             ref={receiptRef}
             order={order} 
             payments={payments}
-            branchName="Downtown Bistro"
-            branchAddress="123 Main Street"
+            branchName={branchInfo?.name || 'Restaurant POS'}
+            branchAddress={branchInfo?.address}
+            branchPhone={branchInfo?.phone}
           />
         </div>
 

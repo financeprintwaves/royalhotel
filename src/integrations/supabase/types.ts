@@ -133,6 +133,60 @@ export type Database = {
           },
         ]
       }
+      inventory_history: {
+        Row: {
+          branch_id: string
+          change_type: string
+          changed_by: string | null
+          created_at: string
+          id: string
+          inventory_id: string
+          quantity_after: number
+          quantity_before: number
+          quantity_change: number
+          reason: string | null
+        }
+        Insert: {
+          branch_id: string
+          change_type: string
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          inventory_id: string
+          quantity_after: number
+          quantity_before: number
+          quantity_change: number
+          reason?: string | null
+        }
+        Update: {
+          branch_id?: string
+          change_type?: string
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          inventory_id?: string
+          quantity_after?: number
+          quantity_before?: number
+          quantity_change?: number
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_history_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_history_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           billing_type: string | null

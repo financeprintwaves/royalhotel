@@ -3,25 +3,47 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, BarChart3, TrendingUp, CreditCard, DollarSign, ShoppingCart } from 'lucide-react';
+import { 
+  ArrowLeft, BarChart3, TrendingUp, CreditCard, DollarSign, ShoppingCart, 
+  Clock, Users, PieChart as PieChartIcon 
+} from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
+  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { getReportingSummary, type DailySales, type TopSellingItem, type PaymentBreakdown } from '@/services/reportingService';
+import { 
+  getReportingSummary, 
+  type DailySales, 
+  type TopSellingItem, 
+  type PaymentBreakdown,
+  type HourlySales,
+  type CategorySales,
+  type StaffPerformance
+} from '@/services/reportingService';
 
-const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning))', 'hsl(var(--info))'];
+const CHART_COLORS = [
+  'hsl(var(--primary))', 
+  'hsl(142, 76%, 36%)', // green
+  'hsl(38, 92%, 50%)', // amber
+  'hsl(217, 91%, 60%)', // blue
+  'hsl(280, 87%, 65%)', // purple
+  'hsl(346, 77%, 49%)' // red
+];
 
 export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<7 | 14 | 30>(7);
   const [data, setData] = useState<{
     dailySales: DailySales[];
+    hourlySales: HourlySales[];
     topItems: TopSellingItem[];
+    categorySales: CategorySales[];
+    staffPerformance: StaffPerformance[];
     paymentBreakdown: PaymentBreakdown[];
     totalRevenue: number;
     totalOrders: number;
     avgOrderValue: number;
+    peakHour: number;
   } | null>(null);
 
   useEffect(() => {
@@ -40,6 +62,12 @@ export default function Reports() {
     }
   }
 
+  function formatHour(hour: number) {
+    if (hour === 0) return '12 AM';
+    if (hour === 12) return '12 PM';
+    return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card px-4 py-3 flex items-center gap-4">
@@ -48,7 +76,7 @@ export default function Reports() {
         </Button>
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
-          <h1 className="font-bold text-lg">Reports</h1>
+          <h1 className="font-bold text-lg">Reports & Analytics</h1>
         </div>
       </header>
 
@@ -67,14 +95,14 @@ export default function Reports() {
         ) : data ? (
           <>
             {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${data.totalRevenue.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">{data.totalRevenue.toFixed(2)} OMR</div>
                   <p className="text-xs text-muted-foreground">Last {period} days</p>
                 </CardContent>
               </Card>
@@ -94,40 +122,101 @@ export default function Reports() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${data.avgOrderValue.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">{data.avgOrderValue.toFixed(2)} OMR</div>
                   <p className="text-xs text-muted-foreground">Last {period} days</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Peak Hour</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatHour(data.peakHour)}</div>
+                  <p className="text-xs text-muted-foreground">Busiest time</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Sales Chart */}
+            {/* Daily Sales Chart */}
             <Card>
               <CardHeader>
-                <CardTitle>Daily Sales</CardTitle>
+                <CardTitle>Daily Sales Trend</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data.dailySales}>
+                    <AreaChart data={data.dailySales}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis 
                         dataKey="date" 
                         tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         className="text-xs"
                       />
-                      <YAxis tickFormatter={(v) => `$${v}`} className="text-xs" />
+                      <YAxis tickFormatter={(v) => `${v} OMR`} className="text-xs" />
                       <Tooltip 
-                        formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
+                        formatter={(value: number, name: string) => [
+                          name === 'revenue' ? `${value.toFixed(2)} OMR` : value,
+                          name === 'revenue' ? 'Revenue' : 'Orders'
+                        ]}
                         labelFormatter={(label) => new Date(label).toLocaleDateString()}
                       />
-                      <Line 
+                      <Area 
                         type="monotone" 
                         dataKey="revenue" 
                         stroke="hsl(var(--primary))" 
+                        fillOpacity={1}
+                        fill="url(#colorRevenue)"
                         strokeWidth={2}
-                        dot={{ fill: 'hsl(var(--primary))' }}
                       />
-                    </LineChart>
+                      <Line 
+                        type="monotone" 
+                        dataKey="orders" 
+                        stroke="hsl(142, 76%, 36%)" 
+                        strokeWidth={2}
+                        dot={false}
+                        yAxisId="right"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Hourly Sales */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Sales by Hour
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[250px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.hourlySales.filter(h => h.orders > 0 || h.hour >= 8 && h.hour <= 23)}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis 
+                        dataKey="hour" 
+                        tickFormatter={formatHour}
+                        className="text-xs"
+                      />
+                      <YAxis className="text-xs" />
+                      <Tooltip 
+                        formatter={(value: number, name: string) => [
+                          name === 'revenue' ? `${value.toFixed(2)} OMR` : value,
+                          name === 'revenue' ? 'Revenue' : 'Orders'
+                        ]}
+                        labelFormatter={(h) => formatHour(h)}
+                      />
+                      <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
@@ -142,7 +231,7 @@ export default function Reports() {
                 <CardContent>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data.topItems} layout="vertical">
+                      <BarChart data={data.topItems.slice(0, 8)} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                         <XAxis type="number" className="text-xs" />
                         <YAxis 
@@ -154,7 +243,7 @@ export default function Reports() {
                         />
                         <Tooltip 
                           formatter={(value: number, name: string) => [
-                            name === 'quantity' ? `${value} sold` : `$${value.toFixed(2)}`,
+                            name === 'quantity' ? `${value} sold` : `${value.toFixed(2)} OMR`,
                             name === 'quantity' ? 'Quantity' : 'Revenue'
                           ]}
                         />
@@ -162,6 +251,89 @@ export default function Reports() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Category Sales */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChartIcon className="h-4 w-4" />
+                    Sales by Category
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.categorySales.length > 0 ? (
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={data.categorySales}
+                            dataKey="revenue"
+                            nameKey="category"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label={({ category, percent }) => 
+                              `${category} (${(percent * 100).toFixed(0)}%)`
+                            }
+                          >
+                            {data.categorySales.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => [`${value.toFixed(2)} OMR`, 'Revenue']} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                      No category data available
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Staff Performance */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Staff Performance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.staffPerformance.length > 0 ? (
+                    <div className="space-y-4">
+                      {data.staffPerformance.slice(0, 5).map((staff, index) => (
+                        <div key={staff.staff_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium">{staff.staff_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {staff.orders_count} orders • Avg: {staff.avg_order_value.toFixed(2)} OMR
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">{staff.total_revenue.toFixed(2)} OMR</p>
+                          </div>
+                        </div>
+                      ))}
+                      {data.staffPerformance.length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">No staff data available</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                      No staff performance data
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -175,30 +347,36 @@ export default function Reports() {
                 </CardHeader>
                 <CardContent>
                   {data.paymentBreakdown.length > 0 ? (
-                    <div className="h-[300px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={data.paymentBreakdown}
-                            dataKey="amount"
-                            nameKey="method"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            label={({ method, percent }) => 
-                              `${method} (${(percent * 100).toFixed(0)}%)`
-                            }
-                          >
-                            {data.paymentBreakdown.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Amount']} />
-                        </PieChart>
-                      </ResponsiveContainer>
+                    <div className="space-y-4">
+                      {data.paymentBreakdown.map((payment) => {
+                        const total = data.paymentBreakdown.reduce((sum, p) => sum + p.amount, 0);
+                        const percentage = total > 0 ? (payment.amount / total) * 100 : 0;
+                        
+                        return (
+                          <div key={payment.method} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="capitalize font-medium">{payment.method}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {payment.count} transactions
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 bg-muted rounded-full h-2">
+                                <div 
+                                  className="h-2 rounded-full bg-primary" 
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                              <span className="font-bold min-w-[80px] text-right">
+                                {payment.amount.toFixed(2)} OMR
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
                       No payment data available
                     </div>
                   )}

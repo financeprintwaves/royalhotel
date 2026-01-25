@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, BarChart3, TrendingUp, CreditCard, DollarSign, ShoppingCart, 
-  Clock, Users, PieChart as PieChartIcon 
+  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { 
   getReportingSummary, 
@@ -18,7 +19,10 @@ import {
   type PaymentBreakdown,
   type HourlySales,
   type CategorySales,
-  type StaffPerformance
+  type StaffPerformance,
+  type OrderTypeSales,
+  type ItemSalesDetail,
+  type SalesSummary
 } from '@/services/reportingService';
 
 const CHART_COLORS = [
@@ -33,6 +37,7 @@ const CHART_COLORS = [
 export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<7 | 14 | 30>(7);
+  const [activeTab, setActiveTab] = useState('overview');
   const [data, setData] = useState<{
     dailySales: DailySales[];
     hourlySales: HourlySales[];
@@ -40,6 +45,9 @@ export default function Reports() {
     categorySales: CategorySales[];
     staffPerformance: StaffPerformance[];
     paymentBreakdown: PaymentBreakdown[];
+    orderTypeSales: OrderTypeSales[];
+    itemSalesDetails: ItemSalesDetail[];
+    salesSummary: SalesSummary;
     totalRevenue: number;
     totalOrders: number;
     avgOrderValue: number;
@@ -82,307 +90,582 @@ export default function Reports() {
 
       <main className="p-6 space-y-6">
         {/* Period Selector */}
-        <Tabs value={String(period)} onValueChange={v => setPeriod(Number(v) as 7 | 14 | 30)}>
-          <TabsList>
-            <TabsTrigger value="7">Last 7 Days</TabsTrigger>
-            <TabsTrigger value="14">Last 14 Days</TabsTrigger>
-            <TabsTrigger value="30">Last 30 Days</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap gap-4 items-center justify-between">
+          <Tabs value={String(period)} onValueChange={v => setPeriod(Number(v) as 7 | 14 | 30)}>
+            <TabsList>
+              <TabsTrigger value="7">Last 7 Days</TabsTrigger>
+              <TabsTrigger value="14">Last 14 Days</TabsTrigger>
+              <TabsTrigger value="30">Last 30 Days</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Report Type Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="sales">Sales</TabsTrigger>
+              <TabsTrigger value="payments">Payments</TabsTrigger>
+              <TabsTrigger value="items">Items</TabsTrigger>
+              <TabsTrigger value="summary">Summary</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
         {loading ? (
           <div className="text-center py-12 text-muted-foreground">Loading reports...</div>
         ) : data ? (
           <>
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{data.totalRevenue.toFixed(2)} OMR</div>
-                  <p className="text-xs text-muted-foreground">Last {period} days</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{data.totalOrders}</div>
-                  <p className="text-xs text-muted-foreground">Last {period} days</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Order Value</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{data.avgOrderValue.toFixed(2)} OMR</div>
-                  <p className="text-xs text-muted-foreground">Last {period} days</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Peak Hour</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formatHour(data.peakHour)}</div>
-                  <p className="text-xs text-muted-foreground">Busiest time</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Daily Sales Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Daily Sales Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data.dailySales}>
-                      <defs>
-                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        className="text-xs"
-                      />
-                      <YAxis tickFormatter={(v) => `${v} OMR`} className="text-xs" />
-                      <Tooltip 
-                        formatter={(value: number, name: string) => [
-                          name === 'revenue' ? `${value.toFixed(2)} OMR` : value,
-                          name === 'revenue' ? 'Revenue' : 'Orders'
-                        ]}
-                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="hsl(var(--primary))" 
-                        fillOpacity={1}
-                        fill="url(#colorRevenue)"
-                        strokeWidth={2}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="orders" 
-                        stroke="hsl(142, 76%, 36%)" 
-                        strokeWidth={2}
-                        dot={false}
-                        yAxisId="right"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+            {/* Overview Tab */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Summary Cards */}
+                <div className="grid gap-4 md:grid-cols-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{data.totalRevenue.toFixed(3)} OMR</div>
+                      <p className="text-xs text-muted-foreground">Last {period} days</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                      <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{data.totalOrders}</div>
+                      <p className="text-xs text-muted-foreground">Last {period} days</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Avg Order Value</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{data.avgOrderValue.toFixed(3)} OMR</div>
+                      <p className="text-xs text-muted-foreground">Last {period} days</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Peak Hour</CardTitle>
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{formatHour(data.peakHour)}</div>
+                      <p className="text-xs text-muted-foreground">Busiest time</p>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Hourly Sales */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Sales by Hour
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.hourlySales.filter(h => h.orders > 0 || h.hour >= 8 && h.hour <= 23)}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis 
-                        dataKey="hour" 
-                        tickFormatter={formatHour}
-                        className="text-xs"
-                      />
-                      <YAxis className="text-xs" />
-                      <Tooltip 
-                        formatter={(value: number, name: string) => [
-                          name === 'revenue' ? `${value.toFixed(2)} OMR` : value,
-                          name === 'revenue' ? 'Revenue' : 'Orders'
-                        ]}
-                        labelFormatter={(h) => formatHour(h)}
-                      />
-                      <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                {/* Daily Sales Chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Daily Sales Trend</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={data.dailySales}>
+                          <defs>
+                            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            className="text-xs"
+                          />
+                          <YAxis tickFormatter={(v) => `${v} OMR`} className="text-xs" />
+                          <Tooltip 
+                            formatter={(value: number, name: string) => [
+                              name === 'revenue' ? `${value.toFixed(3)} OMR` : value,
+                              name === 'revenue' ? 'Revenue' : 'Orders'
+                            ]}
+                            labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="revenue" 
+                            stroke="hsl(var(--primary))" 
+                            fillOpacity={1}
+                            fill="url(#colorRevenue)"
+                            strokeWidth={2}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Staff Performance */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Staff Performance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.staffPerformance.length > 0 ? (
+                        <div className="space-y-4">
+                          {data.staffPerformance.slice(0, 5).map((staff, index) => (
+                            <div key={staff.staff_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <p className="font-medium">{staff.staff_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {staff.orders_count} orders • Avg: {staff.avg_order_value.toFixed(3)} OMR
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold">{staff.total_revenue.toFixed(3)} OMR</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                          No staff performance data
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Order Type Breakdown */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <UtensilsCrossed className="h-4 w-4" />
+                        Order Type Breakdown
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {data.orderTypeSales.map((type) => {
+                          const total = data.orderTypeSales.reduce((sum, t) => sum + t.revenue, 0);
+                          const percentage = total > 0 ? (type.revenue / total) * 100 : 0;
+                          
+                          return (
+                            <div key={type.type} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={type.type === 'dine-in' ? 'default' : 'secondary'}>
+                                    {type.type === 'dine-in' ? 'Dine-In' : 'Takeaway'}
+                                  </Badge>
+                                  <span className="text-sm text-muted-foreground">
+                                    {type.orders} orders
+                                  </span>
+                                </div>
+                                <span className="font-bold">{type.revenue.toFixed(3)} OMR</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 bg-muted rounded-full h-2">
+                                  <div 
+                                    className={`h-2 rounded-full ${type.type === 'dine-in' ? 'bg-primary' : 'bg-secondary'}`}
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm text-muted-foreground min-w-[40px]">
+                                  {percentage.toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
+              </>
+            )}
 
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Top Selling Items */}
+            {/* Sales Tab */}
+            {activeTab === 'sales' && (
+              <>
+                {/* Hourly Sales */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Sales by Hour
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data.hourlySales.filter(h => h.orders > 0 || (h.hour >= 8 && h.hour <= 23))}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="hour" 
+                            tickFormatter={formatHour}
+                            className="text-xs"
+                          />
+                          <YAxis className="text-xs" />
+                          <Tooltip 
+                            formatter={(value: number, name: string) => [
+                              name === 'revenue' ? `${value.toFixed(3)} OMR` : value,
+                              name === 'revenue' ? 'Revenue' : 'Orders'
+                            ]}
+                            labelFormatter={(h) => formatHour(h)}
+                          />
+                          <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Orders" />
+                          <Bar dataKey="revenue" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} name="Revenue" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Top Selling Items */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Top Selling Items</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={data.topItems.slice(0, 8)} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                            <XAxis type="number" className="text-xs" />
+                            <YAxis 
+                              type="category" 
+                              dataKey="name" 
+                              width={100}
+                              className="text-xs"
+                              tickFormatter={(v) => v.length > 12 ? v.slice(0, 12) + '...' : v}
+                            />
+                            <Tooltip 
+                              formatter={(value: number, name: string) => [
+                                name === 'quantity' ? `${value} sold` : `${value.toFixed(3)} OMR`,
+                                name === 'quantity' ? 'Quantity' : 'Revenue'
+                              ]}
+                            />
+                            <Bar dataKey="quantity" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Category Sales */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <PieChartIcon className="h-4 w-4" />
+                        Sales by Category
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.categorySales.length > 0 ? (
+                        <div className="h-[300px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={data.categorySales}
+                                dataKey="revenue"
+                                nameKey="category"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={100}
+                                label={({ category, percent }) => 
+                                  `${category} (${(percent * 100).toFixed(0)}%)`
+                                }
+                              >
+                                {data.categorySales.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: number) => [`${value.toFixed(3)} OMR`, 'Revenue']} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                          No category data available
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {/* Payments Tab */}
+            {activeTab === 'payments' && (
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Payment Methods */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Payment Methods Breakdown
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {data.paymentBreakdown.length > 0 ? (
+                      <div className="space-y-4">
+                        {data.paymentBreakdown.map((payment) => {
+                          const total = data.paymentBreakdown.reduce((sum, p) => sum + p.amount, 0);
+                          const percentage = total > 0 ? (payment.amount / total) * 100 : 0;
+                          
+                          return (
+                            <div key={payment.method} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="capitalize font-medium">{payment.method}</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {payment.count} transactions
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 bg-muted rounded-full h-2">
+                                  <div 
+                                    className="h-2 rounded-full bg-primary" 
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="font-bold min-w-[80px] text-right">
+                                  {payment.amount.toFixed(3)} OMR
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                        No payment data available
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Payment Pie Chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Payment Distribution</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {data.paymentBreakdown.length > 0 ? (
+                      <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={data.paymentBreakdown}
+                              dataKey="amount"
+                              nameKey="method"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={100}
+                              label={({ method, percent }) => 
+                                `${method} (${(percent * 100).toFixed(0)}%)`
+                              }
+                            >
+                              {data.paymentBreakdown.map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value: number) => [`${value.toFixed(3)} OMR`, 'Amount']} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                        No payment data available
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Items Tab */}
+            {activeTab === 'items' && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Top Selling Items</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Item-wise Sales Report
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data.topItems.slice(0, 8)} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis type="number" className="text-xs" />
-                        <YAxis 
-                          type="category" 
-                          dataKey="name" 
-                          width={100}
-                          className="text-xs"
-                          tickFormatter={(v) => v.length > 12 ? v.slice(0, 12) + '...' : v}
-                        />
-                        <Tooltip 
-                          formatter={(value: number, name: string) => [
-                            name === 'quantity' ? `${value} sold` : `${value.toFixed(2)} OMR`,
-                            name === 'quantity' ? 'Quantity' : 'Revenue'
-                          ]}
-                        />
-                        <Bar dataKey="quantity" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-2 font-medium">#</th>
+                          <th className="text-left py-3 px-2 font-medium">Item Name</th>
+                          <th className="text-left py-3 px-2 font-medium">Category</th>
+                          <th className="text-right py-3 px-2 font-medium">Qty Sold</th>
+                          <th className="text-right py-3 px-2 font-medium">Avg Price</th>
+                          <th className="text-right py-3 px-2 font-medium">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.itemSalesDetails.map((item, index) => (
+                          <tr key={item.name} className="border-b hover:bg-muted/50">
+                            <td className="py-3 px-2 text-muted-foreground">{index + 1}</td>
+                            <td className="py-3 px-2 font-medium">{item.name}</td>
+                            <td className="py-3 px-2">
+                              <Badge variant="outline">{item.category}</Badge>
+                            </td>
+                            <td className="py-3 px-2 text-right">{item.quantity}</td>
+                            <td className="py-3 px-2 text-right">{item.avg_price.toFixed(3)} OMR</td>
+                            <td className="py-3 px-2 text-right font-bold">{item.revenue.toFixed(3)} OMR</td>
+                          </tr>
+                        ))}
+                        {data.itemSalesDetails.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                              No item sales data available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {data.itemSalesDetails.length > 0 && (
+                        <tfoot>
+                          <tr className="border-t-2 font-bold">
+                            <td colSpan={3} className="py-3 px-2">Total</td>
+                            <td className="py-3 px-2 text-right">
+                              {data.itemSalesDetails.reduce((sum, i) => sum + i.quantity, 0)}
+                            </td>
+                            <td className="py-3 px-2 text-right">-</td>
+                            <td className="py-3 px-2 text-right">
+                              {data.itemSalesDetails.reduce((sum, i) => sum + i.revenue, 0).toFixed(3)} OMR
+                            </td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
                   </div>
                 </CardContent>
               </Card>
+            )}
 
-              {/* Category Sales */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PieChartIcon className="h-4 w-4" />
-                    Sales by Category
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.categorySales.length > 0 ? (
-                    <div className="h-[300px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={data.categorySales}
-                            dataKey="revenue"
-                            nameKey="category"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            label={({ category, percent }) => 
-                              `${category} (${(percent * 100).toFixed(0)}%)`
-                            }
-                          >
-                            {data.categorySales.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value: number) => [`${value.toFixed(2)} OMR`, 'Revenue']} />
-                        </PieChart>
-                      </ResponsiveContainer>
+            {/* Summary Tab */}
+            {activeTab === 'summary' && (
+              <div className="space-y-6">
+                {/* Summary Header */}
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Sales Summary Report - Last {period} Days
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <div className="text-center p-4 bg-background rounded-lg">
+                        <p className="text-sm text-muted-foreground mb-1">Total Revenue</p>
+                        <p className="text-3xl font-bold text-primary">{data.salesSummary.gross_revenue.toFixed(3)} OMR</p>
+                      </div>
+                      <div className="text-center p-4 bg-background rounded-lg">
+                        <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
+                        <p className="text-3xl font-bold">{data.salesSummary.total_orders}</p>
+                      </div>
+                      <div className="text-center p-4 bg-background rounded-lg">
+                        <p className="text-sm text-muted-foreground mb-1">Average Order Value</p>
+                        <p className="text-3xl font-bold">{data.salesSummary.avg_order_value.toFixed(3)} OMR</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                      No category data available
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </CardContent>
+                </Card>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Staff Performance */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Staff Performance
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.staffPerformance.length > 0 ? (
-                    <div className="space-y-4">
-                      {data.staffPerformance.slice(0, 5).map((staff, index) => (
-                        <div key={staff.staff_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                              {index + 1}
-                            </div>
-                            <div>
-                              <p className="font-medium">{staff.staff_name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {staff.orders_count} orders • Avg: {staff.avg_order_value.toFixed(2)} OMR
-                              </p>
-                            </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Order Type Summary */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Order Type Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                          <div>
+                            <p className="font-medium flex items-center gap-2">
+                              <UtensilsCrossed className="h-4 w-4" /> Dine-In
+                            </p>
+                            <p className="text-sm text-muted-foreground">{data.salesSummary.dine_in_orders} orders</p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold">{staff.total_revenue.toFixed(2)} OMR</p>
+                          <p className="text-xl font-bold">{data.salesSummary.dine_in_revenue.toFixed(3)} OMR</p>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                          <div>
+                            <p className="font-medium flex items-center gap-2">
+                              <Package className="h-4 w-4" /> Takeaway
+                            </p>
+                            <p className="text-sm text-muted-foreground">{data.salesSummary.takeaway_orders} orders</p>
                           </div>
+                          <p className="text-xl font-bold">{data.salesSummary.takeaway_revenue.toFixed(3)} OMR</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Key Insights */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Key Insights</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 border-b">
+                          <span className="text-muted-foreground">Peak Hour</span>
+                          <span className="font-medium">{formatHour(data.salesSummary.peak_hour)}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 border-b">
+                          <span className="text-muted-foreground">Best Day</span>
+                          <span className="font-medium">
+                            {data.salesSummary.peak_day ? new Date(data.salesSummary.peak_day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 border-b">
+                          <span className="text-muted-foreground">Top Selling Item</span>
+                          <span className="font-medium">{data.salesSummary.top_item}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3">
+                          <span className="text-muted-foreground">Top Category</span>
+                          <span className="font-medium">{data.salesSummary.top_category}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Payment Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Payment Method Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      {data.paymentBreakdown.map((payment) => (
+                        <div key={payment.method} className="text-center p-4 bg-muted/50 rounded-lg">
+                          <p className="text-sm text-muted-foreground capitalize mb-1">{payment.method}</p>
+                          <p className="text-xl font-bold">{payment.amount.toFixed(3)} OMR</p>
+                          <p className="text-xs text-muted-foreground">{payment.count} transactions</p>
                         </div>
                       ))}
-                      {data.staffPerformance.length === 0 && (
-                        <p className="text-center text-muted-foreground py-8">No staff data available</p>
+                      {data.paymentBreakdown.length === 0 && (
+                        <p className="col-span-4 text-center py-4 text-muted-foreground">No payment data</p>
                       )}
                     </div>
-                  ) : (
-                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                      No staff performance data
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Payment Methods */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    Payment Methods
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.paymentBreakdown.length > 0 ? (
-                    <div className="space-y-4">
-                      {data.paymentBreakdown.map((payment) => {
-                        const total = data.paymentBreakdown.reduce((sum, p) => sum + p.amount, 0);
-                        const percentage = total > 0 ? (payment.amount / total) * 100 : 0;
-                        
-                        return (
-                          <div key={payment.method} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="capitalize font-medium">{payment.method}</span>
-                              <span className="text-sm text-muted-foreground">
-                                {payment.count} transactions
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 bg-muted rounded-full h-2">
-                                <div 
-                                  className="h-2 rounded-full bg-primary" 
-                                  style={{ width: `${percentage}%` }}
-                                />
-                              </div>
-                              <span className="font-bold min-w-[80px] text-right">
-                                {payment.amount.toFixed(2)} OMR
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                      No payment data available
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </>
         ) : (
           <div className="text-center py-12 text-muted-foreground">No data available</div>

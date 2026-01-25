@@ -258,6 +258,11 @@ export default function Orders() {
                             {(order as any).customer_name}
                           </span>
                         )}
+                        {(order as any).waiter?.full_name && (
+                          <span className="text-xs font-normal text-blue-600 flex items-center gap-1">
+                            Waiter: {(order as any).waiter.full_name}
+                          </span>
+                        )}
                       </div>
                       <Badge className={STATUS_COLORS[order.order_status]}>
                         {order.order_status.replace('_', ' ')}
@@ -273,7 +278,7 @@ export default function Orders() {
                       {((order as any).order_items || []).slice(0, 3).map((item: any) => (
                         <div key={item.id} className="text-sm flex justify-between">
                           <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
-                          <span className="text-muted-foreground">${Number(item.total_price).toFixed(2)}</span>
+                          <span className="text-muted-foreground">{Number(item.total_price).toFixed(3)} OMR</span>
                         </div>
                       ))}
                       {((order as any).order_items || []).length > 3 && (
@@ -284,7 +289,7 @@ export default function Orders() {
                     </div>
                     <div className="flex justify-between items-center pt-2 border-t">
                       <span className="font-bold">Total</span>
-                      <span className="font-bold text-lg">${Number(order.total_amount).toFixed(2)}</span>
+                      <span className="font-bold text-lg">{Number(order.total_amount).toFixed(3)} OMR</span>
                     </div>
                     <div className="flex gap-2 flex-wrap">
                       {order.order_status === 'CREATED' && (
@@ -337,6 +342,11 @@ export default function Orders() {
                             {(order as any).customer_name}
                           </span>
                         )}
+                        {(order as any).waiter?.full_name && (
+                          <span className="text-xs font-normal text-blue-600 flex items-center gap-1">
+                            Waiter: {(order as any).waiter.full_name}
+                          </span>
+                        )}
                       </div>
                       <Badge className={STATUS_COLORS[order.order_status]}>
                         {order.order_status}
@@ -348,7 +358,7 @@ export default function Orders() {
                   </CardHeader>
                   <CardContent className="flex items-center justify-between">
                     <div className="font-bold text-lg">
-                      ${Number(order.total_amount).toFixed(2)}
+                      {Number(order.total_amount).toFixed(3)} OMR
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>
                       <Printer className="h-3 w-3 mr-1" />Receipt
@@ -365,7 +375,7 @@ export default function Orders() {
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Process Payment - ${selectedOrder ? Number(selectedOrder.total_amount).toFixed(2) : '0.00'}</DialogTitle>
+            <DialogTitle>Process Payment - {selectedOrder ? Number(selectedOrder.total_amount).toFixed(3) : '0.000'} OMR</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">

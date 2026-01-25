@@ -39,6 +39,35 @@ export interface PaymentBreakdown {
   count: number;
 }
 
+export interface OrderTypeSales {
+  type: 'dine-in' | 'takeaway';
+  orders: number;
+  revenue: number;
+}
+
+export interface ItemSalesDetail {
+  name: string;
+  category: string;
+  quantity: number;
+  revenue: number;
+  avg_price: number;
+}
+
+export interface SalesSummary {
+  gross_revenue: number;
+  net_revenue: number;
+  total_orders: number;
+  avg_order_value: number;
+  dine_in_orders: number;
+  dine_in_revenue: number;
+  takeaway_orders: number;
+  takeaway_revenue: number;
+  peak_hour: number;
+  peak_day: string;
+  top_item: string;
+  top_category: string;
+}
+
 export async function getDailySales(days: number = 7): Promise<DailySales[]> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -177,18 +206,30 @@ export async function getStaffPerformance(days: number = 30): Promise<StaffPerfo
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const { data: orders, error } = await supabase
+  // Get orders with created_by
+  const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select(`
-      id,
-      total_amount,
-      created_by,
-      profiles:profiles!orders_created_by_fkey(display_name)
-    `)
+    .select('id, total_amount, created_by')
     .gte('created_at', startDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
 
-  if (error) throw error;
+  if (ordersError) throw ordersError;
+
+  // Get all staff user_ids from orders
+  const staffIds = [...new Set((orders || []).map(o => o.created_by).filter(Boolean))];
+  
+  // Fetch profiles separately
+  let profilesMap: Record<string, string> = {};
+  if (staffIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .in('user_id', staffIds);
+    
+    (profiles || []).forEach(p => {
+      profilesMap[p.user_id] = p.full_name || 'Unknown Staff';
+    });
+  }
 
   // Aggregate by staff
   const staffStats: Record<string, { 
@@ -199,7 +240,7 @@ export async function getStaffPerformance(days: number = 30): Promise<StaffPerfo
 
   (orders || []).forEach(order => {
     const staffId = order.created_by || 'unknown';
-    const staffName = (order.profiles as any)?.display_name || 'Unknown Staff';
+    const staffName = profilesMap[staffId] || 'Unknown Staff';
     
     if (!staffStats[staffId]) {
       staffStats[staffId] = { 
@@ -251,14 +292,145 @@ export async function getPaymentBreakdown(days: number = 30): Promise<PaymentBre
     .map(([method, stats]) => ({ method: method as PaymentMethod, ...stats }));
 }
 
+export async function getOrderTypeSales(days: number = 30): Promise<OrderTypeSales[]> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('table_id, total_amount')
+    .gte('created_at', startDate.toISOString())
+    .in('order_status', ['PAID', 'CLOSED']);
+
+  if (error) throw error;
+
+  let dineIn = { orders: 0, revenue: 0 };
+  let takeaway = { orders: 0, revenue: 0 };
+
+  (orders || []).forEach(order => {
+    if (order.table_id) {
+      dineIn.orders += 1;
+      dineIn.revenue += Number(order.total_amount) || 0;
+    } else {
+      takeaway.orders += 1;
+      takeaway.revenue += Number(order.total_amount) || 0;
+    }
+  });
+
+  return [
+    { type: 'dine-in' as const, ...dineIn },
+    { type: 'takeaway' as const, ...takeaway },
+  ];
+}
+
+export async function getItemSalesDetails(days: number = 30): Promise<ItemSalesDetail[]> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('order_items')
+    .select(`
+      quantity,
+      total_price,
+      unit_price,
+      menu_item:menu_items(name, category:categories(name)),
+      order:orders!inner(order_status, created_at)
+    `)
+    .gte('order.created_at', startDate.toISOString())
+    .in('order.order_status', ['PAID', 'CLOSED']);
+
+  if (error) throw error;
+
+  // Aggregate by item
+  const itemDetails: Record<string, { 
+    category: string; 
+    quantity: number; 
+    revenue: number;
+    total_price_sum: number;
+  }> = {};
+
+  (data || []).forEach(item => {
+    const name = (item.menu_item as any)?.name || 'Unknown';
+    const category = (item.menu_item as any)?.category?.name || 'Uncategorized';
+    
+    if (!itemDetails[name]) {
+      itemDetails[name] = { category, quantity: 0, revenue: 0, total_price_sum: 0 };
+    }
+    itemDetails[name].quantity += item.quantity;
+    itemDetails[name].revenue += Number(item.total_price) || 0;
+    itemDetails[name].total_price_sum += Number(item.total_price) || 0;
+  });
+
+  return Object.entries(itemDetails)
+    .map(([name, stats]) => ({
+      name,
+      category: stats.category,
+      quantity: stats.quantity,
+      revenue: stats.revenue,
+      avg_price: stats.quantity > 0 ? stats.revenue / stats.quantity : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+export async function getSalesSummary(days: number = 7): Promise<SalesSummary> {
+  const [dailySales, hourlySales, topItems, categorySales, orderTypeSales] = await Promise.all([
+    getDailySales(days),
+    getHourlySales(days),
+    getTopSellingItems(1),
+    getCategorySales(days),
+    getOrderTypeSales(days),
+  ]);
+
+  const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
+  const totalOrders = dailySales.reduce((sum, d) => sum + d.orders, 0);
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  // Find peak hour
+  const peakHour = hourlySales.reduce((max, h) => h.orders > max.orders ? h : max, hourlySales[0]);
+
+  // Find peak day
+  const peakDay = dailySales.reduce((max, d) => d.revenue > max.revenue ? d : max, dailySales[0]);
+
+  const dineIn = orderTypeSales.find(o => o.type === 'dine-in') || { orders: 0, revenue: 0 };
+  const takeaway = orderTypeSales.find(o => o.type === 'takeaway') || { orders: 0, revenue: 0 };
+
+  return {
+    gross_revenue: totalRevenue,
+    net_revenue: totalRevenue, // No tax deduction per user request
+    total_orders: totalOrders,
+    avg_order_value: avgOrderValue,
+    dine_in_orders: dineIn.orders,
+    dine_in_revenue: dineIn.revenue,
+    takeaway_orders: takeaway.orders,
+    takeaway_revenue: takeaway.revenue,
+    peak_hour: peakHour?.hour ?? 12,
+    peak_day: peakDay?.date || '',
+    top_item: topItems[0]?.name || 'N/A',
+    top_category: categorySales[0]?.category || 'N/A',
+  };
+}
+
 export async function getReportingSummary(days: number = 7) {
-  const [dailySales, hourlySales, topItems, categorySales, staffPerformance, paymentBreakdown] = await Promise.all([
+  const [
+    dailySales, 
+    hourlySales, 
+    topItems, 
+    categorySales, 
+    staffPerformance, 
+    paymentBreakdown,
+    orderTypeSales,
+    itemSalesDetails,
+    salesSummary
+  ] = await Promise.all([
     getDailySales(days),
     getHourlySales(days),
     getTopSellingItems(10),
     getCategorySales(days),
     getStaffPerformance(days),
     getPaymentBreakdown(days),
+    getOrderTypeSales(days),
+    getItemSalesDetails(days),
+    getSalesSummary(days),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
@@ -275,6 +447,9 @@ export async function getReportingSummary(days: number = 7) {
     categorySales,
     staffPerformance,
     paymentBreakdown,
+    orderTypeSales,
+    itemSalesDetails,
+    salesSummary,
     totalRevenue,
     totalOrders,
     avgOrderValue,

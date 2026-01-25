@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import Receipt from './Receipt';
@@ -26,6 +26,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
   const [payments, setPayments] = useState<Payment[]>([]);
   const [hasPrinted, setHasPrinted] = useState(false);
   const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
+  const [waiterName, setWaiterName] = useState<string>('');
   const { profile } = useAuth();
 
   useEffect(() => {
@@ -34,6 +35,18 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
         .then(setPayments)
         .catch(console.error);
       setHasPrinted(false);
+      
+      // Fetch waiter name
+      if (order.created_by) {
+        supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', order.created_by)
+          .maybeSingle()
+          .then(({ data }) => {
+            setWaiterName(data?.full_name || '');
+          });
+      }
     }
   }, [order, open]);
 
@@ -46,7 +59,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
         .from('branches')
         .select('name, address, phone')
         .eq('id', profile.branch_id)
-        .single();
+        .maybeSingle();
       
       if (data) {
         setBranchInfo(data);
@@ -126,6 +139,9 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
       <DialogContent className="max-w-fit">
         <DialogHeader>
           <DialogTitle>Receipt Preview</DialogTitle>
+          <DialogDescription>
+            Order #{order.order_number || order.id.slice(-8).toUpperCase()}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="border rounded-lg overflow-hidden bg-white">
@@ -136,6 +152,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
             branchName={branchInfo?.name || 'Restaurant POS'}
             branchAddress={branchInfo?.address}
             branchPhone={branchInfo?.phone}
+            waiterName={waiterName}
           />
         </div>
 

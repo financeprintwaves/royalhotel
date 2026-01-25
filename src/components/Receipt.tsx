@@ -7,19 +7,22 @@ interface ReceiptProps {
   branchName?: string;
   branchAddress?: string;
   branchPhone?: string;
+  waiterName?: string;
 }
 
 const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
-  ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone }, ref) => {
+  ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone, waiterName }, ref) => {
     const orderItems = (order as any).order_items || [];
     const tableNumber = (order as any).table?.table_number;
     const customerName = (order as any).customer_name;
     const createdAt = order.created_at ? new Date(order.created_at) : new Date();
     
-    const subtotal = Number(order.subtotal) || 0;
-    const taxAmount = Number(order.tax_amount) || 0;
-    const discountAmount = Number(order.discount_amount) || 0;
     const totalAmount = Number(order.total_amount) || 0;
+    const discountAmount = Number(order.discount_amount) || 0;
+
+    // Calculate items total (without tax)
+    const itemsTotal = orderItems.reduce((sum: number, item: any) => 
+      sum + (Number(item.total_price) || 0), 0);
 
     // Inline styles for print compatibility
     const styles = {
@@ -139,6 +142,12 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
               <span>{tableNumber}</span>
             </div>
           )}
+          {waiterName && (
+            <div style={styles.row}>
+              <span style={styles.label}>Served by:</span>
+              <span>{waiterName}</span>
+            </div>
+          )}
         </div>
 
         {/* Items Header */}
@@ -154,30 +163,28 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
               <span style={styles.itemName}>
                 {item.quantity}x {item.menu_item?.name || 'Item'}
               </span>
-              <span>{Number(item.total_price).toFixed(2)} OMR</span>
+              <span>{Number(item.total_price).toFixed(3)} OMR</span>
             </div>
           ))}
         </div>
 
-        {/* Totals */}
+        {/* Totals - No tax display per user request */}
         <div>
-          <div style={styles.row}>
-            <span>Subtotal:</span>
-            <span>{subtotal.toFixed(2)} OMR</span>
-          </div>
-          <div style={styles.row}>
-            <span>Tax (10%):</span>
-            <span>{taxAmount.toFixed(2)} OMR</span>
-          </div>
           {discountAmount > 0 && (
-            <div style={styles.discountRow}>
-              <span>Discount:</span>
-              <span>-{discountAmount.toFixed(2)} OMR</span>
-            </div>
+            <>
+              <div style={styles.row}>
+                <span>Subtotal:</span>
+                <span>{itemsTotal.toFixed(3)} OMR</span>
+              </div>
+              <div style={styles.discountRow}>
+                <span>Discount:</span>
+                <span>-{discountAmount.toFixed(3)} OMR</span>
+              </div>
+            </>
           )}
           <div style={styles.totalRow}>
             <span>TOTAL:</span>
-            <span>{totalAmount.toFixed(2)} OMR</span>
+            <span>{totalAmount.toFixed(3)} OMR</span>
           </div>
         </div>
 
@@ -188,7 +195,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
             {payments.map((payment) => (
               <div key={payment.id} style={styles.row}>
                 <span style={{ textTransform: 'capitalize' }}>{payment.payment_method}</span>
-                <span>{Number(payment.amount).toFixed(2)} OMR</span>
+                <span>{Number(payment.amount).toFixed(3)} OMR</span>
               </div>
             ))}
           </div>

@@ -45,6 +45,7 @@ import {
 } from '@/services/inventoryService';
 import type { Inventory } from '@/types/pos';
 import { format } from 'date-fns';
+import BranchSelector from '@/components/BranchSelector';
 
 const CHANGE_TYPE_CONFIG: Record<string, { icon: any; label: string; color: string }> = {
   add: { icon: ArrowUpCircle, label: 'Stock Added', color: 'text-green-500' },
@@ -63,6 +64,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('stock');
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
 
   // History state
   const [historyItems, setHistoryItems] = useState<InventoryHistoryEntry[]>([]);
@@ -219,10 +221,16 @@ export default function InventoryPage() {
               <h1 className="text-xl font-bold">Inventory</h1>
             </div>
           </div>
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-4">
+            <BranchSelector 
+              selectedBranchId={selectedBranchId} 
+              onBranchChange={setSelectedBranchId}
+            />
+            <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </header>
 

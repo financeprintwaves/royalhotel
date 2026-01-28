@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw } from 'lucide-react';
+import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw, Building2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrders } from '@/services/orderService';
@@ -165,6 +165,7 @@ export default function Dashboard() {
                   </>
                 )}
                 {roles.includes('admin') && (<Button size="lg" variant="outline" className="gap-2" asChild><Link to="/staff"><UserCog className="h-5 w-5" />Staff Management</Link></Button>)}
+                {(roles.includes('admin') || roles.includes('manager')) && (<Button size="lg" variant="outline" className="gap-2" asChild><Link to="/branches"><Building2 className="h-5 w-5" />Branch Management</Link></Button>)}
               </CardContent>
             </Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{activeOrders.length}</div></CardContent></Card>

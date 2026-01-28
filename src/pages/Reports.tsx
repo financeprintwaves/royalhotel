@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +25,8 @@ import {
   type ItemSalesDetail,
   type SalesSummary
 } from '@/services/reportingService';
+import DateRangePicker, { type DateRange } from '@/components/DateRangePicker';
+import ExportButtons from '@/components/ExportButtons';
 
 const CHART_COLORS = [
   'hsl(var(--primary))', 
@@ -36,8 +39,11 @@ const CHART_COLORS = [
 
 export default function Reports() {
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<7 | 14 | 30>(7);
   const [activeTab, setActiveTab] = useState('overview');
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: startOfDay(subDays(new Date(), 6)),
+    to: endOfDay(new Date())
+  });
   const [data, setData] = useState<{
     dailySales: DailySales[];
     hourlySales: HourlySales[];
@@ -56,12 +62,15 @@ export default function Reports() {
 
   useEffect(() => {
     loadData();
-  }, [period]);
+  }, [dateRange]);
 
   async function loadData() {
     setLoading(true);
     try {
-      const result = await getReportingSummary(period);
+      const result = await getReportingSummary({
+        startDate: dateRange.from,
+        endDate: dateRange.to
+      });
       setData(result);
     } catch (error) {
       console.error('Failed to load reports:', error);
@@ -89,26 +98,34 @@ export default function Reports() {
       </header>
 
       <main className="p-6 space-y-6">
-        {/* Period Selector */}
+        {/* Date Range & Export Controls */}
         <div className="flex flex-wrap gap-4 items-center justify-between">
-          <Tabs value={String(period)} onValueChange={v => setPeriod(Number(v) as 7 | 14 | 30)}>
-            <TabsList>
-              <TabsTrigger value="7">Last 7 Days</TabsTrigger>
-              <TabsTrigger value="14">Last 14 Days</TabsTrigger>
-              <TabsTrigger value="30">Last 30 Days</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex flex-wrap gap-4 items-center">
+            <DateRangePicker 
+              dateRange={dateRange} 
+              onDateRangeChange={setDateRange} 
+            />
+            
+            {/* Report Type Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="sales">Sales</TabsTrigger>
+                <TabsTrigger value="payments">Payments</TabsTrigger>
+                <TabsTrigger value="items">Items</TabsTrigger>
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-          {/* Report Type Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="sales">Sales</TabsTrigger>
-              <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="items">Items</TabsTrigger>
-              <TabsTrigger value="summary">Summary</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* Export Buttons */}
+          {data && (
+            <ExportButtons 
+              data={data} 
+              dateRange={dateRange} 
+              activeTab={activeTab} 
+            />
+          )}
         </div>
 
         {loading ? (
@@ -127,7 +144,7 @@ export default function Reports() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">{data.totalRevenue.toFixed(3)} OMR</div>
-                      <p className="text-xs text-muted-foreground">Last {period} days</p>
+                      <p className="text-xs text-muted-foreground">Selected period</p>
                     </CardContent>
                   </Card>
                   <Card>
@@ -137,7 +154,7 @@ export default function Reports() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">{data.totalOrders}</div>
-                      <p className="text-xs text-muted-foreground">Last {period} days</p>
+                      <p className="text-xs text-muted-foreground">Selected period</p>
                     </CardContent>
                   </Card>
                   <Card>
@@ -147,7 +164,7 @@ export default function Reports() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">{data.avgOrderValue.toFixed(3)} OMR</div>
-                      <p className="text-xs text-muted-foreground">Last {period} days</p>
+                      <p className="text-xs text-muted-foreground">Selected period</p>
                     </CardContent>
                   </Card>
                   <Card>
@@ -563,7 +580,7 @@ export default function Reports() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5" />
-                      Sales Summary Report - Last {period} Days
+                      Sales Summary Report
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

@@ -68,27 +68,38 @@ export interface SalesSummary {
   top_category: string;
 }
 
-export async function getDailySales(days: number = 7): Promise<DailySales[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  
+export interface DateRangeParams {
+  startDate: Date;
+  endDate: Date;
+}
+
+// Helper to generate dates between start and end
+function getDatesBetween(startDate: Date, endDate: Date): string[] {
+  const dates: string[] = [];
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    dates.push(current.toISOString().split('T')[0]);
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+export async function getDailySales(params: DateRangeParams): Promise<DailySales[]> {
   const { data: orders, error } = await supabase
     .from('orders')
     .select('created_at, total_amount, order_status')
-    .gte('created_at', startDate.toISOString())
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
 
   if (error) throw error;
 
-  // Group by date
+  // Initialize all dates in range
   const salesByDate: Record<string, { revenue: number; orders: number }> = {};
-  
-  for (let i = 0; i < days; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    salesByDate[dateStr] = { revenue: 0, orders: 0 };
-  }
+  const allDates = getDatesBetween(params.startDate, params.endDate);
+  allDates.forEach(date => {
+    salesByDate[date] = { revenue: 0, orders: 0 };
+  });
 
   (orders || []).forEach(order => {
     const dateStr = order.created_at?.split('T')[0] || '';
@@ -103,14 +114,12 @@ export async function getDailySales(days: number = 7): Promise<DailySales[]> {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export async function getHourlySales(days: number = 7): Promise<HourlySales[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  
+export async function getHourlySales(params: DateRangeParams): Promise<HourlySales[]> {
   const { data: orders, error } = await supabase
     .from('orders')
     .select('created_at, total_amount, order_status')
-    .gte('created_at', startDate.toISOString())
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
 
   if (error) throw error;
@@ -133,10 +142,7 @@ export async function getHourlySales(days: number = 7): Promise<HourlySales[]> {
     .sort((a, b) => a.hour - b.hour);
 }
 
-export async function getTopSellingItems(limit: number = 10): Promise<TopSellingItem[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 30);
-
+export async function getTopSellingItems(params: DateRangeParams, limit: number = 10): Promise<TopSellingItem[]> {
   const { data, error } = await supabase
     .from('order_items')
     .select(`
@@ -145,7 +151,8 @@ export async function getTopSellingItems(limit: number = 10): Promise<TopSelling
       menu_item:menu_items(name),
       order:orders!inner(order_status, created_at)
     `)
-    .gte('order.created_at', startDate.toISOString())
+    .gte('order.created_at', params.startDate.toISOString())
+    .lte('order.created_at', params.endDate.toISOString())
     .in('order.order_status', ['PAID', 'CLOSED']);
 
   if (error) throw error;
@@ -168,10 +175,7 @@ export async function getTopSellingItems(limit: number = 10): Promise<TopSelling
     .slice(0, limit);
 }
 
-export async function getCategorySales(days: number = 30): Promise<CategorySales[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
+export async function getCategorySales(params: DateRangeParams): Promise<CategorySales[]> {
   const { data, error } = await supabase
     .from('order_items')
     .select(`
@@ -180,7 +184,8 @@ export async function getCategorySales(days: number = 30): Promise<CategorySales
       menu_item:menu_items(category:categories(name)),
       order:orders!inner(order_status, created_at)
     `)
-    .gte('order.created_at', startDate.toISOString())
+    .gte('order.created_at', params.startDate.toISOString())
+    .lte('order.created_at', params.endDate.toISOString())
     .in('order.order_status', ['PAID', 'CLOSED']);
 
   if (error) throw error;
@@ -202,15 +207,13 @@ export async function getCategorySales(days: number = 30): Promise<CategorySales
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-export async function getStaffPerformance(days: number = 30): Promise<StaffPerformance[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
+export async function getStaffPerformance(params: DateRangeParams): Promise<StaffPerformance[]> {
   // Get orders with created_by
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('id, total_amount, created_by')
-    .gte('created_at', startDate.toISOString())
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
 
   if (ordersError) throw ordersError;
@@ -262,15 +265,13 @@ export async function getStaffPerformance(days: number = 30): Promise<StaffPerfo
     .sort((a, b) => b.total_revenue - a.total_revenue);
 }
 
-export async function getPaymentBreakdown(days: number = 30): Promise<PaymentBreakdown[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
+export async function getPaymentBreakdown(params: DateRangeParams): Promise<PaymentBreakdown[]> {
   const { data, error } = await supabase
     .from('payments')
     .select('payment_method, amount')
     .eq('payment_status', 'paid')
-    .gte('created_at', startDate.toISOString());
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString());
 
   if (error) throw error;
 
@@ -292,14 +293,12 @@ export async function getPaymentBreakdown(days: number = 30): Promise<PaymentBre
     .map(([method, stats]) => ({ method: method as PaymentMethod, ...stats }));
 }
 
-export async function getOrderTypeSales(days: number = 30): Promise<OrderTypeSales[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
+export async function getOrderTypeSales(params: DateRangeParams): Promise<OrderTypeSales[]> {
   const { data: orders, error } = await supabase
     .from('orders')
     .select('table_id, total_amount')
-    .gte('created_at', startDate.toISOString())
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
 
   if (error) throw error;
@@ -323,10 +322,7 @@ export async function getOrderTypeSales(days: number = 30): Promise<OrderTypeSal
   ];
 }
 
-export async function getItemSalesDetails(days: number = 30): Promise<ItemSalesDetail[]> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
+export async function getItemSalesDetails(params: DateRangeParams): Promise<ItemSalesDetail[]> {
   const { data, error } = await supabase
     .from('order_items')
     .select(`
@@ -336,7 +332,8 @@ export async function getItemSalesDetails(days: number = 30): Promise<ItemSalesD
       menu_item:menu_items(name, category:categories(name)),
       order:orders!inner(order_status, created_at)
     `)
-    .gte('order.created_at', startDate.toISOString())
+    .gte('order.created_at', params.startDate.toISOString())
+    .lte('order.created_at', params.endDate.toISOString())
     .in('order.order_status', ['PAID', 'CLOSED']);
 
   if (error) throw error;
@@ -372,13 +369,13 @@ export async function getItemSalesDetails(days: number = 30): Promise<ItemSalesD
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-export async function getSalesSummary(days: number = 7): Promise<SalesSummary> {
+export async function getSalesSummary(params: DateRangeParams): Promise<SalesSummary> {
   const [dailySales, hourlySales, topItems, categorySales, orderTypeSales] = await Promise.all([
-    getDailySales(days),
-    getHourlySales(days),
-    getTopSellingItems(1),
-    getCategorySales(days),
-    getOrderTypeSales(days),
+    getDailySales(params),
+    getHourlySales(params),
+    getTopSellingItems(params, 1),
+    getCategorySales(params),
+    getOrderTypeSales(params),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
@@ -410,7 +407,7 @@ export async function getSalesSummary(days: number = 7): Promise<SalesSummary> {
   };
 }
 
-export async function getReportingSummary(days: number = 7) {
+export async function getReportingSummary(params: DateRangeParams) {
   const [
     dailySales, 
     hourlySales, 
@@ -422,15 +419,15 @@ export async function getReportingSummary(days: number = 7) {
     itemSalesDetails,
     salesSummary
   ] = await Promise.all([
-    getDailySales(days),
-    getHourlySales(days),
-    getTopSellingItems(10),
-    getCategorySales(days),
-    getStaffPerformance(days),
-    getPaymentBreakdown(days),
-    getOrderTypeSales(days),
-    getItemSalesDetails(days),
-    getSalesSummary(days),
+    getDailySales(params),
+    getHourlySales(params),
+    getTopSellingItems(params, 10),
+    getCategorySales(params),
+    getStaffPerformance(params),
+    getPaymentBreakdown(params),
+    getOrderTypeSales(params),
+    getItemSalesDetails(params),
+    getSalesSummary(params),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);

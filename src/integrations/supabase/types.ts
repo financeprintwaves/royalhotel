@@ -47,6 +47,63 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_drawer_counts: {
+        Row: {
+          branch_id: string
+          counted_at: string
+          counted_cash: number
+          created_at: string
+          denomination_breakdown: Json | null
+          expected_cash: number
+          id: string
+          notes: string | null
+          session_id: string
+          user_id: string
+          variance: number | null
+        }
+        Insert: {
+          branch_id: string
+          counted_at?: string
+          counted_cash?: number
+          created_at?: string
+          denomination_breakdown?: Json | null
+          expected_cash?: number
+          id?: string
+          notes?: string | null
+          session_id: string
+          user_id: string
+          variance?: number | null
+        }
+        Update: {
+          branch_id?: string
+          counted_at?: string
+          counted_cash?: number
+          created_at?: string
+          denomination_breakdown?: Json | null
+          expected_cash?: number
+          id?: string
+          notes?: string | null
+          session_id?: string
+          user_id?: string
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_drawer_counts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_drawer_counts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "staff_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           branch_id: string

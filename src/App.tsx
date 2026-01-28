@@ -16,6 +16,7 @@ import Reservations from "@/pages/Reservations";
 import StaffManagement from "@/pages/StaffManagement";
 import MenuManagement from "@/pages/MenuManagement";
 import Inventory from "@/pages/Inventory";
+import BranchManagement from "@/pages/BranchManagement";
 import NotFound from "@/pages/NotFound";
 
 // Optimized React Query configuration for performance
@@ -74,6 +75,7 @@ function AppRoutes() {
       <Route path="/staff" element={<ProtectedRoute><StaffManagement /></ProtectedRoute>} />
       <Route path="/menu" element={<ProtectedRoute><MenuManagement /></ProtectedRoute>} />
       <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+      <Route path="/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

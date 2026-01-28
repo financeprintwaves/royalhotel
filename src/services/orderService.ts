@@ -23,7 +23,7 @@ export async function getOrders(statusFilter?: OrderStatus[]): Promise<Order[]> 
         *,
         menu_item:menu_items(id, name, price, image_url)
       ),
-      waiter:profiles!orders_created_by_fkey1(full_name)
+      waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .order('created_at', { ascending: false });
 
@@ -48,7 +48,7 @@ export async function getOrder(orderId: string): Promise<Order | null> {
         *,
         menu_item:menu_items(id, name, price, image_url)
       ),
-      waiter:profiles!orders_created_by_fkey1(full_name)
+      waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .eq('id', orderId)
     .maybeSingle();
@@ -128,7 +128,7 @@ export async function searchOrders(params: {
         *,
         menu_item:menu_items(id, name, price, image_url)
       ),
-      waiter:profiles!orders_created_by_fkey1(full_name)
+      waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .order('created_at', { ascending: false });
 

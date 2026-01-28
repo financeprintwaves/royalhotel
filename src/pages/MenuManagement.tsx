@@ -48,15 +48,20 @@ import {
   toggleMenuItemAvailability,
 } from '@/services/menuService';
 import { createInventoryEntry } from '@/services/inventoryService';
-
+import { useBranches } from '@/hooks/useMenuData';
+import BranchSelector from '@/components/BranchSelector';
 
 export default function MenuManagement() {
-  const { roles } = useAuth();
+  const { profile, roles } = useAuth();
   const { toast } = useToast();
+  const { data: branches = [] } = useBranches();
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+
+  const isAdmin = roles.includes('admin');
 
   // Category dialog state
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
@@ -73,6 +78,7 @@ export default function MenuManagement() {
   const [itemDescription, setItemDescription] = useState('');
   const [itemImageUrl, setItemImageUrl] = useState('');
   const [itemCategoryId, setItemCategoryId] = useState<string>('');
+  const [itemBranchId, setItemBranchId] = useState<string>('');
   const [createInventory, setCreateInventory] = useState(true);
   const [initialStock, setInitialStock] = useState('50');
   
@@ -158,6 +164,7 @@ export default function MenuManagement() {
       setItemDescription(item.description || '');
       setItemImageUrl(item.image_url || '');
       setItemCategoryId(item.category_id || '');
+      setItemBranchId(item.branch_id || '');
       setCreateInventory(false);
       // Bar fields
       setBillingType(item.billing_type || 'bottle_only');
@@ -172,6 +179,7 @@ export default function MenuManagement() {
       setItemDescription('');
       setItemImageUrl('');
       setItemCategoryId(selectedCategory || '');
+      setItemBranchId(selectedBranchId || profile?.branch_id || '');
       setCreateInventory(true);
       setInitialStock('50');
       // Reset bar fields
@@ -308,6 +316,10 @@ export default function MenuManagement() {
               <h1 className="text-xl font-bold">Menu Management</h1>
             </div>
           </div>
+          <BranchSelector 
+            selectedBranchId={selectedBranchId} 
+            onBranchChange={setSelectedBranchId}
+          />
         </div>
       </header>
 
@@ -380,6 +392,21 @@ export default function MenuManagement() {
                       <Label>Image URL</Label>
                       <Input value={itemImageUrl} onChange={(e) => setItemImageUrl(e.target.value)} placeholder="https://..." />
                     </div>
+                    {isAdmin && !editingItem && (
+                      <div className="space-y-2">
+                        <Label>Branch</Label>
+                        <Select value={itemBranchId} onValueChange={setItemBranchId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select branch" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background border z-50">
+                            {branches.map((branch) => (
+                              <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     {!editingItem && (
                       <>
                         <div className="flex items-center justify-between">

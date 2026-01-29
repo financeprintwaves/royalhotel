@@ -5,23 +5,27 @@ import { getAllBranches } from '@/services/staffService';
 import { localCache, CACHE_KEYS, CACHE_DURATION } from '@/services/cacheService';
 import type { Category, MenuItem, RestaurantTable, Branch } from '@/types/pos';
 
-// Hook for categories with local caching
-export function useCategories() {
+// Hook for categories with local caching and branch filtering
+export function useCategories(branchId?: string) {
   return useQuery({
-    queryKey: ['categories'],
+    queryKey: ['categories', branchId],
     queryFn: async (): Promise<Category[]> => {
+      const cacheKey = branchId 
+        ? `${CACHE_KEYS.CATEGORIES}_${branchId}` 
+        : CACHE_KEYS.CATEGORIES;
+      
       // Check local cache first
-      const cached = localCache.get<Category[]>(CACHE_KEYS.CATEGORIES);
+      const cached = localCache.get<Category[]>(cacheKey);
       if (cached) {
         console.log('Categories loaded from cache');
         return cached;
       }
       
-      // Fetch from database
-      const data = await getCategories();
+      // Fetch from database with optional branchId filter
+      const data = await getCategories(branchId);
       
       // Store in local cache
-      localCache.set(CACHE_KEYS.CATEGORIES, data, CACHE_DURATION.CATEGORIES);
+      localCache.set(cacheKey, data, CACHE_DURATION.CATEGORIES);
       
       return data;
     },
@@ -32,14 +36,16 @@ export function useCategories() {
   });
 }
 
-// Hook for menu items with local caching
-export function useMenuItems(categoryId?: string) {
+// Hook for menu items with local caching and branch filtering
+export function useMenuItems(categoryId?: string, branchId?: string) {
   return useQuery({
-    queryKey: ['menu_items', categoryId],
+    queryKey: ['menu_items', categoryId, branchId],
     queryFn: async (): Promise<MenuItem[]> => {
-      const cacheKey = categoryId 
-        ? `${CACHE_KEYS.MENU_ITEMS}_${categoryId}` 
-        : CACHE_KEYS.MENU_ITEMS;
+      const cacheKey = branchId
+        ? `${CACHE_KEYS.MENU_ITEMS}_${branchId}${categoryId ? `_${categoryId}` : ''}`
+        : categoryId 
+          ? `${CACHE_KEYS.MENU_ITEMS}_${categoryId}` 
+          : CACHE_KEYS.MENU_ITEMS;
       
       // Check local cache first
       const cached = localCache.get<MenuItem[]>(cacheKey);
@@ -48,8 +54,8 @@ export function useMenuItems(categoryId?: string) {
         return cached;
       }
       
-      // Fetch from database
-      const data = await getMenuItems(categoryId);
+      // Fetch from database with optional branchId filter
+      const data = await getMenuItems(categoryId, branchId);
       
       // Store in local cache
       localCache.set(cacheKey, data, CACHE_DURATION.MENU_ITEMS);

@@ -11,7 +11,7 @@ interface ShiftReportProps {
 
 const ShiftReport = forwardRef<HTMLDivElement, ShiftReportProps>(
   ({ summary, businessName = "Restaurant POS", cashDrawerCount }, ref) => {
-    const formatCurrency = (amount: number) => `OMR ${amount.toFixed(3)}`;
+    const formatCurrency = (amount: number) => `${amount.toFixed(3)} OMR`;
 
     const getDuration = () => {
       const diff = summary.logoutTime.getTime() - summary.loginTime.getTime();

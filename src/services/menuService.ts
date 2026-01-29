@@ -15,14 +15,20 @@ export interface CreateMenuItemOptions {
   billingType?: BillingType;
 }
 
-// Get all categories for branch
-export async function getCategories(): Promise<Category[]> {
-  const { data, error } = await supabase
+// Get all categories for branch (with optional branchId for admin cross-branch queries)
+export async function getCategories(branchId?: string): Promise<Category[]> {
+  let query = supabase
     .from('categories')
     .select('*')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
 
+  // If branchId specified, filter by it (for admins switching branches)
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return (data || []) as Category[];
 }
@@ -97,8 +103,8 @@ export async function deleteCategory(categoryId: string): Promise<void> {
   if (error) throw error;
 }
 
-// Get all menu items for branch
-export async function getMenuItems(categoryId?: string): Promise<MenuItem[]> {
+// Get all menu items for branch (with optional branchId for admin cross-branch queries)
+export async function getMenuItems(categoryId?: string, branchId?: string): Promise<MenuItem[]> {
   let query = supabase
     .from('menu_items')
     .select(`
@@ -110,6 +116,11 @@ export async function getMenuItems(categoryId?: string): Promise<MenuItem[]> {
 
   if (categoryId) {
     query = query.eq('category_id', categoryId);
+  }
+
+  // If branchId specified, filter by it (for admins switching branches)
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
   }
 
   const { data, error } = await query;

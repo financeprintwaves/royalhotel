@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
@@ -28,6 +29,12 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
   const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
   const [waiterName, setWaiterName] = useState<string>('');
   const { profile } = useAuth();
+
+  // Use react-to-print for fast, reliable printing
+  const handlePrint = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: `Receipt-${order?.order_number || order?.id?.slice(-8)}`,
+  });
 
   useEffect(() => {
     if (order && open) {
@@ -69,68 +76,19 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
     fetchBranchInfo();
   }, [profile?.branch_id]);
 
-  // Auto-print when dialog opens with autoPrint flag
+  // Auto-print immediately when dialog opens with autoPrint flag - NO DELAY
   useEffect(() => {
     if (open && autoPrint && !hasPrinted && receiptRef.current) {
-      const timer = setTimeout(() => {
-        handlePrint();
-        setHasPrinted(true);
-      }, 500);
-      return () => clearTimeout(timer);
+      // Immediate print - no delay for fast checkout
+      handlePrint();
+      setHasPrinted(true);
     }
-  }, [open, autoPrint, hasPrinted]);
+  }, [open, autoPrint, hasPrinted, handlePrint]);
 
-  function handlePrint() {
-    if (!receiptRef.current) return;
-    
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const receiptContent = receiptRef.current.innerHTML;
-    
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Receipt - ${order?.order_number || ''}</title>
-          <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              padding: 0;
-              margin: 0;
-              background: white;
-            }
-            @page {
-              size: 80mm auto;
-              margin: 5mm;
-            }
-            @media print {
-              body {
-                width: 80mm;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          ${receiptContent}
-        </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // Wait for content to load before printing
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  }
+  // Manual print button handler - uses same react-to-print
+  const onPrintClick = useCallback(() => {
+    handlePrint();
+  }, [handlePrint]);
 
   if (!order) return null;
 
@@ -160,7 +118,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button onClick={handlePrint}>
+          <Button onClick={onPrintClick}>
             <Printer className="h-4 w-4 mr-2" />
             Print Receipt
           </Button>

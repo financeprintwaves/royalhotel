@@ -69,13 +69,16 @@ export default function POS() {
   const { toast } = useToast();
   const { isAdmin, isManagerOrAdmin, profile, roles } = useAuth();
   
-  // Use cached data hooks (MAJOR PERFORMANCE BOOST)
-  const { data: categories = [], isLoading: categoriesLoading } = useCategories();
-  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems();
+  // Core POS state - selectedBranch must be declared before hooks that use it
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  
+  // Use cached data hooks with branch filtering (MAJOR PERFORMANCE BOOST)
+  // Pass selectedBranch to filter by branch - non-admins see only their branch via RLS anyway
+  const { data: categories = [], isLoading: categoriesLoading } = useCategories(selectedBranch || undefined);
+  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems(undefined, selectedBranch || undefined);
   const { refreshTables, refreshMenu } = useRefreshCache();
   
-  // Core POS state
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  // Other hooks after selectedBranch is declared
   const { data: branches = [] } = useBranches();
   const { data: tables = [], refetch: refetchTables } = useTables(selectedBranch || undefined);
   

@@ -1,195 +1,206 @@
 
-
-## Plan: Branch Management, Foreign Key Fix, and Branch Selector Integration
+## Plan: OMR Standardization, Fast Auto-Print, and Branch Isolation
 
 ### Summary
-This plan addresses three interconnected issues:
-1. **Branch Management UI** - Add a page for admins and managers to view/edit branches
-2. **Schema Error Fix** - Add a proper foreign key relationship between `orders` and `profiles` to fix the "orders_created_by_fkey1" error
-3. **Branch Selector Integration** - Show branch context in Menu Management and Inventory pages (admins can switch branches)
+This plan addresses four key requirements:
+1. **OMR Currency Standardization** - Ensure all amounts display as "X.XXX OMR" format everywhere
+2. **Instant Auto-Print on Payment** - Print receipt automatically to default printer without delays
+3. **Branch Data Isolation** - Menu, categories, and data visible only to the assigned branch (except admin sees all)
+4. **Branch Type Distinction** - Each branch operates independently (bar vs restaurant)
 
 ---
 
-### Part 1: Fix Orders-Profiles Relationship Error
+### Part 1: OMR Currency Standardization
 
-**Root Cause:**
-The current code uses `waiter:profiles!orders_created_by_fkey1(full_name)` but no actual foreign key named `orders_created_by_fkey1` exists in the database. PostgREST requires explicit foreign key relationships to perform these joins.
+**Current State:**
+Most files already use `.toFixed(3) + " OMR"` format, but some areas are inconsistent.
+
+**Files to Audit and Standardize:**
+
+| File | Current | Fix Needed |
+|------|---------|------------|
+| src/pages/POS.tsx | Most prices use .toFixed(3) | Ensure all cart/payment amounts use OMR format |
+| src/pages/Orders.tsx | Uses .toFixed(3) OMR | Already correct |
+| src/components/Receipt.tsx | Uses .toFixed(3) OMR | Already correct |
+| src/pages/Inventory.tsx | Uses .toFixed(2) | Change to .toFixed(3) OMR |
+| src/components/ShiftReport.tsx | Check format | Standardize to OMR |
+| src/components/PrintableReport.tsx | Check format | Standardize to OMR |
+
+**Create Utility Function:**
+Add a centralized currency formatter to ensure consistency:
+```typescript
+// src/lib/currency.ts
+export const formatOMR = (amount: number): string => `${amount.toFixed(3)} OMR`;
+```
+
+---
+
+### Part 2: Fast Auto-Print on Payment Success
+
+**Current Issue:**
+- ReceiptDialog opens a new window, writes HTML, then prints with 250ms delay
+- This causes popup blockers and slow printing
 
 **Solution:**
-Add a proper foreign key constraint from `orders.created_by` to `profiles.user_id`.
+Implement direct print using `react-to-print` with immediate trigger:
 
-| Table | Column | References |
-|-------|--------|------------|
-| orders | created_by | profiles.user_id |
+1. **Remove popup-based printing** - Instead, use an invisible iframe approach
+2. **Trigger print immediately** on payment success without dialog
+3. **Use `react-to-print` library** (already installed) for reliable silent printing
 
-**Database Migration:**
-```sql
--- Add foreign key from orders.created_by to profiles.user_id
-ALTER TABLE public.orders
-ADD CONSTRAINT orders_created_by_fkey_profiles
-FOREIGN KEY (created_by) REFERENCES public.profiles(user_id)
-ON DELETE SET NULL;
+**Updated Flow:**
+```
+Payment Success
+    ↓
+Show celebration overlay (500ms)
+    ↓
+Auto-print to default printer (no dialog)
+    ↓
+Close overlay
 ```
 
-**Code Update (orderService.ts):**
-Update the join hint to use the new constraint name:
+**ReceiptDialog Changes:**
 ```typescript
-waiter:profiles!orders_created_by_fkey_profiles(full_name)
+// Use react-to-print with useReactToPrint hook
+const handlePrint = useReactToPrint({
+  content: () => receiptRef.current,
+  documentTitle: `Receipt-${order?.order_number}`,
+  removeAfterPrint: true,
+});
+
+// Auto-trigger on mount when autoPrint=true
+useEffect(() => {
+  if (open && autoPrint && !hasPrinted) {
+    handlePrint(); // Immediate print, no 500ms delay
+    setHasPrinted(true);
+  }
+}, [open, autoPrint]);
+```
+
+**POS.tsx Changes:**
+- Reduce the success overlay display time
+- Trigger print synchronously with payment success
+
+---
+
+### Part 3: Branch Data Isolation
+
+**Requirement:**
+- Admin: Can see and manage ALL branches' data
+- Manager/Waiter: Can ONLY see their assigned branch's data
+
+**Current State Analysis:**
+RLS policies already enforce branch isolation at database level. The issue is that the **React Query hooks don't pass branchId** consistently.
+
+**Files Requiring Updates:**
+
+| File | Current Behavior | Required Change |
+|------|------------------|-----------------|
+| useMenuData.ts (useCategories) | No branch filter | Pass user's branch_id |
+| useMenuData.ts (useMenuItems) | No branch filter | Pass user's branch_id |
+| menuService.ts (getCategories) | No branch filter | Add optional branchId param |
+| menuService.ts (getMenuItems) | No branch filter | Add optional branchId param |
+| POS.tsx | Uses hooks without branch context | Pass selectedBranch to hooks |
+
+**Service Layer Updates (menuService.ts):**
+```typescript
+export async function getCategories(branchId?: string): Promise<Category[]> {
+  let query = supabase
+    .from('categories')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+
+  // Admin with branchId filter, or RLS handles automatically
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as Category[];
+}
+```
+
+**Hook Updates (useMenuData.ts):**
+```typescript
+export function useCategories(branchId?: string) {
+  return useQuery({
+    queryKey: ['categories', branchId],
+    queryFn: () => getCategories(branchId),
+    // ... existing config
+  });
+}
+```
+
+**POS.tsx Integration:**
+```typescript
+const { data: categories = [] } = useCategories(selectedBranch || undefined);
+const { data: menuItems = [] } = useMenuItems(undefined, selectedBranch || undefined);
 ```
 
 ---
 
-### Part 2: Branch Management Page
+### Part 4: Branch-Specific Views for Non-Admins
 
-**New Route:** `/branches`
+**UI Behavior by Role:**
 
-**Features:**
-- List all branches with name, address, phone, order prefix
-- Create new branch (admin + manager)
-- Edit existing branch details
-- Deactivate branch (admin only)
-- Show branch statistics (tables, menu items, staff count)
+| Role | POS Floor View | Menu View | Categories |
+|------|----------------|-----------|------------|
+| Admin | Branch selector dropdown | All branches | All |
+| Manager | Locked to assigned branch | Own branch only | Own only |
+| Waiter | Locked to assigned branch | Own branch only | Own only |
+| Cashier | Locked to assigned branch | Own branch only | Own only |
 
-**UI Components:**
+**Current Implementation (Already Correct):**
+- BranchSelector component already shows locked badge for non-admins
+- POS.tsx already uses `canSwitchBranch = isAdmin()` for branch selector
 
-| Component | Description |
-|-----------|-------------|
-| Branch List | Cards or table showing all branches |
-| Branch Form Dialog | Create/edit branch with fields: name, address, phone, order prefix |
-| Branch Stats | Quick stats per branch (table count, item count) |
+**What Needs Fixing:**
+The hooks need to default to user's branch when no branchId is specified:
 
-**Access Control:**
-- Admins: Full CRUD on all branches
-- Managers: Can edit their assigned branch details only (name, address, phone)
-
-**Navigation:**
-Add "Branch Management" link to Dashboard for admins/managers.
-
----
-
-### Part 3: Branch Display in Menu Management and Inventory
-
-**Current State:**
-- Menu items and inventory are filtered by user's branch via RLS
-- No UI indication of which branch data is being shown
-- Admins cannot switch to view other branches
-
-**Enhanced UI:**
-
-| Page | Change |
-|------|--------|
-| Menu Management | Add header showing current branch name + admin branch selector dropdown |
-| Inventory | Add header showing current branch name + admin branch selector dropdown |
-
-**Behavior:**
-- Non-admins see their branch name (locked, no dropdown)
-- Admins see a dropdown to switch between branches
-- Switching branch reloads menu items/inventory for that branch
-
-**Implementation Approach:**
-1. Create `BranchSelector` component (reusable)
-2. Modify `menuService.ts` to accept optional `branchId` parameter for admin cross-branch queries
-3. Update Menu Management and Inventory pages to use branch selector
-
----
-
-### Part 4: Add Branch Selection When Creating Menu Items
-
-**Current State:**
-Menu items are automatically assigned to the user's branch.
-
-**Enhancement:**
-When admins create menu items, show a branch selector dropdown so they can add items to any branch.
-
-**UI Change in MenuManagement.tsx:**
-Add "Branch" dropdown field in the "Add Menu Item" dialog (visible only to admins):
+```typescript
+// In hooks, use profile.branch_id as default for non-admins
+export function useCategories(branchId?: string) {
+  const { profile, isAdmin } = useAuth();
+  const effectiveBranchId = branchId || (!isAdmin() ? profile?.branch_id : undefined);
+  
+  return useQuery({
+    queryKey: ['categories', effectiveBranchId],
+    queryFn: () => getCategories(effectiveBranchId),
+  });
+}
 ```
-Branch: [Dropdown - Arabic Bar / Indian Bar / ...]
-```
-
----
-
-### Technical Implementation Details
-
-**Database Migration (SQL):**
-```sql
--- 1. Add foreign key for orders -> profiles relationship
-ALTER TABLE public.orders
-ADD CONSTRAINT orders_created_by_fkey_profiles
-FOREIGN KEY (created_by) REFERENCES public.profiles(user_id)
-ON DELETE SET NULL;
-```
-
-**Files to Create:**
-
-| File | Purpose |
-|------|---------|
-| src/pages/BranchManagement.tsx | Branch management page |
-| src/components/BranchSelector.tsx | Reusable branch dropdown component |
-
-**Files to Modify:**
-
-| File | Changes |
-|------|---------|
-| src/services/orderService.ts | Update foreign key hint in select queries |
-| src/services/menuService.ts | Add optional branchId parameter to getMenuItems/getCategories |
-| src/services/inventoryService.ts | Add optional branchId parameter to getInventory |
-| src/pages/MenuManagement.tsx | Add branch header display + admin branch selector + branch field in create item dialog |
-| src/pages/Inventory.tsx | Add branch header display + admin branch selector |
-| src/pages/Dashboard.tsx | Add "Branch Management" link for admins/managers |
-| src/App.tsx | Add /branches route |
-| src/hooks/useMenuData.ts | Update hooks to pass branchId |
 
 ---
 
 ### File Changes Summary
 
-| File | Action | Description |
-|------|--------|-------------|
-| supabase/migrations/new | Create | Add FK constraint orders -> profiles |
-| src/pages/BranchManagement.tsx | Create | Full branch CRUD interface |
-| src/components/BranchSelector.tsx | Create | Reusable branch picker component |
-| src/services/orderService.ts | Modify | Fix FK hint to new constraint name |
-| src/services/menuService.ts | Modify | Add branchId param for admin queries |
-| src/services/inventoryService.ts | Modify | Add branchId param for admin queries |
-| src/pages/MenuManagement.tsx | Modify | Branch display + selector + create form |
-| src/pages/Inventory.tsx | Modify | Branch display + selector |
-| src/pages/Dashboard.tsx | Modify | Add Branch Management quick action |
-| src/App.tsx | Modify | Add /branches route |
-| src/hooks/useMenuData.ts | Modify | Accept branchId in hooks |
+| File | Action | Changes |
+|------|--------|---------|
+| src/lib/currency.ts | Create | Add formatOMR utility function |
+| src/services/menuService.ts | Modify | Add branchId parameter to getCategories and getMenuItems |
+| src/hooks/useMenuData.ts | Modify | Pass branchId to services, use profile.branch_id for non-admins |
+| src/components/ReceiptDialog.tsx | Modify | Use react-to-print for fast direct printing |
+| src/pages/POS.tsx | Modify | Pass selectedBranch to hooks, reduce print delay |
+| src/pages/Inventory.tsx | Modify | Change .toFixed(2) to formatOMR |
+| src/components/ShiftReport.tsx | Modify | Standardize currency formatting to OMR |
 
 ---
 
-### Security Considerations
+### Implementation Priority
 
-1. **RLS Protection:** All branch queries are still protected by existing RLS policies
-2. **Admin Override:** Admin branch switching works because `is_admin()` returns true, bypassing branch restrictions
-3. **No Sensitive Data Exposure:** The profiles join only exposes `full_name`, not email/PIN/other fields
+1. **Branch Isolation First** - Critical for multi-branch operation
+2. **Fast Auto-Print** - Improve checkout speed
+3. **OMR Standardization** - Consistency improvement
 
 ---
 
-### UI Flow Diagrams
+### Testing Checklist
 
-**Branch Management Access:**
-```text
-Dashboard
-    |
-    +-- [Admins/Managers] --> Branch Management (/branches)
-                                |
-                                +-- View all branches
-                                +-- Create new branch (admin)
-                                +-- Edit branch details
-                                +-- Deactivate branch (admin)
-```
-
-**Menu/Inventory Branch Context:**
-```text
-Menu Management
-    |
-    +-- Header: "Menu Management - [Branch Name]"
-    |
-    +-- [Admin only] Branch Dropdown --> Switch to different branch
-    |
-    +-- Menu items filtered by selected branch
-```
+After implementation:
+- [ ] Login as admin - verify can switch branches and see all data
+- [ ] Login as manager - verify locked to own branch, only see own menu/categories
+- [ ] Process payment - verify receipt prints immediately without popup
+- [ ] Check all currency displays show X.XXX OMR format
 

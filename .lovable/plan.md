@@ -1,174 +1,168 @@
 
-## Plan: OMR Standardization, Fast Auto-Print, and Branch Isolation
+
+## Plan: Remove Tax, Add Branch Filter to Reports, Smart Kitchen Routing & Takeaway Invoice Flow
 
 ### Summary
-This plan addresses four key requirements:
-1. **OMR Currency Standardization** - Ensure all amounts display as "X.XXX OMR" format everywhere
-2. **Instant Auto-Print on Payment** - Print receipt automatically to default printer without delays
-3. **Branch Data Isolation** - Menu, categories, and data visible only to the assigned branch (except admin sees all)
-4. **Branch Type Distinction** - Each branch operates independently (bar vs restaurant)
+This plan addresses four requirements in an efficient implementation:
+1. **Remove Tax** - Since all menu item prices already include 5% tax, remove tax calculation from frontend and backend
+2. **Branch Filter in Reports** - Add branch selector to the Reports page header
+3. **Smart Kitchen Routing** - Only send items from "kitchen" categories to kitchen; others go directly to SERVED
+4. **Takeaway Invoice Flow** - For takeaway orders, collect payment first before sending to preparation
 
 ---
 
-### Part 1: OMR Currency Standardization
+### Part 1: Remove Tax Calculation
 
 **Current State:**
-Most files already use `.toFixed(3) + " OMR"` format, but some areas are inconsistent.
+- `orderService.ts` line 282-284: Applies 10% tax to all orders
+- `NewOrder.tsx` line 108: Calculates 10% tax in cart display
+- Database has `tax_amount` column storing calculated tax
 
-**Files to Audit and Standardize:**
+**Changes Required:**
 
-| File | Current | Fix Needed |
-|------|---------|------------|
-| src/pages/POS.tsx | Most prices use .toFixed(3) | Ensure all cart/payment amounts use OMR format |
-| src/pages/Orders.tsx | Uses .toFixed(3) OMR | Already correct |
-| src/components/Receipt.tsx | Uses .toFixed(3) OMR | Already correct |
-| src/pages/Inventory.tsx | Uses .toFixed(2) | Change to .toFixed(3) OMR |
-| src/components/ShiftReport.tsx | Check format | Standardize to OMR |
-| src/components/PrintableReport.tsx | Check format | Standardize to OMR |
+| File | Current | Change |
+|------|---------|--------|
+| src/services/orderService.ts | `taxRate = 0.10`, calculates taxAmount | Set `taxRate = 0`, `taxAmount = 0` |
+| src/pages/NewOrder.tsx | Shows Tax (10%) line in cart | Remove tax display line |
+| src/pages/POS.tsx | No tax display (already correct) | No change needed |
+| src/components/Receipt.tsx | Already omits tax display | No change needed |
 
-**Create Utility Function:**
-Add a centralized currency formatter to ensure consistency:
+**Backend Change (recalculateOrderTotals):**
 ```typescript
-// src/lib/currency.ts
-export const formatOMR = (amount: number): string => `${amount.toFixed(3)} OMR`;
+// Change from:
+const taxRate = 0.10;
+const taxAmount = subtotal * taxRate;
+const totalAmount = subtotal + taxAmount;
+
+// To:
+const taxAmount = 0; // Prices include tax
+const totalAmount = subtotal; // No additional tax
 ```
 
 ---
 
-### Part 2: Fast Auto-Print on Payment Success
+### Part 2: Branch Filter in Reports Page
 
-**Current Issue:**
-- ReceiptDialog opens a new window, writes HTML, then prints with 250ms delay
-- This causes popup blockers and slow printing
+**Current State:**
+- Reports page has DateRangePicker but no branch filter
+- RLS handles data isolation, but admins should be able to filter by branch
 
-**Solution:**
-Implement direct print using `react-to-print` with immediate trigger:
+**Implementation:**
+Add BranchSelector component to Reports header, pass `branchId` to all reporting service functions.
 
-1. **Remove popup-based printing** - Instead, use an invisible iframe approach
-2. **Trigger print immediately** on payment success without dialog
-3. **Use `react-to-print` library** (already installed) for reliable silent printing
-
-**Updated Flow:**
+**UI Change (Reports.tsx header):**
 ```
-Payment Success
-    ↓
-Show celebration overlay (500ms)
-    ↓
-Auto-print to default printer (no dialog)
-    ↓
-Close overlay
+[DateRangePicker] [BranchSelector] | [Overview] [Sales] [Payments] [Items] [Summary] | [Export]
 ```
 
-**ReceiptDialog Changes:**
+**Service Changes (reportingService.ts):**
+Update all functions to accept optional `branchId` parameter and filter queries:
 ```typescript
-// Use react-to-print with useReactToPrint hook
-const handlePrint = useReactToPrint({
-  content: () => receiptRef.current,
-  documentTitle: `Receipt-${order?.order_number}`,
-  removeAfterPrint: true,
-});
-
-// Auto-trigger on mount when autoPrint=true
-useEffect(() => {
-  if (open && autoPrint && !hasPrinted) {
-    handlePrint(); // Immediate print, no 500ms delay
-    setHasPrinted(true);
-  }
-}, [open, autoPrint]);
-```
-
-**POS.tsx Changes:**
-- Reduce the success overlay display time
-- Trigger print synchronously with payment success
-
----
-
-### Part 3: Branch Data Isolation
-
-**Requirement:**
-- Admin: Can see and manage ALL branches' data
-- Manager/Waiter: Can ONLY see their assigned branch's data
-
-**Current State Analysis:**
-RLS policies already enforce branch isolation at database level. The issue is that the **React Query hooks don't pass branchId** consistently.
-
-**Files Requiring Updates:**
-
-| File | Current Behavior | Required Change |
-|------|------------------|-----------------|
-| useMenuData.ts (useCategories) | No branch filter | Pass user's branch_id |
-| useMenuData.ts (useMenuItems) | No branch filter | Pass user's branch_id |
-| menuService.ts (getCategories) | No branch filter | Add optional branchId param |
-| menuService.ts (getMenuItems) | No branch filter | Add optional branchId param |
-| POS.tsx | Uses hooks without branch context | Pass selectedBranch to hooks |
-
-**Service Layer Updates (menuService.ts):**
-```typescript
-export async function getCategories(branchId?: string): Promise<Category[]> {
+export async function getDailySales(params: DateRangeParams, branchId?: string): Promise<DailySales[]> {
   let query = supabase
-    .from('categories')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .from('orders')
+    .select('...')
+    .gte('created_at', ...)
+    .in('order_status', ['PAID', 'CLOSED']);
 
-  // Admin with branchId filter, or RLS handles automatically
   if (branchId) {
     query = query.eq('branch_id', branchId);
   }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data || []) as Category[];
+  // ...
 }
-```
-
-**Hook Updates (useMenuData.ts):**
-```typescript
-export function useCategories(branchId?: string) {
-  return useQuery({
-    queryKey: ['categories', branchId],
-    queryFn: () => getCategories(branchId),
-    // ... existing config
-  });
-}
-```
-
-**POS.tsx Integration:**
-```typescript
-const { data: categories = [] } = useCategories(selectedBranch || undefined);
-const { data: menuItems = [] } = useMenuItems(undefined, selectedBranch || undefined);
 ```
 
 ---
 
-### Part 4: Branch-Specific Views for Non-Admins
+### Part 3: Smart Kitchen Routing by Category
 
-**UI Behavior by Role:**
+**Current State:**
+- All items sent via "Send to Kitchen" go to SENT_TO_KITCHEN status
+- Kitchen display shows all orders with SENT_TO_KITCHEN status
 
-| Role | POS Floor View | Menu View | Categories |
-|------|----------------|-----------|------------|
-| Admin | Branch selector dropdown | All branches | All |
-| Manager | Locked to assigned branch | Own branch only | Own only |
-| Waiter | Locked to assigned branch | Own branch only | Own only |
-| Cashier | Locked to assigned branch | Own branch only | Own only |
+**Requirement:**
+- Only items from categories marked as "kitchen items" should go to kitchen
+- Bar/drink items should bypass kitchen (go directly to SERVED or ready)
 
-**Current Implementation (Already Correct):**
-- BranchSelector component already shows locked badge for non-admins
-- POS.tsx already uses `canSwitchBranch = isAdmin()` for branch selector
+**Database Change (categories table):**
+Add new column:
+```sql
+ALTER TABLE categories 
+ADD COLUMN requires_kitchen BOOLEAN DEFAULT false;
+```
 
-**What Needs Fixing:**
-The hooks need to default to user's branch when no branchId is specified:
+**UI Change (MenuManagement.tsx):**
+Add toggle in category form:
+```
+"Kitchen Item" [Toggle Switch]
+- When ON: Items in this category are sent to kitchen for preparation
+- When OFF: Items are served immediately (bar/drinks)
+```
 
+**Logic Change (POS.tsx handleSendToKitchen):**
 ```typescript
-// In hooks, use profile.branch_id as default for non-admins
-export function useCategories(branchId?: string) {
-  const { profile, isAdmin } = useAuth();
-  const effectiveBranchId = branchId || (!isAdmin() ? profile?.branch_id : undefined);
+// Check if any cart items require kitchen
+const hasKitchenItems = cart.some(item => {
+  const category = categories.find(c => c.id === item.menuItem.category_id);
+  return category?.requires_kitchen;
+});
+
+if (hasKitchenItems) {
+  await sendToKitchen(orderId); // Status: SENT_TO_KITCHEN
+} else {
+  // No kitchen items - go directly to SERVED
+  await markAsServed(orderId); // Status: SERVED
+}
+```
+
+---
+
+### Part 4: Takeaway Invoice & Payment-First Flow
+
+**Current State:**
+- Takeaway orders follow same flow as dine-in: Create order → Send to Kitchen → Serve → Bill → Pay
+- No special invoice handling for takeaway
+
+**Requirement:**
+- Takeaway should collect payment FIRST
+- Print invoice/receipt immediately
+- Then prepare the order
+
+**New Takeaway Flow:**
+```
+1. Add items to cart
+2. Click "Pay & Print" button (for takeaway only)
+3. Payment dialog opens
+4. Process payment → Print receipt immediately
+5. Order goes to kitchen (if has kitchen items) or marked complete
+```
+
+**UI Changes (POS.tsx):**
+For takeaway orders, show different action buttons:
+- Dine-in: "Send to Kitchen" (primary), "Pay Now" (secondary)
+- Takeaway: "Pay & Collect" (primary) - Collects payment first, then prints receipt
+
+**Modified Payment Flow for Takeaway:**
+```typescript
+async function handleTakeawayPayment() {
+  // 1. Create order
+  const newOrder = await createOrder(null, customerName);
   
-  return useQuery({
-    queryKey: ['categories', effectiveBranchId],
-    queryFn: () => getCategories(effectiveBranchId),
-  });
+  // 2. Add items
+  await addOrderItemsBatch(newOrder.id, batchItems);
+  
+  // 3. Process payment immediately
+  await finalizePayment(newOrder.id, paymentTotal, paymentMethod, ref);
+  
+  // 4. Print receipt
+  setAutoPrintOrder(updatedOrder);
+  setShowPaymentSuccess(true);
+  
+  // 5. Send kitchen items to kitchen (if any)
+  if (hasKitchenItems) {
+    // Order already paid, just notify kitchen
+    await supabase.from('orders').update({ order_status: 'SENT_TO_KITCHEN' }).eq('id', newOrder.id);
+  }
 }
 ```
 
@@ -178,29 +172,61 @@ export function useCategories(branchId?: string) {
 
 | File | Action | Changes |
 |------|--------|---------|
-| src/lib/currency.ts | Create | Add formatOMR utility function |
-| src/services/menuService.ts | Modify | Add branchId parameter to getCategories and getMenuItems |
-| src/hooks/useMenuData.ts | Modify | Pass branchId to services, use profile.branch_id for non-admins |
-| src/components/ReceiptDialog.tsx | Modify | Use react-to-print for fast direct printing |
-| src/pages/POS.tsx | Modify | Pass selectedBranch to hooks, reduce print delay |
-| src/pages/Inventory.tsx | Modify | Change .toFixed(2) to formatOMR |
-| src/components/ShiftReport.tsx | Modify | Standardize currency formatting to OMR |
+| supabase/migrations/new | Create | Add `requires_kitchen` column to categories |
+| src/services/orderService.ts | Modify | Set taxRate to 0, taxAmount to 0 |
+| src/services/reportingService.ts | Modify | Add branchId param to all functions |
+| src/pages/Reports.tsx | Modify | Add BranchSelector to header |
+| src/pages/POS.tsx | Modify | Smart kitchen routing logic, takeaway payment-first flow |
+| src/pages/NewOrder.tsx | Modify | Remove tax calculation and display |
+| src/pages/MenuManagement.tsx | Modify | Add "Kitchen Item" toggle in category form |
+| src/types/pos.ts | Modify | Add `requires_kitchen` to Category interface |
 
 ---
 
-### Implementation Priority
+### Database Migration
 
-1. **Branch Isolation First** - Critical for multi-branch operation
-2. **Fast Auto-Print** - Improve checkout speed
-3. **OMR Standardization** - Consistency improvement
+```sql
+-- Add kitchen routing flag to categories
+ALTER TABLE public.categories 
+ADD COLUMN requires_kitchen BOOLEAN NOT NULL DEFAULT false;
+
+-- Set default: Food categories require kitchen, drink categories don't
+COMMENT ON COLUMN public.categories.requires_kitchen IS 
+  'When true, items in this category are sent to kitchen for preparation';
+```
 
 ---
 
-### Testing Checklist
+### Summary of Changes
 
-After implementation:
-- [ ] Login as admin - verify can switch branches and see all data
-- [ ] Login as manager - verify locked to own branch, only see own menu/categories
-- [ ] Process payment - verify receipt prints immediately without popup
-- [ ] Check all currency displays show X.XXX OMR format
+| Requirement | Solution |
+|-------------|----------|
+| Remove tax | Set taxRate=0 in orderService, remove tax display in NewOrder |
+| Branch filter in Reports | Add BranchSelector component, update reportingService |
+| Kitchen item routing | Add `requires_kitchen` flag to categories, route based on flag |
+| Takeaway invoice first | Payment-first flow for takeaway, print receipt immediately |
+
+---
+
+### Order Flow Comparison
+
+**Before (All Orders):**
+```
+Create → Add Items → Send to Kitchen → Served → Bill → Pay → Close
+```
+
+**After (Dine-In with Kitchen Items):**
+```
+Create → Add Items → Send to Kitchen → Served → Bill → Pay → Close
+```
+
+**After (Dine-In with Bar Items Only):**
+```
+Create → Add Items → Mark Served (skip kitchen) → Bill → Pay → Close
+```
+
+**After (Takeaway):**
+```
+Create → Add Items → PAY FIRST → Print Receipt → Send to Kitchen (if needed) → Ready for Pickup
+```
 

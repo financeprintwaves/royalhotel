@@ -112,6 +112,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          requires_kitchen: boolean
           sort_order: number | null
           updated_at: string | null
         }
@@ -122,6 +123,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          requires_kitchen?: boolean
           sort_order?: number | null
           updated_at?: string | null
         }
@@ -132,6 +134,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          requires_kitchen?: boolean
           sort_order?: number | null
           updated_at?: string | null
         }

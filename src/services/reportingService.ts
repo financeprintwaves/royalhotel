@@ -84,13 +84,19 @@ function getDatesBetween(startDate: Date, endDate: Date): string[] {
   return dates;
 }
 
-export async function getDailySales(params: DateRangeParams): Promise<DailySales[]> {
-  const { data: orders, error } = await supabase
+export async function getDailySales(params: DateRangeParams, branchId?: string): Promise<DailySales[]> {
+  let query = supabase
     .from('orders')
-    .select('created_at, total_amount, order_status')
+    .select('created_at, total_amount, order_status, branch_id')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data: orders, error } = await query;
 
   if (error) throw error;
 
@@ -114,13 +120,19 @@ export async function getDailySales(params: DateRangeParams): Promise<DailySales
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export async function getHourlySales(params: DateRangeParams): Promise<HourlySales[]> {
-  const { data: orders, error } = await supabase
+export async function getHourlySales(params: DateRangeParams, branchId?: string): Promise<HourlySales[]> {
+  let query = supabase
     .from('orders')
-    .select('created_at, total_amount, order_status')
+    .select('created_at, total_amount, order_status, branch_id')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data: orders, error } = await query;
 
   if (error) throw error;
 
@@ -142,18 +154,24 @@ export async function getHourlySales(params: DateRangeParams): Promise<HourlySal
     .sort((a, b) => a.hour - b.hour);
 }
 
-export async function getTopSellingItems(params: DateRangeParams, limit: number = 10): Promise<TopSellingItem[]> {
-  const { data, error } = await supabase
+export async function getTopSellingItems(params: DateRangeParams, limit: number = 10, branchId?: string): Promise<TopSellingItem[]> {
+  let query = supabase
     .from('order_items')
     .select(`
       quantity,
       total_price,
-      menu_item:menu_items(name),
-      order:orders!inner(order_status, created_at)
+      menu_item:menu_items(name, branch_id),
+      order:orders!inner(order_status, created_at, branch_id)
     `)
     .gte('order.created_at', params.startDate.toISOString())
     .lte('order.created_at', params.endDate.toISOString())
     .in('order.order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('order.branch_id', branchId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -175,18 +193,24 @@ export async function getTopSellingItems(params: DateRangeParams, limit: number 
     .slice(0, limit);
 }
 
-export async function getCategorySales(params: DateRangeParams): Promise<CategorySales[]> {
-  const { data, error } = await supabase
+export async function getCategorySales(params: DateRangeParams, branchId?: string): Promise<CategorySales[]> {
+  let query = supabase
     .from('order_items')
     .select(`
       quantity,
       total_price,
-      menu_item:menu_items(category:categories(name)),
-      order:orders!inner(order_status, created_at)
+      menu_item:menu_items(category:categories(name), branch_id),
+      order:orders!inner(order_status, created_at, branch_id)
     `)
     .gte('order.created_at', params.startDate.toISOString())
     .lte('order.created_at', params.endDate.toISOString())
     .in('order.order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('order.branch_id', branchId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -207,14 +231,20 @@ export async function getCategorySales(params: DateRangeParams): Promise<Categor
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-export async function getStaffPerformance(params: DateRangeParams): Promise<StaffPerformance[]> {
+export async function getStaffPerformance(params: DateRangeParams, branchId?: string): Promise<StaffPerformance[]> {
   // Get orders with created_by
-  const { data: orders, error: ordersError } = await supabase
+  let query = supabase
     .from('orders')
-    .select('id, total_amount, created_by')
+    .select('id, total_amount, created_by, branch_id')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data: orders, error: ordersError } = await query;
 
   if (ordersError) throw ordersError;
 
@@ -265,13 +295,19 @@ export async function getStaffPerformance(params: DateRangeParams): Promise<Staf
     .sort((a, b) => b.total_revenue - a.total_revenue);
 }
 
-export async function getPaymentBreakdown(params: DateRangeParams): Promise<PaymentBreakdown[]> {
-  const { data, error } = await supabase
+export async function getPaymentBreakdown(params: DateRangeParams, branchId?: string): Promise<PaymentBreakdown[]> {
+  let query = supabase
     .from('payments')
-    .select('payment_method, amount')
+    .select('payment_method, amount, branch_id')
     .eq('payment_status', 'paid')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString());
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -293,13 +329,19 @@ export async function getPaymentBreakdown(params: DateRangeParams): Promise<Paym
     .map(([method, stats]) => ({ method: method as PaymentMethod, ...stats }));
 }
 
-export async function getOrderTypeSales(params: DateRangeParams): Promise<OrderTypeSales[]> {
-  const { data: orders, error } = await supabase
+export async function getOrderTypeSales(params: DateRangeParams, branchId?: string): Promise<OrderTypeSales[]> {
+  let query = supabase
     .from('orders')
-    .select('table_id, total_amount')
+    .select('table_id, total_amount, branch_id')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
     .in('order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data: orders, error } = await query;
 
   if (error) throw error;
 
@@ -322,19 +364,25 @@ export async function getOrderTypeSales(params: DateRangeParams): Promise<OrderT
   ];
 }
 
-export async function getItemSalesDetails(params: DateRangeParams): Promise<ItemSalesDetail[]> {
-  const { data, error } = await supabase
+export async function getItemSalesDetails(params: DateRangeParams, branchId?: string): Promise<ItemSalesDetail[]> {
+  let query = supabase
     .from('order_items')
     .select(`
       quantity,
       total_price,
       unit_price,
-      menu_item:menu_items(name, category:categories(name)),
-      order:orders!inner(order_status, created_at)
+      menu_item:menu_items(name, category:categories(name), branch_id),
+      order:orders!inner(order_status, created_at, branch_id)
     `)
     .gte('order.created_at', params.startDate.toISOString())
     .lte('order.created_at', params.endDate.toISOString())
     .in('order.order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('order.branch_id', branchId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -369,13 +417,13 @@ export async function getItemSalesDetails(params: DateRangeParams): Promise<Item
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-export async function getSalesSummary(params: DateRangeParams): Promise<SalesSummary> {
+export async function getSalesSummary(params: DateRangeParams, branchId?: string): Promise<SalesSummary> {
   const [dailySales, hourlySales, topItems, categorySales, orderTypeSales] = await Promise.all([
-    getDailySales(params),
-    getHourlySales(params),
-    getTopSellingItems(params, 1),
-    getCategorySales(params),
-    getOrderTypeSales(params),
+    getDailySales(params, branchId),
+    getHourlySales(params, branchId),
+    getTopSellingItems(params, 1, branchId),
+    getCategorySales(params, branchId),
+    getOrderTypeSales(params, branchId),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
@@ -407,7 +455,7 @@ export async function getSalesSummary(params: DateRangeParams): Promise<SalesSum
   };
 }
 
-export async function getReportingSummary(params: DateRangeParams) {
+export async function getReportingSummary(params: DateRangeParams, branchId?: string) {
   const [
     dailySales, 
     hourlySales, 
@@ -419,15 +467,15 @@ export async function getReportingSummary(params: DateRangeParams) {
     itemSalesDetails,
     salesSummary
   ] = await Promise.all([
-    getDailySales(params),
-    getHourlySales(params),
-    getTopSellingItems(params, 10),
-    getCategorySales(params),
-    getStaffPerformance(params),
-    getPaymentBreakdown(params),
-    getOrderTypeSales(params),
-    getItemSalesDetails(params),
-    getSalesSummary(params),
+    getDailySales(params, branchId),
+    getHourlySales(params, branchId),
+    getTopSellingItems(params, 10, branchId),
+    getCategorySales(params, branchId),
+    getStaffPerformance(params, branchId),
+    getPaymentBreakdown(params, branchId),
+    getOrderTypeSales(params, branchId),
+    getItemSalesDetails(params, branchId),
+    getSalesSummary(params, branchId),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);

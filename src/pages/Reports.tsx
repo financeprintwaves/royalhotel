@@ -27,6 +27,8 @@ import {
 } from '@/services/reportingService';
 import DateRangePicker, { type DateRange } from '@/components/DateRangePicker';
 import ExportButtons from '@/components/ExportButtons';
+import BranchSelector from '@/components/BranchSelector';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CHART_COLORS = [
   'hsl(var(--primary))', 
@@ -38,8 +40,10 @@ const CHART_COLORS = [
 ];
 
 export default function Reports() {
+  const { profile, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: startOfDay(subDays(new Date(), 6)),
     to: endOfDay(new Date())
@@ -60,9 +64,16 @@ export default function Reports() {
     peakHour: number;
   } | null>(null);
 
+  // Set default branch for non-admins
+  useEffect(() => {
+    if (!isAdmin() && profile?.branch_id && !selectedBranchId) {
+      setSelectedBranchId(profile.branch_id);
+    }
+  }, [profile?.branch_id, isAdmin, selectedBranchId]);
+
   useEffect(() => {
     loadData();
-  }, [dateRange]);
+  }, [dateRange, selectedBranchId]);
 
   async function loadData() {
     setLoading(true);
@@ -70,7 +81,7 @@ export default function Reports() {
       const result = await getReportingSummary({
         startDate: dateRange.from,
         endDate: dateRange.to
-      });
+      }, selectedBranchId || undefined);
       setData(result);
     } catch (error) {
       console.error('Failed to load reports:', error);
@@ -104,6 +115,10 @@ export default function Reports() {
             <DateRangePicker 
               dateRange={dateRange} 
               onDateRangeChange={setDateRange} 
+            />
+            <BranchSelector
+              selectedBranchId={selectedBranchId}
+              onBranchChange={setSelectedBranchId}
             />
             
             {/* Report Type Tabs */}

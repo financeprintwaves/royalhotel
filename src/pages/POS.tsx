@@ -306,6 +306,14 @@ export default function POS() {
   const existingTotal = existingOrder?.total_amount ? Number(existingOrder.total_amount) : 0;
   const grandTotal = existingTotal + total;
 
+  // Check if any cart items require kitchen preparation
+  function hasKitchenItems(): boolean {
+    return cart.some(item => {
+      const category = categories.find(c => c.id === item.menuItem.category_id);
+      return category?.requires_kitchen === true;
+    });
+  }
+
   async function handleSendToKitchen() {
     if (cart.length === 0) {
       toast({ variant: 'destructive', title: 'Cart is empty', description: 'Add items before sending to kitchen' });
@@ -324,25 +332,36 @@ export default function POS() {
         isServing: item.isServing,
       }));
       
+      // Check if any items require kitchen
+      const needsKitchen = hasKitchenItems();
+      
       if (existingOrder) {
         orderId = existingOrder.id;
         
         // BATCH: Single database call for all items
         await addOrderItemsBatch(orderId, batchItems);
         
-        if (existingOrder.order_status !== 'CREATED' && existingOrder.order_status !== 'SENT_TO_KITCHEN') {
-          await supabase
-            .from('orders')
-            .update({ order_status: 'SENT_TO_KITCHEN', updated_at: new Date().toISOString() })
-            .eq('id', orderId);
-        } else if (existingOrder.order_status === 'CREATED') {
-          await sendToKitchen(orderId);
+        if (needsKitchen) {
+          if (existingOrder.order_status !== 'CREATED' && existingOrder.order_status !== 'SENT_TO_KITCHEN') {
+            await supabase
+              .from('orders')
+              .update({ order_status: 'SENT_TO_KITCHEN', updated_at: new Date().toISOString() })
+              .eq('id', orderId);
+          } else if (existingOrder.order_status === 'CREATED') {
+            await sendToKitchen(orderId);
+          }
+          toast({ 
+            title: 'Items Sent to Kitchen!', 
+            description: `${cart.length} items sent for ${selectedTable?.table_number || 'Takeaway'}` 
+          });
+        } else {
+          // No kitchen items - mark as served directly
+          await markAsServed(orderId);
+          toast({ 
+            title: 'Items Ready!', 
+            description: `${cart.length} items ready to serve for ${selectedTable?.table_number || 'Takeaway'}` 
+          });
         }
-        
-        toast({ 
-          title: 'Items Added!', 
-          description: `${cart.length} items sent to kitchen for ${selectedTable?.table_number || 'Takeaway'}` 
-        });
       } else {
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
@@ -350,11 +369,20 @@ export default function POS() {
         // BATCH: Single database call for all items
         await addOrderItemsBatch(orderId, batchItems);
         
-        await sendToKitchen(orderId);
-        toast({ 
-          title: 'Order Sent!', 
-          description: `Order for ${selectedTable?.table_number || 'Takeaway'} sent to kitchen` 
-        });
+        if (needsKitchen) {
+          await sendToKitchen(orderId);
+          toast({ 
+            title: 'Order Sent to Kitchen!', 
+            description: `Order for ${selectedTable?.table_number || 'Takeaway'} sent to kitchen` 
+          });
+        } else {
+          // No kitchen items - skip kitchen, go to SERVED
+          await markAsServed(orderId);
+          toast({ 
+            title: 'Order Ready!', 
+            description: `Order for ${selectedTable?.table_number || 'Takeaway'} ready to serve` 
+          });
+        }
       }
       
       setCart([]);
@@ -369,6 +397,15 @@ export default function POS() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Takeaway payment-first flow
+  async function handleTakeawayPayment() {
+    if (cart.length === 0) {
+      toast({ variant: 'destructive', title: 'Cart is empty', description: 'Add items before payment' });
+      return;
+    }
+    setShowPaymentDialog(true);
   }
 
   async function handlePayNow() {
@@ -392,6 +429,9 @@ export default function POS() {
         notes: item.notes,
         isServing: item.isServing,
       }));
+      
+      const isTakeaway = orderType === 'take-out' && !existingOrder;
+      const needsKitchen = hasKitchenItems();
       
       if (existingOrder) {
         orderId = existingOrder.id;
@@ -420,9 +460,18 @@ export default function POS() {
         const updatedOrder = await getOrder(orderId);
         paymentTotal = Number(updatedOrder?.total_amount || 0);
         
-        await sendToKitchen(orderId);
-        await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SERVED' });
-        await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+        if (isTakeaway) {
+          // Takeaway: Pay first, then route to kitchen if needed
+          // Status goes straight to BILL_REQUESTED for payment
+          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SENT_TO_KITCHEN' });
+          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SERVED' });
+          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+        } else {
+          // Dine-in: Normal flow
+          await sendToKitchen(orderId);
+          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SERVED' });
+          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+        }
       }
       
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
@@ -437,6 +486,15 @@ export default function POS() {
       const updatedOrder = await getOrder(orderId);
       if (updatedOrder) {
         setAutoPrintOrder(updatedOrder);
+      }
+      
+      // For takeaway: After payment is done, notify kitchen if needed
+      if (isTakeaway && needsKitchen && updatedOrder) {
+        // Kitchen can now see the paid order in their display
+        toast({ 
+          title: 'Payment Complete!', 
+          description: 'Order sent to kitchen for preparation' 
+        });
       }
       
       setCart([]);
@@ -1048,25 +1106,43 @@ export default function POS() {
             </div>
 
             <div className="p-4 grid grid-cols-2 gap-2">
-              <Button 
-                variant="secondary" 
-                size="lg"
-                className="flex items-center gap-2"
-                onClick={handleSendToKitchen}
-                disabled={cart.length === 0 || loading}
-              >
-                <ChefHat className="h-4 w-4" />
-                KITCHEN
-              </Button>
-              <Button 
-                size="lg"
-                className="flex items-center gap-2 bg-primary"
-                onClick={handlePayNow}
-                disabled={(cart.length === 0 && !existingOrder) || loading}
-              >
-                <CreditCard className="h-4 w-4" />
-                PAY NOW
-              </Button>
+              {orderType === 'take-out' ? (
+                /* Takeaway: Payment first flow */
+                <>
+                  <Button 
+                    size="lg"
+                    className="col-span-2 flex items-center gap-2 bg-primary"
+                    onClick={handleTakeawayPayment}
+                    disabled={cart.length === 0 || loading}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    PAY & COLLECT
+                  </Button>
+                </>
+              ) : (
+                /* Dine-in/Delivery: Kitchen first flow */
+                <>
+                  <Button 
+                    variant="secondary" 
+                    size="lg"
+                    className="flex items-center gap-2"
+                    onClick={handleSendToKitchen}
+                    disabled={cart.length === 0 || loading}
+                  >
+                    <ChefHat className="h-4 w-4" />
+                    {hasKitchenItems() ? 'KITCHEN' : 'SERVE'}
+                  </Button>
+                  <Button 
+                    size="lg"
+                    className="flex items-center gap-2 bg-primary"
+                    onClick={handlePayNow}
+                    disabled={(cart.length === 0 && !existingOrder) || loading}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    PAY NOW
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </aside>

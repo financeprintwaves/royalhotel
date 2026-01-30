@@ -105,8 +105,7 @@ export default function NewOrder() {
   }
 
   const subtotal = cart.reduce((sum, c) => sum + c.menuItem.price * c.quantity, 0);
-  const tax = subtotal * 0.1;
-  const total = subtotal + tax;
+  const total = subtotal; // Prices include tax
 
   async function handleCreateOrder() {
     if (cart.length === 0) {
@@ -308,15 +307,8 @@ export default function NewOrder() {
               )}
             </ScrollArea>
             <div className="p-4 border-t space-y-3">
-              <div className="flex justify-between text-sm">
-                <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Tax (10%)</span><span>${tax.toFixed(2)}</span>
-              </div>
-              <Separator />
               <div className="flex justify-between font-bold text-lg">
-                <span>Total</span><span>${total.toFixed(2)}</span>
+                <span>Total</span><span>{total.toFixed(3)} OMR</span>
               </div>
               <Button className="w-full" size="lg" onClick={handleCreateOrder} disabled={cart.length === 0 || loading}>
                 Create Order
@@ -347,9 +339,7 @@ export default function NewOrder() {
                   ))}
                 </div>
                 <Separator />
-                <div className="flex justify-between text-sm"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-sm"><span>Tax</span><span>${tax.toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>${total.toFixed(2)}</span></div>
+                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{total.toFixed(3)} OMR</span></div>
                 <Separator />
                 <div className="flex gap-4">
                   <Button className="flex-1" onClick={handleSendToKitchen} disabled={loading}>

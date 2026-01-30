@@ -55,6 +55,7 @@ export interface Category {
   description: string | null;
   sort_order: number;
   is_active: boolean;
+  requires_kitchen: boolean;
   created_at: string;
   updated_at: string;
 }

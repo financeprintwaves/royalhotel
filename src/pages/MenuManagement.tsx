@@ -69,6 +69,7 @@ export default function MenuManagement() {
   const [categoryName, setCategoryName] = useState('');
   const [categoryDescription, setCategoryDescription] = useState('');
   const [categorySortOrder, setCategorySortOrder] = useState(0);
+  const [categoryRequiresKitchen, setCategoryRequiresKitchen] = useState(false);
 
   // Menu item dialog state
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
@@ -121,11 +122,13 @@ export default function MenuManagement() {
       setCategoryName(category.name);
       setCategoryDescription(category.description || '');
       setCategorySortOrder(category.sort_order || 0);
+      setCategoryRequiresKitchen(category.requires_kitchen || false);
     } else {
       setEditingCategory(null);
       setCategoryName('');
       setCategoryDescription('');
       setCategorySortOrder(categories.length);
+      setCategoryRequiresKitchen(false);
     }
     setCategoryDialogOpen(true);
   }
@@ -142,10 +145,13 @@ export default function MenuManagement() {
           name: categoryName,
           description: categoryDescription || undefined,
           sort_order: categorySortOrder,
+          requires_kitchen: categoryRequiresKitchen,
         });
         toast({ title: 'Success', description: 'Category updated' });
       } else {
-        await createCategory(categoryName, categoryDescription || undefined, categorySortOrder);
+        const newCategory = await createCategory(categoryName, categoryDescription || undefined, categorySortOrder);
+        // Update requires_kitchen after creation
+        await updateCategory(newCategory.id, { requires_kitchen: categoryRequiresKitchen });
         toast({ title: 'Success', description: 'Category created' });
       }
       setCategoryDialogOpen(false);
@@ -511,6 +517,13 @@ export default function MenuManagement() {
                       <Label>Sort Order</Label>
                       <Input type="number" value={categorySortOrder} onChange={(e) => setCategorySortOrder(parseInt(e.target.value) || 0)} />
                     </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Kitchen Item</Label>
+                        <p className="text-xs text-muted-foreground">Items in this category are sent to kitchen for preparation</p>
+                      </div>
+                      <Switch checked={categoryRequiresKitchen} onCheckedChange={setCategoryRequiresKitchen} />
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
@@ -545,7 +558,12 @@ export default function MenuManagement() {
                       {category.description && (
                         <p className="text-sm text-muted-foreground mb-2">{category.description}</p>
                       )}
-                      <Badge variant="secondary">{itemCount} items</Badge>
+                      <div className="flex gap-2">
+                        <Badge variant="secondary">{itemCount} items</Badge>
+                        {category.requires_kitchen && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300">Kitchen</Badge>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 );

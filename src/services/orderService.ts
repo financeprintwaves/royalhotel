@@ -279,9 +279,9 @@ async function recalculateOrderTotals(orderId: string): Promise<void> {
     .eq('order_id', orderId);
 
   const subtotal = items?.reduce((sum, item) => sum + Number(item.total_price), 0) || 0;
-  const taxRate = 0.10; // 10% tax - can be made configurable
-  const taxAmount = subtotal * taxRate;
-  const totalAmount = subtotal + taxAmount;
+  // Prices already include tax, no additional tax calculation needed
+  const taxAmount = 0;
+  const totalAmount = subtotal;
 
   await supabase
     .from('orders')

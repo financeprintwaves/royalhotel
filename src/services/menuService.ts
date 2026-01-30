@@ -80,7 +80,7 @@ export async function createCategory(
 // Update category
 export async function updateCategory(
   categoryId: string,
-  updates: Partial<Pick<Category, 'name' | 'description' | 'sort_order' | 'is_active'>>
+  updates: Partial<Pick<Category, 'name' | 'description' | 'sort_order' | 'is_active' | 'requires_kitchen'>>
 ): Promise<Category> {
   const { data, error } = await supabase
     .from('categories')

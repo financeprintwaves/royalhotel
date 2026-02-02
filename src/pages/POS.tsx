@@ -27,9 +27,9 @@ import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } 
 import { supabase } from '@/integrations/supabase/client';
 import { FloorCanvas } from '@/components/FloorCanvas';
 import ReceiptDialog from '@/components/ReceiptDialog';
-import ServingSelectionDialog from '@/components/ServingSelectionDialog';
+import PortionSelectionDialog from '@/components/PortionSelectionDialog';
 import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
-import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch } from '@/types/pos';
+import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch, PortionOption } from '@/types/pos';
 
 // Category color mapping for colorful UI
 const CATEGORY_COLORS: Record<string, string> = {
@@ -242,30 +242,46 @@ export default function POS() {
     setView('menu');
   }
 
-  // Handle menu item click - check if serving selection needed
+  // Handle menu item click - check if portion/serving selection needed
   function handleMenuItemClick(item: MenuItem) {
     if (!item.is_available) return;
     
-    // If item is by_serving type, show selection dialog
-    if (item.billing_type === 'by_serving' && item.serving_price) {
+    // If item has portion options, show portion dialog
+    if (item.portion_options && item.portion_options.length > 0) {
+      setSelectedServingItem(item);
+      setShowServingDialog(true);
+    }
+    // If item is by_serving type with legacy bottle/shot pricing
+    else if (item.billing_type === 'by_serving' && item.serving_price) {
       setSelectedServingItem(item);
       setShowServingDialog(true);
     } else {
       // For bottle_only or service items, add directly
-      addToCart(item, false);
+      addToCart(item);
     }
   }
 
-  // Add item to cart with serving type consideration
-  function addToCart(item: MenuItem, isServing: boolean = false) {
-    const price = isServing ? (item.serving_price || item.price) : item.price;
-    const cartKey = `${item.id}-${isServing ? 'serving' : 'bottle'}`;
+  // Add item to cart with portion/serving support
+  function addToCart(item: MenuItem, selectedPortion?: PortionOption, isServing: boolean = false) {
+    let price = item.price;
+    let cartKey = item.id;
+    
+    if (selectedPortion) {
+      price = selectedPortion.price;
+      cartKey = `${item.id}-portion-${selectedPortion.name}`;
+    } else if (isServing) {
+      price = item.serving_price || item.price;
+      cartKey = `${item.id}-serving`;
+    }
     
     setCart(prev => {
-      // Find existing cart item with same id AND same serving type
-      const existingIndex = prev.findIndex(c => 
-        c.menuItem.id === item.id && c.isServing === isServing
-      );
+      // Find existing cart item with same key
+      const existingIndex = prev.findIndex(c => {
+        if (selectedPortion) {
+          return c.menuItem.id === item.id && c.selectedPortion?.name === selectedPortion.name;
+        }
+        return c.menuItem.id === item.id && c.isServing === isServing && !c.selectedPortion;
+      });
       
       if (existingIndex >= 0) {
         return prev.map((c, i) => 
@@ -273,21 +289,26 @@ export default function POS() {
         );
       }
       return [...prev, { 
-        menuItem: { ...item, price }, // Override price based on serving type
+        menuItem: { ...item, price }, // Override price based on selection
         quantity: 1, 
-        isServing 
+        isServing,
+        selectedPortion
       }];
     });
   }
 
-  // Handle serving selection from dialog
-  function handleServingSelect(item: MenuItem, isServing: boolean) {
-    addToCart(item, isServing);
+  // Handle portion/serving selection from dialog
+  function handlePortionSelect(item: MenuItem, selectedPortion?: PortionOption, isServing?: boolean) {
+    addToCart(item, selectedPortion, isServing || false);
   }
 
-  function updateCartQuantity(itemId: string, isServing: boolean | undefined, delta: number) {
+  function updateCartQuantity(itemId: string, isServing: boolean | undefined, delta: number, selectedPortion?: PortionOption) {
     setCart(prev => prev.map(c => {
-      if (c.menuItem.id === itemId && c.isServing === isServing) {
+      const matches = selectedPortion 
+        ? (c.menuItem.id === itemId && c.selectedPortion?.name === selectedPortion.name)
+        : (c.menuItem.id === itemId && c.isServing === isServing && !c.selectedPortion);
+      
+      if (matches) {
         const newQty = c.quantity + delta;
         return newQty > 0 ? { ...c, quantity: newQty } : c;
       }
@@ -295,8 +316,13 @@ export default function POS() {
     }).filter(c => c.quantity > 0));
   }
 
-  function removeFromCart(itemId: string, isServing: boolean | undefined) {
-    setCart(prev => prev.filter(c => !(c.menuItem.id === itemId && c.isServing === isServing)));
+  function removeFromCart(itemId: string, isServing: boolean | undefined, selectedPortion?: PortionOption) {
+    setCart(prev => prev.filter(c => {
+      if (selectedPortion) {
+        return !(c.menuItem.id === itemId && c.selectedPortion?.name === selectedPortion.name);
+      }
+      return !(c.menuItem.id === itemId && c.isServing === isServing && !c.selectedPortion);
+    }));
   }
 
   const [discount, setDiscount] = useState<number>(0);
@@ -461,15 +487,11 @@ export default function POS() {
         paymentTotal = Number(updatedOrder?.total_amount || 0);
         
         if (isTakeaway) {
-          // Takeaway: Pay first, then route to kitchen if needed
-          // Status goes straight to BILL_REQUESTED for payment
-          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SENT_TO_KITCHEN' });
-          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SERVED' });
+          // OPTIMIZED: Takeaway orders go straight to BILL_REQUESTED with single RPC
+          // No need for SENT_TO_KITCHEN → SERVED → BILL_REQUESTED intermediate states
           await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
         } else {
-          // Dine-in: Normal flow
-          await sendToKitchen(orderId);
-          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'SERVED' });
+          // Dine-in "Pay Now": Also optimized - single call to BILL_REQUESTED
           await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
         }
       }
@@ -483,14 +505,40 @@ export default function POS() {
       setPaymentSuccessAmount(paymentTotal);
       setShowPaymentSuccess(true);
       
-      const updatedOrder = await getOrder(orderId);
-      if (updatedOrder) {
-        setAutoPrintOrder(updatedOrder);
-      }
+      // Build receipt order from cart data instead of refetching
+      const receiptOrderData: Order = {
+        id: orderId,
+        branch_id: selectedBranch,
+        table_id: selectedTable?.id || null,
+        created_by: null,
+        order_number: null,
+        order_status: 'PAID',
+        payment_status: 'paid',
+        subtotal: subtotal,
+        tax_amount: 0,
+        discount_amount: discount,
+        total_amount: paymentTotal,
+        notes: null,
+        locked_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        table: selectedTable || undefined,
+        order_items: cart.map((c, idx) => ({
+          id: `temp-${idx}`,
+          order_id: orderId,
+          menu_item_id: c.menuItem.id,
+          quantity: c.quantity,
+          unit_price: c.menuItem.price,
+          total_price: c.menuItem.price * c.quantity,
+          notes: c.notes || null,
+          created_at: new Date().toISOString(),
+          menu_item: c.menuItem,
+        })),
+      };
+      setAutoPrintOrder(receiptOrderData);
       
       // For takeaway: After payment is done, notify kitchen if needed
-      if (isTakeaway && needsKitchen && updatedOrder) {
-        // Kitchen can now see the paid order in their display
+      if (isTakeaway && needsKitchen) {
         toast({ 
           title: 'Payment Complete!', 
           description: 'Order sent to kitchen for preparation' 
@@ -504,7 +552,7 @@ export default function POS() {
       setDiscount(0);
       setView('floor');
       setTransactionRef('');
-      refetchTables(); // Use React Query refetch instead of manual load
+      refetchTables();
       
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
@@ -552,14 +600,14 @@ export default function POS() {
       setSelectedOrderForPayment(null);
       setTransactionRef('');
       
-      // Show celebration overlay and trigger auto-print
+      // Show celebration overlay with existing order data (no refetch)
       setPaymentSuccessAmount(paymentTotal);
       setShowPaymentSuccess(true);
-      
-      const updatedOrder = await getOrder(selectedOrderForPayment.id);
-      if (updatedOrder) {
-        setAutoPrintOrder(updatedOrder);
-      }
+      setAutoPrintOrder({
+        ...selectedOrderForPayment,
+        order_status: 'PAID',
+        payment_status: 'paid',
+      });
       
       loadAllOrders();
     } catch (error: any) {
@@ -1373,12 +1421,12 @@ export default function POS() {
         />
       )}
 
-      {/* Serving Selection Dialog */}
-      <ServingSelectionDialog
+      {/* Portion Selection Dialog */}
+      <PortionSelectionDialog
         open={showServingDialog}
         onOpenChange={setShowServingDialog}
         item={selectedServingItem}
-        onSelect={handleServingSelect}
+        onSelect={handlePortionSelect}
       />
 
       {/* Payment Success Overlay */}

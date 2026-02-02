@@ -11,6 +11,13 @@ export type OrderStatus =
 // Billing type for bar products
 export type BillingType = 'bottle_only' | 'by_serving' | 'service';
 
+// Portion option for flexible size/price combinations
+export interface PortionOption {
+  name: string;      // "Small", "Medium", "Large", "Regular", "Shot", etc.
+  price: number;     // Price for this portion
+  size_ml?: number;  // Optional size in ml
+}
+
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded';
 
 export type AppRole = 'admin' | 'manager' | 'cashier' | 'kitchen';
@@ -79,6 +86,7 @@ export interface MenuItem {
   serving_size_ml: number | null;
   serving_price: number | null;
   billing_type: BillingType;
+  portion_options: PortionOption[] | null;
 }
 
 export interface Inventory {
@@ -216,6 +224,7 @@ export interface CartItem {
   quantity: number;
   notes?: string;
   isServing?: boolean; // true if ordering by shot/glass for by_serving items
+  selectedPortion?: PortionOption; // Selected portion for items with portion_options
 }
 
 // Order workflow helpers

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Category, MenuItem, BillingType } from '@/types/pos';
+import type { Category, MenuItem, BillingType, PortionOption } from '@/types/pos';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -33,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, ImageIcon, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -46,6 +47,7 @@ import {
   updateMenuItem,
   deleteMenuItem,
   toggleMenuItemAvailability,
+  updateMenuItemWithPortions,
 } from '@/services/menuService';
 import { createInventoryEntry } from '@/services/inventoryService';
 import { useBranches } from '@/hooks/useMenuData';
@@ -89,6 +91,9 @@ export default function MenuManagement() {
   const [costPrice, setCostPrice] = useState('');
   const [servingSizeMl, setServingSizeMl] = useState('60');
   const [servingPrice, setServingPrice] = useState('');
+  
+  // Portion options state
+  const [portionOptions, setPortionOptions] = useState<PortionOption[]>([]);
 
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -178,6 +183,8 @@ export default function MenuManagement() {
       setCostPrice(item.cost_price?.toString() || '');
       setServingSizeMl(item.serving_size_ml?.toString() || '60');
       setServingPrice(item.serving_price?.toString() || '');
+      // Portion options
+      setPortionOptions(item.portion_options || []);
     } else {
       setEditingItem(null);
       setItemName('');
@@ -194,8 +201,24 @@ export default function MenuManagement() {
       setCostPrice('');
       setServingSizeMl('60');
       setServingPrice('');
+      // Reset portion options
+      setPortionOptions([]);
     }
     setItemDialogOpen(true);
+  }
+
+  function addPortionOption() {
+    setPortionOptions(prev => [...prev, { name: '', price: 0 }]);
+  }
+
+  function updatePortionOption(index: number, field: keyof PortionOption, value: string | number) {
+    setPortionOptions(prev => prev.map((opt, i) => 
+      i === index ? { ...opt, [field]: value } : opt
+    ));
+  }
+
+  function removePortionOption(index: number) {
+    setPortionOptions(prev => prev.filter((_, i) => i !== index));
   }
 
   async function handleSaveItem() {
@@ -210,14 +233,23 @@ export default function MenuManagement() {
       return;
     }
 
+    // Validate portion options
+    const validPortions = portionOptions.filter(p => p.name.trim() && p.price > 0);
+
     try {
       if (editingItem) {
-        await updateMenuItem(editingItem.id, {
+        await updateMenuItemWithPortions(editingItem.id, {
           name: itemName,
           price,
           description: itemDescription || undefined,
           image_url: itemImageUrl || undefined,
           category_id: itemCategoryId || undefined,
+          billing_type: billingType,
+          bottle_size_ml: bottleSizeMl ? parseInt(bottleSizeMl) : null,
+          cost_price: costPrice ? parseFloat(costPrice) : null,
+          serving_size_ml: servingSizeMl ? parseInt(servingSizeMl) : null,
+          serving_price: servingPrice ? parseFloat(servingPrice) : null,
+          portion_options: validPortions.length > 0 ? validPortions : null,
         });
         toast({ title: 'Success', description: 'Menu item updated' });
       } else {
@@ -226,7 +258,15 @@ export default function MenuManagement() {
           price,
           itemCategoryId || undefined,
           itemDescription || undefined,
-          itemImageUrl || undefined
+          itemImageUrl || undefined,
+          {
+            billingType,
+            bottleSizeMl: bottleSizeMl ? parseInt(bottleSizeMl) : undefined,
+            costPrice: costPrice ? parseFloat(costPrice) : undefined,
+            servingSizeMl: servingSizeMl ? parseInt(servingSizeMl) : undefined,
+            servingPrice: servingPrice ? parseFloat(servingPrice) : undefined,
+            portionOptions: validPortions.length > 0 ? validPortions : undefined,
+          }
         );
         
         // Create inventory entry if requested
@@ -364,71 +404,128 @@ export default function MenuManagement() {
                     <Plus className="h-4 w-4 mr-2" />Add Item
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-lg max-h-[90vh]">
                   <DialogHeader>
                     <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Name *</Label>
-                      <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g., Margherita Pizza" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Price *</Label>
-                      <Input type="number" step="0.01" min="0" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} placeholder="0.00" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Category</Label>
-                      <Select value={itemCategoryId} onValueChange={setItemCategoryId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Description</Label>
-                      <Textarea value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Optional description" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Image URL</Label>
-                      <Input value={itemImageUrl} onChange={(e) => setItemImageUrl(e.target.value)} placeholder="https://..." />
-                    </div>
-                    {isAdmin && !editingItem && (
+                  <ScrollArea className="max-h-[70vh] pr-4">
+                    <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label>Branch</Label>
-                        <Select value={itemBranchId} onValueChange={setItemBranchId}>
+                        <Label>Name *</Label>
+                        <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g., Margherita Pizza" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Base Price * (OMR)</Label>
+                        <Input type="number" step="0.001" min="0" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} placeholder="0.000" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <Select value={itemCategoryId} onValueChange={setItemCategoryId}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select branch" />
+                            <SelectValue placeholder="Select category" />
                           </SelectTrigger>
-                          <SelectContent className="bg-background border z-50">
-                            {branches.map((branch) => (
-                              <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                          <SelectContent>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
-                    {!editingItem && (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <Label>Create inventory entry</Label>
-                          <Switch checked={createInventory} onCheckedChange={setCreateInventory} />
+                      <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Textarea value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Optional description" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Image URL</Label>
+                        <Input value={itemImageUrl} onChange={(e) => setItemImageUrl(e.target.value)} placeholder="https://..." />
+                      </div>
+                      {isAdmin && !editingItem && (
+                        <div className="space-y-2">
+                          <Label>Branch</Label>
+                          <Select value={itemBranchId} onValueChange={setItemBranchId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select branch" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background border z-50">
+                              {branches.map((branch) => (
+                                <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        {createInventory && (
+                      )}
+
+                      {/* Portion Options Section */}
+                      <div className="space-y-3 pt-4 border-t">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-base font-semibold">Portion Options</Label>
+                            <p className="text-xs text-muted-foreground">Add Small/Medium/Large sizes with different prices</p>
+                          </div>
+                          <Button type="button" variant="outline" size="sm" onClick={addPortionOption}>
+                            <Plus className="h-3 w-3 mr-1" />Add
+                          </Button>
+                        </div>
+                        
+                        {portionOptions.length > 0 && (
                           <div className="space-y-2">
-                            <Label>Initial Stock</Label>
-                            <Input type="number" min="0" value={initialStock} onChange={(e) => setInitialStock(e.target.value)} />
+                            {portionOptions.map((portion, index) => (
+                              <div key={index} className="flex gap-2 items-center p-2 bg-muted/50 rounded-md">
+                                <Input
+                                  placeholder="Name (e.g., Small)"
+                                  value={portion.name}
+                                  onChange={(e) => updatePortionOption(index, 'name', e.target.value)}
+                                  className="flex-1"
+                                />
+                                <Input
+                                  type="number"
+                                  step="0.001"
+                                  min="0"
+                                  placeholder="Price"
+                                  value={portion.price || ''}
+                                  onChange={(e) => updatePortionOption(index, 'price', parseFloat(e.target.value) || 0)}
+                                  className="w-24"
+                                />
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  placeholder="ml"
+                                  value={portion.size_ml || ''}
+                                  onChange={(e) => updatePortionOption(index, 'size_ml', parseInt(e.target.value) || undefined)}
+                                  className="w-20"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() => removePortionOption(index)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
                           </div>
                         )}
-                      </>
-                    )}
-                  </div>
-                  <div className="flex justify-end gap-2">
+                      </div>
+
+                      {!editingItem && (
+                        <>
+                          <div className="flex items-center justify-between pt-4 border-t">
+                            <Label>Create inventory entry</Label>
+                            <Switch checked={createInventory} onCheckedChange={setCreateInventory} />
+                          </div>
+                          {createInventory && (
+                            <div className="space-y-2">
+                              <Label>Initial Stock</Label>
+                              <Input type="number" min="0" value={initialStock} onChange={(e) => setInitialStock(e.target.value)} />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </ScrollArea>
+                  <div className="flex justify-end gap-2 pt-4 border-t">
                     <Button variant="outline" onClick={() => setItemDialogOpen(false)}>Cancel</Button>
                     <Button onClick={handleSaveItem}>{editingItem ? 'Update' : 'Create'}</Button>
                   </div>

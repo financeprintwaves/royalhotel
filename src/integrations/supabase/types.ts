@@ -261,6 +261,7 @@ export type Database = {
           is_active: boolean | null
           is_available: boolean | null
           name: string
+          portion_options: Json | null
           price: number
           serving_price: number | null
           serving_size_ml: number | null
@@ -279,6 +280,7 @@ export type Database = {
           is_active?: boolean | null
           is_available?: boolean | null
           name: string
+          portion_options?: Json | null
           price: number
           serving_price?: number | null
           serving_size_ml?: number | null
@@ -297,6 +299,7 @@ export type Database = {
           is_active?: boolean | null
           is_available?: boolean | null
           name?: string
+          portion_options?: Json | null
           price?: number
           serving_price?: number | null
           serving_size_ml?: number | null

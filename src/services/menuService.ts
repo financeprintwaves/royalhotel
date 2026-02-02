@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Category, MenuItem, BillingType } from '@/types/pos';
+import type { Category, MenuItem, BillingType, PortionOption } from '@/types/pos';
 
 // Extended menu item creation options for bar products
 export interface CreateMenuItemOptions {
@@ -13,6 +13,7 @@ export interface CreateMenuItemOptions {
   servingSizeMl?: number;
   servingPrice?: number;
   billingType?: BillingType;
+  portionOptions?: PortionOption[];
 }
 
 // Get all categories for branch (with optional branchId for admin cross-branch queries)
@@ -163,6 +164,7 @@ export async function createMenuItem(
     servingSizeMl?: number;
     servingPrice?: number;
     billingType?: BillingType;
+    portionOptions?: PortionOption[];
   }
 ): Promise<MenuItem> {
   const { data: userData } = await supabase.auth.getUser();
@@ -190,7 +192,34 @@ export async function createMenuItem(
       serving_size_ml: options?.servingSizeMl,
       serving_price: options?.servingPrice,
       billing_type: options?.billingType || 'bottle_only',
+      portion_options: options?.portionOptions ? JSON.stringify(options.portionOptions) : null,
     })
+    .select(`
+      *,
+      category:categories(id, name)
+    `)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as MenuItem;
+}
+
+// Update menu item with portion options support
+export async function updateMenuItemWithPortions(
+  menuItemId: string,
+  updates: Partial<Pick<MenuItem, 'name' | 'price' | 'description' | 'image_url' | 'category_id' | 'is_available' | 'is_active' | 'billing_type' | 'bottle_size_ml' | 'cost_price' | 'serving_size_ml' | 'serving_price' | 'portion_options'>>
+): Promise<MenuItem> {
+  const updateData: Record<string, unknown> = { ...updates };
+  
+  // Handle portion_options serialization
+  if (updates.portion_options !== undefined) {
+    updateData.portion_options = updates.portion_options ? JSON.stringify(updates.portion_options) : null;
+  }
+  
+  const { data, error } = await supabase
+    .from('menu_items')
+    .update(updateData)
+    .eq('id', menuItemId)
     .select(`
       *,
       category:categories(id, name)

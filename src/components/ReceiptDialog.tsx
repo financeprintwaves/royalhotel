@@ -34,6 +34,20 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
     documentTitle: `Receipt-${order?.order_number || order?.id?.slice(-8)}`,
+    pageStyle: `
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    `,
   });
 
   useEffect(() => {

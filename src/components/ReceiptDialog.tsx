@@ -102,8 +102,8 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
           </DialogDescription>
         </DialogHeader>
         
-        <div className="border rounded-lg overflow-hidden bg-white">
-          <Receipt 
+        <div className="border rounded-lg overflow-hidden bg-white print-receipt-container">
+          <Receipt
             ref={receiptRef}
             order={order} 
             payments={payments}

@@ -12,7 +12,9 @@ interface ReceiptProps {
 
 const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
   ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone, waiterName }, ref) => {
-    const orderItems = (order as any).order_items || [];
+    // Ensure orderItems is always an array (could be null, undefined, or object from DB)
+    const rawOrderItems = (order as any).order_items;
+    const orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
     const tableNumber = (order as any).table?.table_number;
     const customerName = (order as any).customer_name;
     const createdAt = order.created_at ? new Date(order.created_at) : new Date();

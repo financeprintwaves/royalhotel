@@ -417,3 +417,35 @@ export async function updateOrderNotes(orderId: string, notes: string): Promise<
 
   if (error) throw error;
 }
+
+// Cancel order (admin only)
+export async function cancelOrder(orderId: string): Promise<void> {
+  // Get order with table info
+  const { data: order } = await supabase
+    .from('orders')
+    .select('table_id')
+    .eq('id', orderId)
+    .maybeSingle();
+
+  if (!order) throw new Error('Order not found');
+
+  // Update order status to CLOSED with cancelled payment status
+  const { error } = await supabase
+    .from('orders')
+    .update({ 
+      order_status: 'CLOSED',
+      locked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderId);
+
+  if (error) throw error;
+
+  // Reset table if order had one
+  if (order.table_id) {
+    await supabase
+      .from('restaurant_tables')
+      .update({ status: 'available' })
+      .eq('id', order.table_id);
+  }
+}

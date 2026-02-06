@@ -15,11 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
   Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
-  Wifi, Clock, Check, Receipt, RefreshCw, Lock
+  Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
-  markAsServed, requestBill, applyDiscount
+  markAsServed, requestBill, applyDiscount, cancelOrder
 } from '@/services/orderService';
 import { finalizePayment, processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -28,7 +28,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { FloorCanvas } from '@/components/FloorCanvas';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import PortionSelectionDialog from '@/components/PortionSelectionDialog';
-import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch, PortionOption } from '@/types/pos';
 
 // Category color mapping for colorful UI
@@ -122,11 +121,6 @@ export default function POS() {
   // Serving selection dialog state
   const [showServingDialog, setShowServingDialog] = useState(false);
   const [selectedServingItem, setSelectedServingItem] = useState<MenuItem | null>(null);
-
-  // Payment success overlay state
-  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
-  const [paymentSuccessAmount, setPaymentSuccessAmount] = useState(0);
-  const [autoPrintOrder, setAutoPrintOrder] = useState<Order | null>(null);
 
   // Set default branch when branches load - use user's branch for non-admins
   useEffect(() => {
@@ -506,46 +500,18 @@ export default function POS() {
       
       setShowPaymentDialog(false);
       
-      // Show celebration overlay and trigger auto-print
-      setPaymentSuccessAmount(paymentTotal);
-      setShowPaymentSuccess(true);
+      // Fetch fresh order data for receipt (includes correct discount)
+      const freshOrder = await getOrder(orderId);
       
-      // Build receipt order from cart data instead of refetching
-      const receiptOrderData: Order = {
-        id: orderId,
-        branch_id: selectedBranch,
-        table_id: selectedTable?.id || null,
-        created_by: null,
-        order_number: null,
-        order_status: 'PAID',
-        payment_status: 'paid',
-        subtotal: subtotal,
-        tax_amount: 0,
-        discount_amount: discount,
-        total_amount: paymentTotal,
-        notes: null,
-        locked_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        table: selectedTable || undefined,
-        order_items: cart.map((c, idx) => ({
-          id: `temp-${idx}`,
-          order_id: orderId,
-          menu_item_id: c.menuItem.id,
-          quantity: c.quantity,
-          unit_price: c.menuItem.price,
-          total_price: c.menuItem.price * c.quantity,
-          notes: c.notes || null,
-          created_at: new Date().toISOString(),
-          menu_item: c.menuItem,
-        })),
-      };
-      setAutoPrintOrder(receiptOrderData);
+      // Show receipt immediately - no animation delay
+      setReceiptOrder(freshOrder);
+      setShowReceiptDialog(true);
+      toast({ title: 'Payment Successful!' });
       
       // For takeaway: After payment is done, notify kitchen if needed
       if (isTakeaway && needsKitchen) {
         toast({ 
-          title: 'Payment Complete!', 
+          title: 'Order sent to kitchen', 
           description: 'Order sent to kitchen for preparation' 
         });
       }
@@ -605,14 +571,13 @@ export default function POS() {
       setSelectedOrderForPayment(null);
       setTransactionRef('');
       
-      // Show celebration overlay with existing order data (no refetch)
-      setPaymentSuccessAmount(paymentTotal);
-      setShowPaymentSuccess(true);
-      setAutoPrintOrder({
-        ...selectedOrderForPayment,
-        order_status: 'PAID',
-        payment_status: 'paid',
-      });
+      // Fetch fresh order data for receipt (includes correct discount)
+      const freshOrder = await getOrder(selectedOrderForPayment.id);
+      
+      // Show receipt immediately - no animation delay
+      setReceiptOrder(freshOrder);
+      setShowReceiptDialog(true);
+      toast({ title: 'Payment Successful!' });
       
       loadAllOrders();
     } catch (error: any) {
@@ -620,6 +585,38 @@ export default function POS() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Admin handlers for edit and cancel
+  function handleEditOrder(order: Order) {
+    setSelectedOrderForPayment(null);
+    setExistingOrder(order);
+    setCart([]);
+    setSelectedTable((order as any).table || null);
+    setCustomerName((order as any).customer_name || '');
+    setDiscount(Number(order.discount_amount) || 0);
+    setView('menu');
+    toast({ title: 'Order Loaded', description: 'You can now edit this order' });
+  }
+
+  async function handleCancelOrder(orderId: string) {
+    if (!confirm('Cancel this order? This action cannot be undone.')) return;
+    setLoading(true);
+    try {
+      await cancelOrder(orderId);
+      toast({ title: 'Order Cancelled' });
+      loadAllOrders();
+      refetchTables();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleViewOrder(order: Order) {
+    setReceiptOrder(order);
+    setShowReceiptDialog(true);
   }
 
   // Kitchen view handlers
@@ -866,7 +863,13 @@ export default function POS() {
                           <span>Total</span>
                           <span>{Number(order.total_amount || 0).toFixed(3)} OMR</span>
                         </div>
-                        <div className="flex gap-2 pt-2">
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          {/* View/Print button for all orders */}
+                          <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
+                            <Eye className="h-3 w-3 mr-1" />View
+                          </Button>
+                          
+                          {/* Status action buttons */}
                           {order.order_status === 'CREATED' && (
                             <Button size="sm" className="flex-1" onClick={() => handleOrderStatusUpdate(order.id, 'kitchen')}>
                               <Send className="h-3 w-3 mr-1" />Kitchen
@@ -886,6 +889,18 @@ export default function POS() {
                             <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleOrderPayment(order)}>
                               <CreditCard className="h-3 w-3 mr-1" />Pay
                             </Button>
+                          )}
+                          
+                          {/* Admin Edit/Cancel buttons */}
+                          {isAdmin() && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)}>
+                                <Edit className="h-3 w-3 mr-1" />Edit
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleCancelOrder(order.id)}>
+                                <X className="h-3 w-3 mr-1" />Cancel
+                              </Button>
+                            </>
                           )}
                         </div>
                       </CardContent>
@@ -923,6 +938,22 @@ export default function POS() {
                         <p className="text-xs text-muted-foreground mt-2">
                           {new Date(order.created_at).toLocaleString()}
                         </p>
+                        {/* View/Print and Admin buttons for completed orders */}
+                        <div className="flex flex-wrap gap-2 pt-3">
+                          <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
+                            <Eye className="h-3 w-3 mr-1" />View
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
+                            <Printer className="h-3 w-3 mr-1" />Print
+                          </Button>
+                          {isAdmin() && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)}>
+                                <Edit className="h-3 w-3 mr-1" />Edit
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -1466,20 +1497,6 @@ export default function POS() {
         onOpenChange={setShowServingDialog}
         item={selectedServingItem}
         onSelect={handlePortionSelect}
-      />
-
-      {/* Payment Success Overlay */}
-      <PaymentSuccessOverlay
-        show={showPaymentSuccess}
-        amount={paymentSuccessAmount}
-        onComplete={() => {
-          setShowPaymentSuccess(false);
-          if (autoPrintOrder) {
-            setReceiptOrder(autoPrintOrder);
-            setShowReceiptDialog(true);
-            setAutoPrintOrder(null);
-          }
-        }}
       />
     </div>
   );

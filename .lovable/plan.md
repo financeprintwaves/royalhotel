@@ -1,124 +1,141 @@
 
+## Plan: Fix Discount and Split Payment Issues
 
-## Plan: Fix Blank Print Screen Issue
+### Problem Summary
 
-### Problem Analysis
-
-The print shows a blank page because of **incorrect CSS selector targeting**:
-
-| Issue | Cause |
-|-------|-------|
-| Blank print output | CSS rule `body > *:not(.print-receipt-container)` hides ALL direct children of body |
-| Container not visible | `.print-receipt-container` is nested inside Dialog → React root, NOT a direct child of body |
-| react-to-print uses iframe | Print happens in a new iframe context, so body-level CSS doesn't apply correctly |
-
-**Current HTML Structure:**
-```
-body
-└── #root (React app) ← This gets hidden!
-    └── Dialog
-        └── .print-receipt-container ← Never seen because parent is hidden
-```
+| Issue | Root Cause |
+|-------|------------|
+| Discount not showing on receipt/orders | Discount is stored in local UI state but never saved to database before payment |
+| Split payment errors | Split payment requires `selectedOrderForPayment` which is null for new cart orders |
+| Discount not in printed receipt | `recalculateOrderTotals()` ignores discount when updating order totals |
 
 ---
 
 ### Solution
 
-#### 1. Remove Broken Print CSS Selectors (index.css)
+#### 1. Apply Discount to Database Before Payment (POS.tsx)
 
-Remove the selector that hides everything. `react-to-print` already handles isolating the print content in its own iframe - we don't need to manually hide other elements.
+**Current flow:**
+```
+Cart → Create Order → Add Items → recalculateOrderTotals() → Payment
+         ↳ discount is in UI state only, never saved
+```
 
-**Changes to index.css:**
-```css
-/* Thermal Printer Optimizations */
-@media print {
-  @page {
-    size: 80mm auto;
-    margin: 0;
-  }
-  
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  
-  /* REMOVED: body > *:not(.print-receipt-container) - this was hiding everything */
-  
-  /* Receipt container styling for print */
-  .print-receipt-container {
-    width: 80mm !important;
-    padding: 0 4mm !important;
-    background: white !important;
-    margin: 0 !important;
-  }
-  
-  /* Force pure black text for thermal printers */
-  .print-receipt-container,
-  .print-receipt-container * {
-    color: #000 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  
-  /* Ensure borders print clearly */
-  .print-receipt-container [style*="border"] {
-    border-color: #000 !important;
-  }
+**Fixed flow:**
+```
+Cart → Create Order → Add Items → Apply Discount to Order → Payment
+                                    ↳ saves discount_amount to DB
+```
+
+**Changes to `handleProcessPayment()` function:**
+- After items are added and order is created, call a new function to apply the discount
+- Update order with `discount_amount` and recalculated `total_amount`
+
+```typescript
+// After addOrderItemsBatch and before payment:
+if (discount > 0) {
+  await applyDiscount(orderId, discount);
+}
+
+// Update paymentTotal to account for discount
+const updatedOrder = await getOrder(orderId);
+paymentTotal = Number(updatedOrder?.total_amount || 0);
+```
+
+The existing `applyDiscount()` function in `orderService.ts` already handles this correctly but is never called from POS.
+
+#### 2. Fix Split Payment for New Orders (POS.tsx)
+
+**Current Issue:** Split payment button handler at line 1368 checks:
+```typescript
+const orderId = selectedOrderForPayment?.id;
+if (!orderId) {
+  toast({ variant: 'destructive', title: 'Error', description: 'No order selected' });
+  return;
 }
 ```
 
-#### 2. Improve react-to-print Configuration (ReceiptDialog.tsx)
+This fails for new takeaway orders because `selectedOrderForPayment` is null.
 
-Add print-specific styles to the `useReactToPrint` hook to ensure proper rendering in the print iframe:
+**Solution:** For split payments on new cart orders:
+1. First create the order and save items (same as single payment)
+2. Apply discount to the order
+3. Then call `processSplitPayment()` with the new order ID
 
+**Updated split payment logic:**
 ```typescript
-const handlePrint = useReactToPrint({
-  contentRef: receiptRef,
-  documentTitle: `Receipt-${order?.order_number || order?.id?.slice(-8)}`,
-  pageStyle: `
-    @page {
-      size: 80mm auto;
-      margin: 0;
-    }
-    @media print {
-      body {
-        margin: 0;
-        padding: 0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-    }
-  `,
-});
+// Inside split payment block:
+let orderId = selectedOrderForPayment?.id;
+
+// If no existing order selected, create one from cart
+if (!orderId && cart.length > 0) {
+  const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
+  orderId = newOrder.id;
+  await addOrderItemsBatch(orderId, batchItems);
+  
+  // Apply discount
+  if (discount > 0) {
+    await applyDiscount(orderId, discount);
+  }
+  
+  // Update status to BILL_REQUESTED
+  await supabase.rpc('update_order_status', { 
+    p_order_id: orderId, 
+    p_new_status: 'BILL_REQUESTED' 
+  });
+}
+
+if (!orderId) {
+  toast({ variant: 'destructive', title: 'Error', description: 'No order to pay' });
+  return;
+}
 ```
 
 ---
 
 ### File Changes
 
-| File | Change |
-|------|--------|
-| src/index.css | Remove `body > *:not(.print-receipt-container)` rule that hides everything |
-| src/components/ReceiptDialog.tsx | Add `pageStyle` to `useReactToPrint` for proper print iframe styling |
+| File | Changes |
+|------|---------|
+| `src/pages/POS.tsx` | 1. Add discount application before payment in `handleProcessPayment()` 2. Fix split payment to create order first if needed 3. Import `applyDiscount` from orderService |
 
 ---
 
-### Why This Fix Works
+### Technical Details
 
-1. **react-to-print creates a new iframe** - It copies only the ref'd element into a clean iframe for printing
-2. **No need to hide other elements** - The iframe only contains the receipt
-3. **Page styles inject into iframe** - `pageStyle` prop adds CSS directly to the print iframe
-4. **Pure black text preserved** - Container-level CSS still forces high contrast
+**handleProcessPayment() Changes:**
+- After `addOrderItemsBatch()`, check if discount > 0
+- If so, call `applyDiscount(orderId, discount)` before payment
+- Fetch updated order to get correct `total_amount` with discount applied
+
+**Split Payment Changes:**
+- Before checking orderId, create order from cart if `selectedOrderForPayment` is null but cart has items
+- Apply same discount logic as single payment
+- Use the newly created orderId for split payment
 
 ---
 
 ### Summary
 
-| Before | After |
-|--------|-------|
-| CSS hides React root → blank print | CSS only styles receipt container |
-| No iframe-specific styles | `pageStyle` prop injects print CSS |
-| Broken selector targeting | Clean, working print output |
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    BEFORE (Broken)                           │
+├──────────────────────────────────────────────────────────────┤
+│ 1. User enters discount in UI                                │
+│ 2. Discount shown in cart total                              │
+│ 3. Order created → items added → totals calculated           │
+│ 4. Payment finalized with wrong total (no discount)          │
+│ 5. Receipt uses local discount but DB has 0                  │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                     AFTER (Fixed)                            │
+├──────────────────────────────────────────────────────────────┤
+│ 1. User enters discount in UI                                │
+│ 2. Discount shown in cart total                              │
+│ 3. Order created → items added → discount applied to DB      │
+│ 4. Payment finalized with correct total (includes discount)  │
+│ 5. Receipt and DB both show correct discount                 │
+└──────────────────────────────────────────────────────────────┘
+```
 

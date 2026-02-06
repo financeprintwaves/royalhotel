@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
-  markAsServed, requestBill
+  markAsServed, requestBill, applyDiscount
 } from '@/services/orderService';
 import { finalizePayment, processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -482,6 +482,11 @@ export default function POS() {
         
         // BATCH: Single database call for all items
         await addOrderItemsBatch(orderId, batchItems);
+        
+        // Apply discount to order before payment
+        if (discount > 0) {
+          await applyDiscount(orderId, discount);
+        }
         
         const updatedOrder = await getOrder(orderId);
         paymentTotal = Number(updatedOrder?.total_amount || 0);
@@ -1365,20 +1370,54 @@ export default function POS() {
                     return;
                   }
                   
-                  const orderId = selectedOrderForPayment?.id;
-                  if (!orderId) {
-                    toast({ variant: 'destructive', title: 'Error', description: 'No order selected' });
-                    return;
-                  }
+                  let orderId = selectedOrderForPayment?.id;
                   
                   setLoading(true);
                   try {
+                    // If no existing order selected, create one from cart (for takeaway split payments)
+                    if (!orderId && cart.length > 0) {
+                      const batchItems = cart.map(item => ({
+                        menuItem: item.menuItem,
+                        quantity: item.quantity,
+                        notes: item.notes,
+                        isServing: item.isServing,
+                      }));
+                      
+                      const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
+                      orderId = newOrder.id;
+                      await addOrderItemsBatch(orderId, batchItems);
+                      
+                      // Apply discount to order
+                      if (discount > 0) {
+                        await applyDiscount(orderId, discount);
+                      }
+                      
+                      // Update status to BILL_REQUESTED
+                      await supabase.rpc('update_order_status', { 
+                        p_order_id: orderId, 
+                        p_new_status: 'BILL_REQUESTED' 
+                      });
+                    }
+                    
+                    if (!orderId) {
+                      toast({ variant: 'destructive', title: 'Error', description: 'No order to pay' });
+                      setLoading(false);
+                      return;
+                    }
+                    
                     const payments: { amount: number; payment_method: PaymentMethod }[] = [];
                     if (cashAmt > 0) payments.push({ amount: cashAmt, payment_method: 'cash' });
                     if (cardAmt > 0) payments.push({ amount: cardAmt, payment_method: 'card' });
                     if (mobileAmt > 0) payments.push({ amount: mobileAmt, payment_method: 'mobile' });
                     
                     await processSplitPayment(orderId, payments);
+                    
+                    // Clear cart on success for new orders
+                    if (!selectedOrderForPayment) {
+                      setCart([]);
+                      setDiscount(0);
+                      setCustomerName('');
+                    }
                     
                     setShowPaymentDialog(false);
                     setSelectedOrderForPayment(null);

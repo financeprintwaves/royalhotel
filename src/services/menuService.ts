@@ -178,21 +178,48 @@ export async function createMenuItem(
 
   if (!profile?.branch_id) throw new Error('User not assigned to a branch');
 
+  return createMenuItemForBranch(profile.branch_id, {
+    name,
+    price,
+    categoryId,
+    description,
+    imageUrl,
+    ...options,
+  });
+}
+
+// Create menu item for a specific branch (Admin use for multi-branch creation)
+export async function createMenuItemForBranch(
+  branchId: string,
+  options: {
+    name: string;
+    price: number;
+    categoryId?: string;
+    description?: string;
+    imageUrl?: string;
+    bottleSizeMl?: number;
+    costPrice?: number;
+    servingSizeMl?: number;
+    servingPrice?: number;
+    billingType?: BillingType;
+    portionOptions?: PortionOption[];
+  }
+): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')
     .insert({
-      branch_id: profile.branch_id,
-      category_id: categoryId,
-      name,
-      price,
-      description,
-      image_url: imageUrl,
-      bottle_size_ml: options?.bottleSizeMl,
-      cost_price: options?.costPrice,
-      serving_size_ml: options?.servingSizeMl,
-      serving_price: options?.servingPrice,
-      billing_type: options?.billingType || 'bottle_only',
-      portion_options: options?.portionOptions ? JSON.stringify(options.portionOptions) : null,
+      branch_id: branchId,
+      category_id: options.categoryId,
+      name: options.name,
+      price: options.price,
+      description: options.description,
+      image_url: options.imageUrl,
+      bottle_size_ml: options.bottleSizeMl,
+      cost_price: options.costPrice,
+      serving_size_ml: options.servingSizeMl,
+      serving_price: options.servingPrice,
+      billing_type: options.billingType || 'bottle_only',
+      portion_options: options.portionOptions ? JSON.stringify(options.portionOptions) : null,
     })
     .select(`
       *,

@@ -68,9 +68,9 @@ export default function PortionSelectionDialog({
                     <p className="text-xl font-bold text-primary mt-1">
                       {formatOMR(portion.price)}
                     </p>
-                    {portion.size_ml && (
+                    {(portion.size || portion.size_ml) && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        {portion.size_ml}ml
+                        {portion.size || `${portion.size_ml}ml`}
                       </p>
                     )}
                   </div>

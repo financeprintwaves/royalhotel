@@ -34,7 +34,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, UtensilsCrossed, FolderOpen, ImageIcon, X, Check } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -44,6 +45,7 @@ import {
   deleteCategory,
   getMenuItems,
   createMenuItem,
+  createMenuItemForBranch,
   updateMenuItem,
   deleteMenuItem,
   toggleMenuItemAvailability,
@@ -62,6 +64,7 @@ export default function MenuManagement() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
 
   const isAdmin = roles.includes('admin');
 
@@ -183,8 +186,23 @@ export default function MenuManagement() {
       setCostPrice(item.cost_price?.toString() || '');
       setServingSizeMl(item.serving_size_ml?.toString() || '60');
       setServingPrice(item.serving_price?.toString() || '');
-      // Portion options
-      setPortionOptions(item.portion_options || []);
+      // Portion options - parse from JSON string if needed
+      const rawPortions = item.portion_options;
+      let parsedPortions: PortionOption[] = [];
+      if (typeof rawPortions === 'string') {
+        try {
+          parsedPortions = JSON.parse(rawPortions);
+        } catch {
+          parsedPortions = [];
+        }
+      } else if (Array.isArray(rawPortions)) {
+        // Convert size_ml to size for backward compatibility
+        parsedPortions = rawPortions.map(p => ({
+          ...p,
+          size: p.size || (p.size_ml ? `${p.size_ml}ml` : undefined)
+        }));
+      }
+      setPortionOptions(parsedPortions);
     } else {
       setEditingItem(null);
       setItemName('');
@@ -203,6 +221,8 @@ export default function MenuManagement() {
       setServingPrice('');
       // Reset portion options
       setPortionOptions([]);
+      // Reset multi-branch selection
+      setSelectedBranchIds([]);
     }
     setItemDialogOpen(true);
   }
@@ -253,29 +273,43 @@ export default function MenuManagement() {
         });
         toast({ title: 'Success', description: 'Menu item updated' });
       } else {
-        const newItem = await createMenuItem(
-          itemName,
+        const itemOptions = {
+          name: itemName,
           price,
-          itemCategoryId || undefined,
-          itemDescription || undefined,
-          itemImageUrl || undefined,
-          {
-            billingType,
-            bottleSizeMl: bottleSizeMl ? parseInt(bottleSizeMl) : undefined,
-            costPrice: costPrice ? parseFloat(costPrice) : undefined,
-            servingSizeMl: servingSizeMl ? parseInt(servingSizeMl) : undefined,
-            servingPrice: servingPrice ? parseFloat(servingPrice) : undefined,
-            portionOptions: validPortions.length > 0 ? validPortions : undefined,
-          }
-        );
+          categoryId: itemCategoryId || undefined,
+          description: itemDescription || undefined,
+          imageUrl: itemImageUrl || undefined,
+          billingType,
+          bottleSizeMl: bottleSizeMl ? parseInt(bottleSizeMl) : undefined,
+          costPrice: costPrice ? parseFloat(costPrice) : undefined,
+          servingSizeMl: servingSizeMl ? parseInt(servingSizeMl) : undefined,
+          servingPrice: servingPrice ? parseFloat(servingPrice) : undefined,
+          portionOptions: validPortions.length > 0 ? validPortions : undefined,
+        };
+
+        // Multi-branch creation for admins
+        const branchesToCreate = isAdmin && selectedBranchIds.length > 0 
+          ? selectedBranchIds 
+          : [itemBranchId || profile?.branch_id || ''];
         
-        // Create inventory entry if requested
-        if (createInventory) {
-          const stock = parseInt(initialStock) || 0;
-          await createInventoryEntry(newItem.id, stock);
+        for (const branchId of branchesToCreate) {
+          if (!branchId) continue;
+          const newItem = await createMenuItemForBranch(branchId, itemOptions);
+          
+          // Create inventory entry if requested
+          if (createInventory) {
+            const stock = parseInt(initialStock) || 0;
+            await createInventoryEntry(newItem.id, stock);
+          }
         }
         
-        toast({ title: 'Success', description: 'Menu item created' });
+        const branchCount = branchesToCreate.filter(b => b).length;
+        toast({ 
+          title: 'Success', 
+          description: branchCount > 1 
+            ? `Menu item created in ${branchCount} branches` 
+            : 'Menu item created' 
+        });
       }
       setItemDialogOpen(false);
       loadData();
@@ -441,17 +475,29 @@ export default function MenuManagement() {
                       </div>
                       {isAdmin && !editingItem && (
                         <div className="space-y-2">
-                          <Label>Branch</Label>
-                          <Select value={itemBranchId} onValueChange={setItemBranchId}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select branch" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-background border z-50">
-                              {branches.map((branch) => (
-                                <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Label>Branches</Label>
+                          <p className="text-xs text-muted-foreground">Select branches to add this item</p>
+                          <div className="space-y-2 max-h-32 overflow-auto border rounded-md p-2">
+                            {branches.map((branch) => (
+                              <div key={branch.id} className="flex items-center gap-2">
+                                <Checkbox 
+                                  id={`branch-${branch.id}`}
+                                  checked={selectedBranchIds.includes(branch.id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedBranchIds(prev => [...prev, branch.id]);
+                                    } else {
+                                      setSelectedBranchIds(prev => prev.filter(id => id !== branch.id));
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={`branch-${branch.id}`} className="cursor-pointer">{branch.name}</Label>
+                              </div>
+                            ))}
+                          </div>
+                          {selectedBranchIds.length > 0 && (
+                            <p className="text-xs text-primary">{selectedBranchIds.length} branch(es) selected</p>
+                          )}
                         </div>
                       )}
 
@@ -487,12 +533,11 @@ export default function MenuManagement() {
                                   className="w-24"
                                 />
                                 <Input
-                                  type="number"
-                                  min="0"
-                                  placeholder="ml"
-                                  value={portion.size_ml || ''}
-                                  onChange={(e) => updatePortionOption(index, 'size_ml', parseInt(e.target.value) || undefined)}
-                                  className="w-20"
+                                  type="text"
+                                  placeholder="Size (optional)"
+                                  value={portion.size || ''}
+                                  onChange={(e) => updatePortionOption(index, 'size', e.target.value)}
+                                  className="w-28"
                                 />
                                 <Button
                                   type="button"

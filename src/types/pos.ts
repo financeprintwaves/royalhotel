@@ -15,7 +15,8 @@ export type BillingType = 'bottle_only' | 'by_serving' | 'service';
 export interface PortionOption {
   name: string;      // "Small", "Medium", "Large", "Regular", "Shot", etc.
   price: number;     // Price for this portion
-  size_ml?: number;  // Optional size in ml
+  size?: string;     // Optional size label: "30ml", "Regular", "500g", etc.
+  size_ml?: number;  // Deprecated: kept for backward compatibility
 }
 
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded';

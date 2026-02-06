@@ -1,94 +1,118 @@
 
-## Plan: Fix Discount and Split Payment Issues
+## Plan: Fix Menu Management Portion Options and Multi-Branch Selection
 
-### Problem Summary
+### Issues Identified
 
 | Issue | Root Cause |
 |-------|------------|
-| Discount not showing on receipt/orders | Discount is stored in local UI state but never saved to database before payment |
-| Split payment errors | Split payment requires `selectedOrderForPayment` which is null for new cart orders |
-| Discount not in printed receipt | `recalculateOrderTotals()` ignores discount when updating order totals |
+| Portion options not reflecting when editing | `item.portion_options` comes from DB as JSON string, not parsed array |
+| Portion options UI hardcodes "ml" | Size field label says "ml" but sizes can be any unit (e.g., "Regular", "Large") |
+| Admin can only select one branch | Single-select dropdown instead of multi-select for branch assignment |
 
 ---
 
 ### Solution
 
-#### 1. Apply Discount to Database Before Payment (POS.tsx)
+#### 1. Fix Portion Options Loading (MenuManagement.tsx)
 
-**Current flow:**
-```
-Cart → Create Order → Add Items → recalculateOrderTotals() → Payment
-         ↳ discount is in UI state only, never saved
-```
-
-**Fixed flow:**
-```
-Cart → Create Order → Add Items → Apply Discount to Order → Payment
-                                    ↳ saves discount_amount to DB
-```
-
-**Changes to `handleProcessPayment()` function:**
-- After items are added and order is created, call a new function to apply the discount
-- Update order with `discount_amount` and recalculated `total_amount`
+When loading an item for editing, parse the `portion_options` if it's a string:
 
 ```typescript
-// After addOrderItemsBatch and before payment:
-if (discount > 0) {
-  await applyDiscount(orderId, discount);
-}
-
-// Update paymentTotal to account for discount
-const updatedOrder = await getOrder(orderId);
-paymentTotal = Number(updatedOrder?.total_amount || 0);
+// In openItemDialog() function
+const rawPortions = item.portion_options;
+const parsedPortions = typeof rawPortions === 'string' 
+  ? JSON.parse(rawPortions) 
+  : Array.isArray(rawPortions) ? rawPortions : [];
+setPortionOptions(parsedPortions);
 ```
 
-The existing `applyDiscount()` function in `orderService.ts` already handles this correctly but is never called from POS.
+#### 2. Update Portion Options UI for Flexible Size Label
 
-#### 2. Fix Split Payment for New Orders (POS.tsx)
+Change the "ml" input to a generic "Size (optional)" field that can accept any text (e.g., "30ml", "Regular", "XL", "500g"):
 
-**Current Issue:** Split payment button handler at line 1368 checks:
+**Current UI:**
+```
+[Name (e.g., Small)] [Price] [ml field] [X]
+```
+
+**Updated UI:**
+```
+[Name (e.g., Small)] [Price] [Size (optional)] [X]
+```
+
+Update the `PortionOption` type to use a string `size` instead of `size_ml`:
+
 ```typescript
-const orderId = selectedOrderForPayment?.id;
-if (!orderId) {
-  toast({ variant: 'destructive', title: 'Error', description: 'No order selected' });
-  return;
+// types/pos.ts - Update PortionOption interface
+export interface PortionOption {
+  name: string;      // "Small", "Medium", "Large", etc.
+  price: number;     // Price for this portion
+  size?: string;     // Optional size label: "30ml", "Regular", "500g", etc.
 }
 ```
 
-This fails for new takeaway orders because `selectedOrderForPayment` is null.
+**Note:** Keep backward compatibility by mapping `size_ml` to `size` when loading existing data.
 
-**Solution:** For split payments on new cart orders:
-1. First create the order and save items (same as single payment)
-2. Apply discount to the order
-3. Then call `processSplitPayment()` with the new order ID
+#### 3. Add Multi-Branch Selection for Admins
 
-**Updated split payment logic:**
+Replace single-select branch dropdown with checkboxes for admins:
+
 ```typescript
-// Inside split payment block:
-let orderId = selectedOrderForPayment?.id;
+// New state for multi-branch selection
+const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
 
-// If no existing order selected, create one from cart
-if (!orderId && cart.length > 0) {
-  const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
-  orderId = newOrder.id;
-  await addOrderItemsBatch(orderId, batchItems);
-  
-  // Apply discount
-  if (discount > 0) {
-    await applyDiscount(orderId, discount);
+// UI: Show checkboxes for each branch
+{isAdmin && !editingItem && (
+  <div className="space-y-2">
+    <Label>Branches</Label>
+    <p className="text-xs text-muted-foreground">Select branches to add this item</p>
+    <div className="space-y-2 max-h-32 overflow-auto">
+      {branches.map((branch) => (
+        <div key={branch.id} className="flex items-center gap-2">
+          <Checkbox 
+            checked={selectedBranchIds.includes(branch.id)}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setSelectedBranchIds(prev => [...prev, branch.id]);
+              } else {
+                setSelectedBranchIds(prev => prev.filter(id => id !== branch.id));
+              }
+            }}
+          />
+          <Label>{branch.name}</Label>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+```
+
+#### 4. Update Save Logic for Multi-Branch Creation
+
+When admin selects multiple branches, create the menu item in each branch:
+
+```typescript
+// In handleSaveItem()
+if (!editingItem && selectedBranchIds.length > 0) {
+  // Create item in each selected branch
+  for (const branchId of selectedBranchIds) {
+    await createMenuItemForBranch(branchId, itemData);
   }
-  
-  // Update status to BILL_REQUESTED
-  await supabase.rpc('update_order_status', { 
-    p_order_id: orderId, 
-    p_new_status: 'BILL_REQUESTED' 
-  });
+} else {
+  // Existing single-branch logic
 }
+```
 
-if (!orderId) {
-  toast({ variant: 'destructive', title: 'Error', description: 'No order to pay' });
-  return;
-}
+#### 5. Update PortionSelectionDialog for Size Flexibility
+
+The dialog already handles portion options, but update it to show `size` instead of `size_ml`:
+
+```typescript
+{portion.size && (
+  <p className="text-xs text-muted-foreground mt-1">
+    {portion.size}
+  </p>
+)}
 ```
 
 ---
@@ -97,45 +121,37 @@ if (!orderId) {
 
 | File | Changes |
 |------|---------|
-| `src/pages/POS.tsx` | 1. Add discount application before payment in `handleProcessPayment()` 2. Fix split payment to create order first if needed 3. Import `applyDiscount` from orderService |
+| `src/types/pos.ts` | Update `PortionOption.size_ml` to `size` (string) for flexibility |
+| `src/pages/MenuManagement.tsx` | 1. Parse portion_options from JSON string when editing 2. Change "ml" input to "Size (optional)" text field 3. Add multi-branch checkbox selection for admins 4. Update save logic for multi-branch creation |
+| `src/services/menuService.ts` | Add `createMenuItemForBranch()` function to accept branch_id parameter |
+| `src/components/PortionSelectionDialog.tsx` | Show `portion.size` instead of `portion.size_ml` |
 
 ---
 
 ### Technical Details
 
-**handleProcessPayment() Changes:**
-- After `addOrderItemsBatch()`, check if discount > 0
-- If so, call `applyDiscount(orderId, discount)` before payment
-- Fetch updated order to get correct `total_amount` with discount applied
+**Backward Compatibility:**
+- When loading existing items with `size_ml`, convert to `size` string (e.g., `"${size_ml}ml"`)
+- New items will use the string `size` field directly
 
-**Split Payment Changes:**
-- Before checking orderId, create order from cart if `selectedOrderForPayment` is null but cart has items
-- Apply same discount logic as single payment
-- Use the newly created orderId for split payment
+**Multi-Branch Creation Flow:**
+```
+Admin creates item → Selects branches [Branch A, Branch B] → Save
+                           ↓
+               Creates item in Branch A
+                           ↓
+               Creates item in Branch B
+                           ↓
+            Creates inventory for each if enabled
+```
 
 ---
 
 ### Summary
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    BEFORE (Broken)                           │
-├──────────────────────────────────────────────────────────────┤
-│ 1. User enters discount in UI                                │
-│ 2. Discount shown in cart total                              │
-│ 3. Order created → items added → totals calculated           │
-│ 4. Payment finalized with wrong total (no discount)          │
-│ 5. Receipt uses local discount but DB has 0                  │
-└──────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────┐
-│                     AFTER (Fixed)                            │
-├──────────────────────────────────────────────────────────────┤
-│ 1. User enters discount in UI                                │
-│ 2. Discount shown in cart total                              │
-│ 3. Order created → items added → discount applied to DB      │
-│ 4. Payment finalized with correct total (includes discount)  │
-│ 5. Receipt and DB both show correct discount                 │
-└──────────────────────────────────────────────────────────────┘
-```
-
+| Before | After |
+|--------|-------|
+| Portion options show empty when editing | Portion options correctly parsed and displayed |
+| Size field only accepts ml (number) | Size field accepts any text ("30ml", "Regular", "XL") |
+| Admin selects one branch at a time | Admin can select multiple branches with checkboxes |
+| Item created in single branch | Item created in all selected branches simultaneously |

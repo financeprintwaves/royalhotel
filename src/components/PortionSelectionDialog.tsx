@@ -19,8 +19,11 @@ export default function PortionSelectionDialog({
 }: PortionSelectionDialogProps) {
   if (!item) return null;
 
+  // Ensure portion_options is always an array (could be object/null from DB)
+  const portionOptions = Array.isArray(item.portion_options) ? item.portion_options : [];
+  
   // Check if item has custom portion options
-  const hasPortionOptions = item.portion_options && item.portion_options.length > 0;
+  const hasPortionOptions = portionOptions.length > 0;
   
   // Check if item has legacy bottle/shot pricing
   const hasLegacyServing = item.billing_type === 'by_serving' && item.serving_price;
@@ -41,7 +44,6 @@ export default function PortionSelectionDialog({
 
   // Render portion options (Small/Medium/Large style)
   if (hasPortionOptions) {
-    const portions = item.portion_options!;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
@@ -52,8 +54,8 @@ export default function PortionSelectionDialog({
             <p className="text-center text-sm text-muted-foreground mb-6">
               Select portion size:
             </p>
-            <div className={`grid gap-3 ${portions.length <= 3 ? `grid-cols-${portions.length}` : 'grid-cols-3'}`}>
-              {portions.map((portion, index) => (
+            <div className={`grid gap-3 ${portionOptions.length <= 3 ? `grid-cols-${portionOptions.length}` : 'grid-cols-3'}`}>
+              {portionOptions.map((portion, index) => (
                 <Button
                   key={index}
                   variant="outline"

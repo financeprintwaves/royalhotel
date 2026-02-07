@@ -375,8 +375,9 @@ export default function POS() {
             description: `${cart.length} items sent for ${selectedTable?.table_number || 'Takeaway'}` 
           });
         } else {
-          // No kitchen items - mark as served directly
-          await markAsServed(orderId);
+          // No kitchen items - transition through states to skip kitchen display
+          await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN
+          await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
           toast({ 
             title: 'Items Ready!', 
             description: `${cart.length} items ready to serve for ${selectedTable?.table_number || 'Takeaway'}` 
@@ -396,8 +397,9 @@ export default function POS() {
             description: `Order for ${selectedTable?.table_number || 'Takeaway'} sent to kitchen` 
           });
         } else {
-          // No kitchen items - skip kitchen, go to SERVED
-          await markAsServed(orderId);
+          // No kitchen items - transition through states to skip kitchen display
+          await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN
+          await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
           toast({ 
             title: 'Order Ready!', 
             description: `Order for ${selectedTable?.table_number || 'Takeaway'} ready to serve` 

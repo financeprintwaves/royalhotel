@@ -1,48 +1,74 @@
 
+## Plan: Multi-Branch Assignment for Staff Members
 
-## Plan: Fix Non-Kitchen Items Status Transition
+### Overview
 
-### Problem Analysis
+Enable staff members to be assigned to multiple branches simultaneously. Some users need access to 1 branch, others need 2 or more. This requires a new database table and UI changes.
 
-When an order contains only non-kitchen items (drinks, bar items):
-1. `createOrder()` creates order with status `CREATED`
-2. `markAsServed(orderId)` is called to skip kitchen and go directly to `SERVED`
-3. **BUT** the database RPC `update_order_status` only allows:
-   - `CREATED → SENT_TO_KITCHEN` (the only valid transition from CREATED)
-   - `SENT_TO_KITCHEN → SERVED`
-4. The transition `CREATED → SERVED` is blocked by the RPC validation
-5. Order stays in `CREATED` status, showing "Send to Kitchen" button on Orders page
+### What Changes
 
-### Root Cause
-
-| Location | Issue |
-|----------|-------|
-| `POS.tsx` line 379, 400 | Calls `markAsServed()` directly on `CREATED` order |
-| `update_order_status` RPC | Strict validation blocks `CREATED → SERVED` |
-| Result | Order stays at `CREATED`, shows wrong buttons in UI |
+| Component | Current State | After Change |
+|-----------|--------------|--------------|
+| Branch assignment | Single `branch_id` in profiles | Multiple via `user_branches` table |
+| Staff Management UI | Dropdown select (1 branch) | Checkbox list (multiple branches) |
+| Staff display | Shows single branch name | Shows multiple branch badges |
 
 ---
 
-### Solution
+### Database Changes
 
-Update `POS.tsx` to transition through proper states for non-kitchen items:
+Create a new junction table to store multiple branch assignments per user:
 
+```sql
+CREATE TABLE user_branches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, branch_id)
+);
+
+-- Enable RLS
+ALTER TABLE user_branches ENABLE ROW LEVEL SECURITY;
+
+-- Policies: Users can view their own, admins can manage all
+CREATE POLICY "Users can view their own branch assignments"
+  ON user_branches FOR SELECT
+  USING (user_id = auth.uid());
+
+CREATE POLICY "Admins can manage all branch assignments"
+  ON user_branches FOR ALL
+  USING (is_admin(auth.uid()));
 ```
-CREATED → SENT_TO_KITCHEN → SERVED
+
+The existing `profiles.branch_id` column will remain for backward compatibility (primary/default branch).
+
+---
+
+### UI Changes - Staff Management Page
+
+Replace the single-select dropdown with a multi-select checkbox popover:
+
+```text
+Current:                          After:
+┌────────────────────────┐       ┌────────────────────────┐
+│ Select branch      ▼   │  →    │ 2 branches selected ▼  │
+└────────────────────────┘       └────────────────────────┘
+                                  ┌────────────────────────┐
+                                  │ ☑ Arabic Bar           │
+                                  │ ☑ Indian Bar           │
+                                  │ ☐ New Branch           │
+                                  └────────────────────────┘
 ```
 
-Instead of a single call, make two sequential calls:
-
-```typescript
-// Before (broken):
-await markAsServed(orderId);
-
-// After (fixed):
-await sendToKitchen(orderId);  // CREATED → SENT_TO_KITCHEN
-await markAsServed(orderId);   // SENT_TO_KITCHEN → SERVED
+Display selected branches as badges in the table:
+```text
+┌─────────────────────────────────────────────────────┐
+│ Name    │ Email │ Branches                         │
+├─────────┼───────┼──────────────────────────────────┤
+│ John    │ ...   │ [Arabic Bar] [Indian Bar]        │
+└─────────────────────────────────────────────────────┘
 ```
-
-This follows the valid state machine while still achieving the goal of skipping kitchen display for non-kitchen items.
 
 ---
 
@@ -50,74 +76,108 @@ This follows the valid state machine while still achieving the goal of skipping 
 
 | File | Changes |
 |------|---------|
-| `src/pages/POS.tsx` | Update `handleSendToKitchen()` to make two sequential status transitions for non-kitchen orders |
+| **Database** | New `user_branches` table with RLS policies |
+| `src/services/staffService.ts` | Add `assignUserBranches()`, `getUserBranches()` functions |
+| `src/pages/StaffManagement.tsx` | Replace dropdown with checkbox popover, update display to show multiple branches |
+| `src/types/pos.ts` | Add `UserBranch` interface |
 
 ---
 
 ### Technical Details
 
-#### Update handleSendToKitchen() in POS.tsx
+#### New Service Functions (staffService.ts)
 
-**Lines 377-384 (existing order with non-kitchen items):**
 ```typescript
-// Current (broken):
-} else {
-  // No kitchen items - mark as served directly
-  await markAsServed(orderId);
-  toast({ ... });
+// Get all branches for a user
+export async function getUserBranches(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_branches')
+    .select('branch_id')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data || []).map(d => d.branch_id);
 }
 
-// Fixed:
-} else {
-  // No kitchen items - transition through states to skip kitchen display
-  await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN
-  await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
-  toast({ ... });
+// Set branches for a user (replaces all existing)
+export async function assignUserBranches(
+  userId: string, 
+  branchIds: string[]
+): Promise<void> {
+  // Delete existing assignments
+  await supabase.from('user_branches')
+    .delete().eq('user_id', userId);
+  
+  // Insert new assignments
+  if (branchIds.length > 0) {
+    const inserts = branchIds.map(bid => ({ 
+      user_id: userId, branch_id: bid 
+    }));
+    await supabase.from('user_branches').insert(inserts);
+  }
+  
+  // Update primary branch_id in profiles
+  await supabase.from('profiles')
+    .update({ branch_id: branchIds[0] || null })
+    .eq('user_id', userId);
 }
 ```
 
-**Lines 398-405 (new order with non-kitchen items):**
-```typescript
-// Current (broken):
-} else {
-  // No kitchen items - skip kitchen, go to SERVED
-  await markAsServed(orderId);
-  toast({ ... });
-}
+#### Updated Staff Member Type
 
-// Fixed:
-} else {
-  // No kitchen items - transition through states to skip kitchen display
-  await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN  
-  await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
-  toast({ ... });
+```typescript
+interface StaffMember {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  branch_id: string | null;      // Primary branch
+  branch_ids: string[];          // All assigned branches
+  branch_names: string[];        // Branch names for display
+  roles: AppRole[];
+  created_at: string;
+  staff_pin?: string | null;
 }
+```
+
+#### Multi-Select Checkbox Component (StaffManagement.tsx)
+
+Uses Popover + Checkbox list pattern:
+```typescript
+<Popover>
+  <PopoverTrigger asChild>
+    <Button variant="outline" className="w-48">
+      {selectedBranches.length} branch(es) selected
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent>
+    {branches.map(branch => (
+      <div key={branch.id} className="flex items-center gap-2">
+        <Checkbox 
+          checked={selectedBranches.includes(branch.id)}
+          onCheckedChange={(checked) => toggleBranch(branch.id, checked)}
+        />
+        <Label>{branch.name}</Label>
+      </div>
+    ))}
+  </PopoverContent>
+</Popover>
 ```
 
 ---
 
-### Order Flow After Fix
+### Backward Compatibility
 
-```text
-Non-Kitchen Order Created:
-  [CREATED]
-      ↓ sendToKitchen()
-  [SENT_TO_KITCHEN] (instant, no kitchen display)
-      ↓ markAsServed()  
-  [SERVED] ← Ready for bill
-      ↓
-  Orders page shows "Bill" button correctly
-```
-
-The transition happens so fast that the order never appears on the Kitchen Display - it goes immediately to SERVED status.
+- `profiles.branch_id` remains as the "primary" branch
+- When multiple branches are assigned, the first one becomes the primary
+- Existing RLS policies using `get_user_branch_id()` continue to work
+- Session tracking uses primary branch from profiles
 
 ---
 
 ### Summary
 
-| Before | After |
-|--------|-------|
-| `markAsServed()` fails silently on `CREATED` orders | Two-step transition: `sendToKitchen()` then `markAsServed()` |
-| Non-kitchen orders stuck at `CREATED` | Non-kitchen orders correctly at `SERVED` |
-| Orders page shows "Send to Kitchen" incorrectly | Orders page shows "Bill" button correctly |
-
+| Feature | Implementation |
+|---------|---------------|
+| Store multiple branches | New `user_branches` junction table |
+| Select multiple branches | Checkbox popover in Staff Management |
+| Display branches | Multiple badges per staff member |
+| Primary branch | First selected branch stored in profiles.branch_id |

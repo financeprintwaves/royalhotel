@@ -7,6 +7,8 @@ export interface StaffMember {
   full_name: string | null;
   branch_id: string | null;
   branch_name: string | null;
+  branch_ids: string[];
+  branch_names: string[];
   roles: AppRole[];
   created_at: string;
   staff_pin?: string | null;
@@ -20,6 +22,8 @@ export async function getStaffWithRoles(): Promise<StaffMember[]> {
   return (data || []).map((s: any) => ({
     ...s,
     roles: (s.roles || []) as AppRole[],
+    branch_ids: (s.branch_ids || []) as string[],
+    branch_names: (s.branch_names || []) as string[],
   }));
 }
 
@@ -62,7 +66,7 @@ export async function removeRole(userId: string, role: AppRole): Promise<void> {
   if (error) throw error;
 }
 
-// Assign user to branch (admin only)
+// Assign user to branch (admin only) - legacy single branch
 export async function assignUserToBranch(userId: string, branchId: string | null): Promise<void> {
   const { error } = await supabase
     .from('profiles')
@@ -70,6 +74,51 @@ export async function assignUserToBranch(userId: string, branchId: string | null
     .eq('user_id', userId);
 
   if (error) throw error;
+}
+
+// Get all branches for a user
+export async function getUserBranches(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_branches')
+    .select('branch_id')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data || []).map((d: any) => d.branch_id);
+}
+
+// Set branches for a user (replaces all existing)
+export async function assignUserBranches(
+  userId: string, 
+  branchIds: string[]
+): Promise<void> {
+  // Delete existing assignments
+  const { error: deleteError } = await supabase
+    .from('user_branches')
+    .delete()
+    .eq('user_id', userId);
+  
+  if (deleteError) throw deleteError;
+  
+  // Insert new assignments
+  if (branchIds.length > 0) {
+    const inserts = branchIds.map(bid => ({ 
+      user_id: userId, 
+      branch_id: bid 
+    }));
+    const { error: insertError } = await supabase
+      .from('user_branches')
+      .insert(inserts);
+    
+    if (insertError) throw insertError;
+  }
+  
+  // Update primary branch_id in profiles (first selected branch)
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ branch_id: branchIds[0] || null })
+    .eq('user_id', userId);
+
+  if (updateError) throw updateError;
 }
 
 // Update profile email (for staff management)

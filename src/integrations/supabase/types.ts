@@ -839,6 +839,35 @@ export type Database = {
           },
         ]
       }
+      user_branches: {
+        Row: {
+          branch_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_branches_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -882,11 +911,14 @@ export type Database = {
         Args: never
         Returns: {
           branch_id: string
+          branch_ids: string[]
           branch_name: string
+          branch_names: string[]
           created_at: string
           email: string
           full_name: string
           roles: string[]
+          staff_pin: string
           user_id: string
         }[]
       }

@@ -8,7 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, X, Shield, Building2, UserCog, KeyRound, RefreshCw, Trash2, UserPlus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Plus, X, Shield, Building2, UserCog, KeyRound, RefreshCw, Trash2, UserPlus, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +19,7 @@ import {
   getAllBranches, 
   assignRole, 
   removeRole, 
-  assignUserToBranch,
+  assignUserBranches,
   createBranch,
   setStaffPin,
   generateUniquePin,
@@ -123,11 +125,17 @@ export default function StaffManagement() {
     }
   }
 
-  async function handleBranchChange(userId: string, branchId: string) {
+  async function handleBranchToggle(userId: string, branchId: string, checked: boolean, currentBranchIds: string[]) {
     setActionLoading(true);
     try {
-      await assignUserToBranch(userId, branchId === 'none' ? null : branchId);
-      toast({ title: 'Branch Updated', description: 'User branch assignment updated' });
+      let newBranchIds: string[];
+      if (checked) {
+        newBranchIds = [...currentBranchIds, branchId];
+      } else {
+        newBranchIds = currentBranchIds.filter(id => id !== branchId);
+      }
+      await assignUserBranches(userId, newBranchIds);
+      toast({ title: 'Branches Updated', description: 'User branch assignments updated' });
       loadData();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -464,7 +472,7 @@ export default function StaffManagement() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>PIN</TableHead>
-                  <TableHead>Branch</TableHead>
+                  <TableHead>Branches</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Add Role</TableHead>
                 </TableRow>
@@ -492,23 +500,52 @@ export default function StaffManagement() {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={member.branch_id || 'none'}
-                        onValueChange={(value) => handleBranchChange(member.user_id, value)}
-                        disabled={actionLoading}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue placeholder="Select branch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Branch</SelectItem>
-                          {branches.map((branch) => (
-                            <SelectItem key={branch.id} value={branch.id}>
-                              {branch.name}
-                            </SelectItem>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-44 justify-between" disabled={actionLoading}>
+                            <span className="truncate">
+                              {member.branch_ids.length === 0 
+                                ? 'No branches' 
+                                : member.branch_ids.length === 1 
+                                  ? member.branch_names[0]
+                                  : `${member.branch_ids.length} branches`}
+                            </span>
+                            <ChevronDown className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56 p-2" align="start">
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-muted-foreground px-2">Select branches</p>
+                            {branches.map((branch) => (
+                              <div key={branch.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted">
+                                <Checkbox 
+                                  id={`branch-${member.user_id}-${branch.id}`}
+                                  checked={member.branch_ids.includes(branch.id)}
+                                  onCheckedChange={(checked) => 
+                                    handleBranchToggle(member.user_id, branch.id, !!checked, member.branch_ids)
+                                  }
+                                  disabled={actionLoading}
+                                />
+                                <Label 
+                                  htmlFor={`branch-${member.user_id}-${branch.id}`}
+                                  className="flex-1 cursor-pointer text-sm"
+                                >
+                                  {branch.name}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      {member.branch_ids.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {member.branch_names.map((name, idx) => (
+                            <Badge key={member.branch_ids[idx]} variant="secondary" className="text-xs">
+                              {name}
+                            </Badge>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">

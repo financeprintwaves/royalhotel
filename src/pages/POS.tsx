@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
-  markAsServed, requestBill, applyDiscount, cancelOrder
+  markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus
 } from '@/services/orderService';
 import { finalizePayment, processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -465,10 +465,7 @@ export default function POS() {
         paymentTotal = Number(updatedOrder?.total_amount || 0);
         
         if (existingOrder.order_status !== 'BILL_REQUESTED') {
-          await supabase.rpc('update_order_status', {
-            p_order_id: orderId,
-            p_new_status: 'BILL_REQUESTED'
-          });
+          await updateOrderStatus(orderId, 'BILL_REQUESTED');
         }
       } else {
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
@@ -488,10 +485,10 @@ export default function POS() {
         if (isTakeaway) {
           // OPTIMIZED: Takeaway orders go straight to BILL_REQUESTED with single RPC
           // No need for SENT_TO_KITCHEN → SERVED → BILL_REQUESTED intermediate states
-          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+          await updateOrderStatus(orderId, 'BILL_REQUESTED');
         } else {
           // Dine-in "Pay Now": Also optimized - single call to BILL_REQUESTED
-          await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+          await updateOrderStatus(orderId, 'BILL_REQUESTED');
         }
       }
       
@@ -1424,10 +1421,7 @@ export default function POS() {
                       }
                       
                       // Update status to BILL_REQUESTED
-                      await supabase.rpc('update_order_status', { 
-                        p_order_id: orderId, 
-                        p_new_status: 'BILL_REQUESTED' 
-                      });
+                      await updateOrderStatus(orderId, 'BILL_REQUESTED');
                     }
                     
                     if (!orderId) {

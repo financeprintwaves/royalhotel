@@ -348,7 +348,13 @@ export async function updateOrderStatus(
   });
 
   if (error) throw error;
-  return data as unknown as UpdateOrderStatusResponse;
+  
+  const response = data as unknown as UpdateOrderStatusResponse;
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to update order status');
+  }
+  
+  return response;
 }
 
 // Send order to kitchen (shortcut)

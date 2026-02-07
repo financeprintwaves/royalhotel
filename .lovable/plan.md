@@ -1,21 +1,48 @@
 
 
-## Plan: Add Error Handling for update_order_status RPC
+## Plan: Fix Non-Kitchen Items Status Transition
 
-### Problem
+### Problem Analysis
 
-The `update_order_status` RPC returns a response with `{ success: boolean, error?: string }` but the code in POS.tsx:
-1. Calls the RPC directly without checking the `success` field
-2. Does not display an error toast when the status transition fails
-3. Continues with payment even if the status update failed
+When an order contains only non-kitchen items (drinks, bar items):
+1. `createOrder()` creates order with status `CREATED`
+2. `markAsServed(orderId)` is called to skip kitchen and go directly to `SERVED`
+3. **BUT** the database RPC `update_order_status` only allows:
+   - `CREATED → SENT_TO_KITCHEN` (the only valid transition from CREATED)
+   - `SENT_TO_KITCHEN → SERVED`
+4. The transition `CREATED → SERVED` is blocked by the RPC validation
+5. Order stays in `CREATED` status, showing "Send to Kitchen" button on Orders page
 
-This causes silent failures when order status transitions are invalid (e.g., CREATED → BILL_REQUESTED is not allowed by the workflow).
+### Root Cause
+
+| Location | Issue |
+|----------|-------|
+| `POS.tsx` line 379, 400 | Calls `markAsServed()` directly on `CREATED` order |
+| `update_order_status` RPC | Strict validation blocks `CREATED → SERVED` |
+| Result | Order stays at `CREATED`, shows wrong buttons in UI |
 
 ---
 
 ### Solution
 
-Update the `updateOrderStatus` function in orderService.ts to check the `success` field and throw an error if it fails. Then update POS.tsx to use this service function instead of calling the RPC directly.
+Update `POS.tsx` to transition through proper states for non-kitchen items:
+
+```
+CREATED → SENT_TO_KITCHEN → SERVED
+```
+
+Instead of a single call, make two sequential calls:
+
+```typescript
+// Before (broken):
+await markAsServed(orderId);
+
+// After (fixed):
+await sendToKitchen(orderId);  // CREATED → SENT_TO_KITCHEN
+await markAsServed(orderId);   // SENT_TO_KITCHEN → SERVED
+```
+
+This follows the valid state machine while still achieving the goal of skipping kitchen display for non-kitchen items.
 
 ---
 
@@ -23,106 +50,66 @@ Update the `updateOrderStatus` function in orderService.ts to check the `success
 
 | File | Changes |
 |------|---------|
-| `src/services/orderService.ts` | Update `updateOrderStatus()` to check response success field and throw descriptive error |
-| `src/pages/POS.tsx` | Replace direct `supabase.rpc('update_order_status', ...)` calls with imported `updateOrderStatus()` function that has proper error handling |
+| `src/pages/POS.tsx` | Update `handleSendToKitchen()` to make two sequential status transitions for non-kitchen orders |
 
 ---
 
 ### Technical Details
 
-#### 1. Update orderService.ts - updateOrderStatus function
+#### Update handleSendToKitchen() in POS.tsx
 
+**Lines 377-384 (existing order with non-kitchen items):**
 ```typescript
-// Current (no success check):
-export async function updateOrderStatus(
-  orderId: string,
-  newStatus: OrderStatus
-): Promise<UpdateOrderStatusResponse> {
-  const { data, error } = await supabase.rpc('update_order_status', {
-    p_order_id: orderId,
-    p_new_status: newStatus,
-  });
-
-  if (error) throw error;
-  return data as unknown as UpdateOrderStatusResponse;
+// Current (broken):
+} else {
+  // No kitchen items - mark as served directly
+  await markAsServed(orderId);
+  toast({ ... });
 }
 
-// Fixed (with success check):
-export async function updateOrderStatus(
-  orderId: string,
-  newStatus: OrderStatus
-): Promise<UpdateOrderStatusResponse> {
-  const { data, error } = await supabase.rpc('update_order_status', {
-    p_order_id: orderId,
-    p_new_status: newStatus,
-  });
-
-  if (error) throw error;
-  
-  const response = data as unknown as UpdateOrderStatusResponse;
-  if (!response.success) {
-    throw new Error(response.error || 'Failed to update order status');
-  }
-  
-  return response;
+// Fixed:
+} else {
+  // No kitchen items - transition through states to skip kitchen display
+  await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN
+  await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
+  toast({ ... });
 }
 ```
 
-#### 2. Update POS.tsx - Replace direct RPC calls
-
-**Import updateOrderStatus:**
+**Lines 398-405 (new order with non-kitchen items):**
 ```typescript
-import { 
-  createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
-  markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus
-} from '@/services/orderService';
+// Current (broken):
+} else {
+  // No kitchen items - skip kitchen, go to SERVED
+  await markAsServed(orderId);
+  toast({ ... });
+}
+
+// Fixed:
+} else {
+  // No kitchen items - transition through states to skip kitchen display
+  await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN  
+  await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
+  toast({ ... });
+}
 ```
 
-**Replace direct RPC calls (4 locations):**
+---
 
-Line 468-471:
-```typescript
-// Before
-await supabase.rpc('update_order_status', {
-  p_order_id: orderId,
-  p_new_status: 'BILL_REQUESTED'
-});
+### Order Flow After Fix
 
-// After
-await updateOrderStatus(orderId, 'BILL_REQUESTED');
+```text
+Non-Kitchen Order Created:
+  [CREATED]
+      ↓ sendToKitchen()
+  [SENT_TO_KITCHEN] (instant, no kitchen display)
+      ↓ markAsServed()  
+  [SERVED] ← Ready for bill
+      ↓
+  Orders page shows "Bill" button correctly
 ```
 
-Line 491:
-```typescript
-// Before
-await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
-
-// After
-await updateOrderStatus(orderId, 'BILL_REQUESTED');
-```
-
-Line 494:
-```typescript
-// Before
-await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
-
-// After
-await updateOrderStatus(orderId, 'BILL_REQUESTED');
-```
-
-Line 1427-1430:
-```typescript
-// Before
-await supabase.rpc('update_order_status', { 
-  p_order_id: orderId, 
-  p_new_status: 'BILL_REQUESTED' 
-});
-
-// After
-await updateOrderStatus(orderId, 'BILL_REQUESTED');
-```
-
-The existing try-catch blocks in POS.tsx will now catch these errors and display the error toast automatically (the catch blocks already call `toast({ variant: 'destructive', ... })`).
+The transition happens so fast that the order never appears on the Kitchen Display - it goes immediately to SERVED status.
 
 ---
 
@@ -130,7 +117,7 @@ The existing try-catch blocks in POS.tsx will now catch these errors and display
 
 | Before | After |
 |--------|-------|
-| Direct RPC calls without checking `success` | Service function checks `success` and throws error |
-| Silent failures when status transition invalid | Error toast displayed with specific error message |
-| Payment continues after failed status update | Payment blocked, user informed of issue |
+| `markAsServed()` fails silently on `CREATED` orders | Two-step transition: `sendToKitchen()` then `markAsServed()` |
+| Non-kitchen orders stuck at `CREATED` | Non-kitchen orders correctly at `SERVED` |
+| Orders page shows "Send to Kitchen" incorrectly | Orders page shows "Bill" button correctly |
 

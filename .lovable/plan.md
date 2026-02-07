@@ -1,54 +1,21 @@
 
 
-## Plan: Fix Discount, Add Order View/Print, Admin Edit & Cancel, Remove Animation
+## Plan: Add Error Handling for update_order_status RPC
 
-### Issues Identified
+### Problem
 
-| Issue | Root Cause |
-|-------|------------|
-| Discount not showing properly | handleProcessOrderPayment uses old order data, doesn't fetch updated order with discount |
-| POS Orders view has no "View Order" or "Print" button | Only payment action is present, missing receipt preview/print |
-| Admin cannot edit or cancel orders | No edit/cancel functionality exists for active or completed orders |
-| Payment animation delays printing | PaymentSuccessOverlay waits 2.5 seconds before showing receipt |
+The `update_order_status` RPC returns a response with `{ success: boolean, error?: string }` but the code in POS.tsx:
+1. Calls the RPC directly without checking the `success` field
+2. Does not display an error toast when the status transition fails
+3. Continues with payment even if the status update failed
+
+This causes silent failures when order status transitions are invalid (e.g., CREATED → BILL_REQUESTED is not allowed by the workflow).
 
 ---
 
-### Solution Overview
+### Solution
 
-#### 1. Fix Discount Display in Payment Flow (POS.tsx)
-
-**Current Issue:** `handleProcessOrderPayment()` uses `selectedOrderForPayment` which may have stale `discount_amount`. Need to fetch fresh order data after discount is applied.
-
-**Fix:** 
-- After successful payment, fetch the updated order with discount from database before showing receipt
-- Use `getOrder(orderId)` to get accurate data with discount
-
-#### 2. Add View Order & Print to POS Orders View (POS.tsx)
-
-**Current state:** Orders view only shows status action buttons (Kitchen, Served, Bill, Pay)
-
-**Add:**
-- "View" button on each order card to open ReceiptDialog with order details
-- "Print" button on completed orders for reprinting receipts
-
-#### 3. Add Admin Edit Invoice & Cancel Order (POS.tsx + orderService.ts)
-
-**Admin capabilities:**
-- **Edit Invoice button:** Opens order in edit mode to modify items/discount (for active orders)
-- **Cancel Order button:** Cancels order and resets table status to available
-
-**Implementation:**
-- Add `cancelOrder()` function in orderService.ts
-- Add Edit/Cancel buttons visible only to admins
-- Edit button loads order into cart for modification
-
-#### 4. Remove Payment Success Animation (POS.tsx)
-
-**Current:** PaymentSuccessOverlay shows for 2.5 seconds before triggering print
-
-**Fix:**
-- Skip the animation overlay entirely
-- Go directly to ReceiptDialog with autoPrint=true after payment success
+Update the `updateOrderStatus` function in orderService.ts to check the `success` field and throw an error if it fails. Then update POS.tsx to use this service function instead of calling the RPC directly.
 
 ---
 
@@ -56,137 +23,106 @@
 
 | File | Changes |
 |------|---------|
-| `src/pages/POS.tsx` | 1. Fix discount by fetching updated order 2. Add View/Print buttons to Orders view 3. Add Admin Edit/Cancel buttons 4. Remove PaymentSuccessOverlay usage - go directly to print |
-| `src/services/orderService.ts` | Add `cancelOrder()` function to update status to CLOSED and reset table |
+| `src/services/orderService.ts` | Update `updateOrderStatus()` to check response success field and throw descriptive error |
+| `src/pages/POS.tsx` | Replace direct `supabase.rpc('update_order_status', ...)` calls with imported `updateOrderStatus()` function that has proper error handling |
 
 ---
 
 ### Technical Details
 
-#### 1. Fix handleProcessOrderPayment discount issue (POS.tsx)
+#### 1. Update orderService.ts - updateOrderStatus function
 
-Change:
 ```typescript
-// Current: Uses stale selectedOrderForPayment
-setAutoPrintOrder({
-  ...selectedOrderForPayment,
-  order_status: 'PAID',
+// Current (no success check):
+export async function updateOrderStatus(
+  orderId: string,
+  newStatus: OrderStatus
+): Promise<UpdateOrderStatusResponse> {
+  const { data, error } = await supabase.rpc('update_order_status', {
+    p_order_id: orderId,
+    p_new_status: newStatus,
+  });
+
+  if (error) throw error;
+  return data as unknown as UpdateOrderStatusResponse;
+}
+
+// Fixed (with success check):
+export async function updateOrderStatus(
+  orderId: string,
+  newStatus: OrderStatus
+): Promise<UpdateOrderStatusResponse> {
+  const { data, error } = await supabase.rpc('update_order_status', {
+    p_order_id: orderId,
+    p_new_status: newStatus,
+  });
+
+  if (error) throw error;
+  
+  const response = data as unknown as UpdateOrderStatusResponse;
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to update order status');
+  }
+  
+  return response;
+}
+```
+
+#### 2. Update POS.tsx - Replace direct RPC calls
+
+**Import updateOrderStatus:**
+```typescript
+import { 
+  createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
+  markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus
+} from '@/services/orderService';
+```
+
+**Replace direct RPC calls (4 locations):**
+
+Line 468-471:
+```typescript
+// Before
+await supabase.rpc('update_order_status', {
+  p_order_id: orderId,
+  p_new_status: 'BILL_REQUESTED'
 });
 
-// Fixed: Fetch fresh order after payment
-const freshOrder = await getOrder(selectedOrderForPayment.id);
-setAutoPrintOrder(freshOrder);
+// After
+await updateOrderStatus(orderId, 'BILL_REQUESTED');
 ```
 
-#### 2. Add View/Print to Orders View cards (POS.tsx)
-
-In the Orders view section (lines 840-900), add buttons:
+Line 491:
 ```typescript
-{/* View button for all orders */}
-<Button size="sm" variant="outline" onClick={() => {
-  setReceiptOrder(order);
-  setShowReceiptDialog(true);
-}}>
-  <Receipt className="h-3 w-3 mr-1" />View
-</Button>
+// Before
+await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+
+// After
+await updateOrderStatus(orderId, 'BILL_REQUESTED');
 ```
 
-Also add to completed orders section (lines 905-935).
-
-#### 3. Add Admin Edit & Cancel buttons (POS.tsx)
-
-For admin users only:
+Line 494:
 ```typescript
-{isAdmin() && (
-  <>
-    <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)}>
-      <Edit className="h-3 w-3 mr-1" />Edit
-    </Button>
-    <Button size="sm" variant="destructive" onClick={() => handleCancelOrder(order.id)}>
-      <X className="h-3 w-3 mr-1" />Cancel
-    </Button>
-  </>
-)}
+// Before
+await supabase.rpc('update_order_status', { p_order_id: orderId, p_new_status: 'BILL_REQUESTED' });
+
+// After
+await updateOrderStatus(orderId, 'BILL_REQUESTED');
 ```
 
-Add handler functions:
+Line 1427-1430:
 ```typescript
-function handleEditOrder(order: Order) {
-  setSelectedOrderForPayment(null);
-  setExistingOrder(order);
-  setCart([]);
-  setSelectedTable((order as any).table || null);
-  setCustomerName((order as any).customer_name || '');
-  setDiscount(Number(order.discount_amount) || 0);
-  setView('menu');
-}
+// Before
+await supabase.rpc('update_order_status', { 
+  p_order_id: orderId, 
+  p_new_status: 'BILL_REQUESTED' 
+});
 
-async function handleCancelOrder(orderId: string) {
-  if (!confirm('Cancel this order?')) return;
-  await cancelOrder(orderId);
-  toast({ title: 'Order Cancelled' });
-  loadAllOrders();
-}
+// After
+await updateOrderStatus(orderId, 'BILL_REQUESTED');
 ```
 
-#### 4. Add cancelOrder function (orderService.ts)
-
-```typescript
-export async function cancelOrder(orderId: string): Promise<void> {
-  // Get order with table info
-  const { data: order } = await supabase
-    .from('orders')
-    .select('table_id')
-    .eq('id', orderId)
-    .single();
-  
-  // Update order status to CLOSED
-  await supabase
-    .from('orders')
-    .update({ 
-      order_status: 'CLOSED',
-      payment_status: 'cancelled'
-    })
-    .eq('id', orderId);
-  
-  // Reset table if order had one
-  if (order?.table_id) {
-    await supabase
-      .from('restaurant_tables')
-      .update({ status: 'available' })
-      .eq('id', order.table_id);
-  }
-}
-```
-
-#### 5. Remove Animation - Go Direct to Print (POS.tsx)
-
-In `handleProcessPayment` and `handleProcessOrderPayment`:
-
-Change:
-```typescript
-// Current: Shows animation first
-setPaymentSuccessAmount(paymentTotal);
-setShowPaymentSuccess(true);
-setAutoPrintOrder(receiptOrderData);
-
-// Fixed: Skip animation, go direct to print
-setReceiptOrder(receiptOrderData);
-setShowReceiptDialog(true);
-toast({ title: 'Payment Successful!' });
-```
-
-Also remove or comment out PaymentSuccessOverlay component usage.
-
----
-
-### Import Changes
-
-Add to POS.tsx imports:
-```typescript
-import { Edit, X } from 'lucide-react';
-import { cancelOrder } from '@/services/orderService';
-```
+The existing try-catch blocks in POS.tsx will now catch these errors and display the error toast automatically (the catch blocks already call `toast({ variant: 'destructive', ... })`).
 
 ---
 
@@ -194,8 +130,7 @@ import { cancelOrder } from '@/services/orderService';
 
 | Before | After |
 |--------|-------|
-| Discount may show 0 on receipt | Fresh order data fetched with correct discount |
-| No View/Print in POS Orders | View/Print buttons on all order cards |
-| Admin cannot edit paid/active orders | Admin can edit and cancel any order |
-| 2.5s animation delay before print | Immediate receipt print on payment success |
+| Direct RPC calls without checking `success` | Service function checks `success` and throws error |
+| Silent failures when status transition invalid | Error toast displayed with specific error message |
+| Payment continues after failed status update | Payment blocked, user informed of issue |
 

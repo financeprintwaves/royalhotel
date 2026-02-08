@@ -10,7 +10,8 @@ import type {
   StaffPerformance,
   OrderTypeSales,
   ItemSalesDetail,
-  SalesSummary
+  SalesSummary,
+  DiscountReport,
 } from "@/services/reportingService";
 
 export interface PrintableReportData {
@@ -23,6 +24,7 @@ export interface PrintableReportData {
   orderTypeSales: OrderTypeSales[];
   itemSalesDetails: ItemSalesDetail[];
   salesSummary: SalesSummary;
+  discountReport?: DiscountReport;
   totalRevenue: number;
   totalOrders: number;
   avgOrderValue: number;
@@ -276,6 +278,71 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                   <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{data.itemSalesDetails.reduce((s, i) => s + i.quantity, 0)}</td>
                   <td className="p-1" style={{ border: "1px solid #ddd" }}>-</td>
                   <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(data.itemSalesDetails.reduce((s, i) => s + i.revenue, 0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* Discounts Content */}
+        {activeTab === "discounts" && data.discountReport && (
+          <div className="mb-6">
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
+                <p className="text-xs" style={{ color: "#666" }}>Total Discount Given</p>
+                <p className="text-lg font-bold" style={{ color: "#dc2626" }}>{formatCurrency(data.discountReport.totalDiscount)}</p>
+              </div>
+              <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
+                <p className="text-xs" style={{ color: "#666" }}>Orders with Discount</p>
+                <p className="text-lg font-bold">{data.discountReport.orderCount}</p>
+              </div>
+              <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
+                <p className="text-xs" style={{ color: "#666" }}>Avg Discount per Order</p>
+                <p className="text-lg font-bold">
+                  {data.discountReport.orderCount > 0 
+                    ? formatCurrency(data.discountReport.totalDiscount / data.discountReport.orderCount)
+                    : formatCurrency(0)}
+                </p>
+              </div>
+            </div>
+
+            <h3 className="font-bold mb-2" style={{ borderBottom: "1px solid #333" }}>Order-wise Discount Details</h3>
+            <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f5f5f5" }}>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>#</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Order #</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Date</th>
+                  <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Original</th>
+                  <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Discount</th>
+                  <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Final</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Staff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.discountReport.discountDetails.map((item, idx) => (
+                  <tr key={item.order_id}>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{idx + 1}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.order_number}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{format(new Date(item.date), "MMM dd")}</td>
+                    <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(item.original_total)}</td>
+                    <td className="text-right p-1" style={{ border: "1px solid #ddd", color: "#dc2626" }}>-{formatCurrency(item.discount_amount)}</td>
+                    <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(item.final_total)}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.staff_name}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: "bold", backgroundColor: "#f0f0f0" }}>
+                  <td className="p-1" style={{ border: "1px solid #ddd" }} colSpan={4}>Total</td>
+                  <td className="text-right p-1" style={{ border: "1px solid #ddd", color: "#dc2626" }}>
+                    -{formatCurrency(data.discountReport.totalDiscount)}
+                  </td>
+                  <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>
+                    {formatCurrency(data.discountReport.discountDetails.reduce((s, i) => s + i.final_total, 0))}
+                  </td>
+                  <td className="p-1" style={{ border: "1px solid #ddd" }}></td>
                 </tr>
               </tfoot>
             </table>

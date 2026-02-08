@@ -77,6 +77,27 @@ export function generateCSV(data: PrintableReportData, activeTab: string): strin
     csvContent += `"TOTAL","",${totalQty},-,${formatCurrency(totalRev)}\n`;
   }
 
+  if (activeTab === "discounts" && data.discountReport) {
+    csvContent += "Discount Report\n\n";
+    csvContent += "Summary\n";
+    csvContent += `Total Discount Given,${formatCurrency(data.discountReport.totalDiscount)} OMR\n`;
+    csvContent += `Orders with Discount,${data.discountReport.orderCount}\n\n`;
+    
+    csvContent += "Daily Discounts\n";
+    csvContent += "Date,Discount (OMR),Order Count\n";
+    data.discountReport.dailyDiscounts.forEach((day) => {
+      csvContent += `${day.date},${formatCurrency(day.total_discount)},${day.order_count}\n`;
+    });
+    
+    csvContent += "\nOrder-wise Details\n";
+    csvContent += "Order #,Date,Original Amt (OMR),Discount (OMR),Final Amt (OMR),Staff\n";
+    data.discountReport.discountDetails.forEach((item) => {
+      csvContent += `"${item.order_number}",${item.date},${formatCurrency(item.original_total)},${formatCurrency(item.discount_amount)},${formatCurrency(item.final_total)},"${item.staff_name}"\n`;
+    });
+    
+    csvContent += `"TOTAL",,,,${formatCurrency(data.discountReport.totalDiscount)},\n`;
+  }
+
   return csvContent;
 }
 

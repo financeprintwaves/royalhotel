@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, BarChart3, TrendingUp, CreditCard, DollarSign, ShoppingCart, 
-  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText
+  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText, Percent
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -23,7 +23,10 @@ import {
   type StaffPerformance,
   type OrderTypeSales,
   type ItemSalesDetail,
-  type SalesSummary
+  type SalesSummary,
+  type DiscountReport,
+  type DailyDiscount,
+  type DiscountDetail,
 } from '@/services/reportingService';
 import DateRangePicker, { type DateRange } from '@/components/DateRangePicker';
 import ExportButtons from '@/components/ExportButtons';
@@ -58,6 +61,7 @@ export default function Reports() {
     orderTypeSales: OrderTypeSales[];
     itemSalesDetails: ItemSalesDetail[];
     salesSummary: SalesSummary;
+    discountReport: DiscountReport;
     totalRevenue: number;
     totalOrders: number;
     avgOrderValue: number;
@@ -128,6 +132,7 @@ export default function Reports() {
                 <TabsTrigger value="sales">Sales</TabsTrigger>
                 <TabsTrigger value="payments">Payments</TabsTrigger>
                 <TabsTrigger value="items">Items</TabsTrigger>
+                <TabsTrigger value="discounts">Discounts</TabsTrigger>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -585,6 +590,172 @@ export default function Reports() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Discounts Tab */}
+            {activeTab === 'discounts' && (
+              <div className="space-y-6">
+                {/* Summary Cards */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Total Discount Given</CardTitle>
+                      <Percent className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-destructive">
+                        {data.discountReport.totalDiscount.toFixed(3)} OMR
+                      </div>
+                      <p className="text-xs text-muted-foreground">Selected period</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Orders with Discount</CardTitle>
+                      <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{data.discountReport.orderCount}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {data.totalOrders > 0 
+                          ? `${((data.discountReport.orderCount / data.totalOrders) * 100).toFixed(1)}% of total orders`
+                          : 'No orders'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Avg Discount per Order</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {data.discountReport.orderCount > 0 
+                          ? (data.discountReport.totalDiscount / data.discountReport.orderCount).toFixed(3)
+                          : '0.000'} OMR
+                      </div>
+                      <p className="text-xs text-muted-foreground">Per discounted order</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Discount Rate</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {data.totalRevenue > 0 
+                          ? ((data.discountReport.totalDiscount / (data.totalRevenue + data.discountReport.totalDiscount)) * 100).toFixed(2)
+                          : '0.00'}%
+                      </div>
+                      <p className="text-xs text-muted-foreground">Of gross revenue</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Daily Discount Chart */}
+                {data.discountReport.dailyDiscounts.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Daily Discount Trend</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={data.discountReport.dailyDiscounts}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                            <XAxis 
+                              dataKey="date" 
+                              tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              className="text-xs"
+                            />
+                            <YAxis tickFormatter={(v) => `${v} OMR`} className="text-xs" />
+                            <Tooltip 
+                              formatter={(value: number, name: string) => [
+                                name === 'total_discount' ? `${value.toFixed(3)} OMR` : value,
+                                name === 'total_discount' ? 'Discount' : 'Orders'
+                              ]}
+                              labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                            />
+                            <Bar dataKey="total_discount" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="total_discount" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Order-wise Discount Details Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Order-wise Discount Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-2 font-medium">#</th>
+                            <th className="text-left py-3 px-2 font-medium">Order #</th>
+                            <th className="text-left py-3 px-2 font-medium">Date</th>
+                            <th className="text-right py-3 px-2 font-medium">Original Amt</th>
+                            <th className="text-right py-3 px-2 font-medium">Discount</th>
+                            <th className="text-right py-3 px-2 font-medium">Final Amt</th>
+                            <th className="text-left py-3 px-2 font-medium">Staff</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.discountReport.discountDetails.map((item, index) => (
+                            <tr key={item.order_id} className="border-b hover:bg-muted/50">
+                              <td className="py-3 px-2 text-muted-foreground">{index + 1}</td>
+                              <td className="py-3 px-2 font-mono text-xs">{item.order_number}</td>
+                              <td className="py-3 px-2">
+                                {new Date(item.date).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </td>
+                              <td className="py-3 px-2 text-right">{item.original_total.toFixed(3)} OMR</td>
+                              <td className="py-3 px-2 text-right font-bold text-destructive">
+                                -{item.discount_amount.toFixed(3)} OMR
+                              </td>
+                              <td className="py-3 px-2 text-right font-bold">{item.final_total.toFixed(3)} OMR</td>
+                              <td className="py-3 px-2">
+                                <Badge variant="outline">{item.staff_name}</Badge>
+                              </td>
+                            </tr>
+                          ))}
+                          {data.discountReport.discountDetails.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                                No discounts given in this period
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        {data.discountReport.discountDetails.length > 0 && (
+                          <tfoot>
+                            <tr className="border-t-2 font-bold">
+                              <td colSpan={4} className="py-3 px-2">Total</td>
+                              <td className="py-3 px-2 text-right text-destructive">
+                                -{data.discountReport.totalDiscount.toFixed(3)} OMR
+                              </td>
+                              <td className="py-3 px-2 text-right">
+                                {data.discountReport.discountDetails.reduce((sum, i) => sum + i.final_total, 0).toFixed(3)} OMR
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {/* Summary Tab */}

@@ -455,6 +455,104 @@ export async function getSalesSummary(params: DateRangeParams, branchId?: string
   };
 }
 
+// ===== DISCOUNT REPORT =====
+
+export interface DiscountDetail {
+  order_id: string;
+  order_number: string;
+  date: string;
+  discount_amount: number;
+  original_total: number;
+  final_total: number;
+  staff_name: string;
+  staff_id: string;
+}
+
+export interface DailyDiscount {
+  date: string;
+  total_discount: number;
+  order_count: number;
+}
+
+export interface DiscountReport {
+  dailyDiscounts: DailyDiscount[];
+  discountDetails: DiscountDetail[];
+  totalDiscount: number;
+  orderCount: number;
+}
+
+export async function getDiscountReport(params: DateRangeParams, branchId?: string): Promise<DiscountReport> {
+  // Query orders with discount_amount > 0
+  let query = supabase
+    .from('orders')
+    .select('id, order_number, created_at, discount_amount, subtotal, total_amount, created_by, branch_id')
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString())
+    .gt('discount_amount', 0)
+    .in('order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data: orders, error } = await query;
+
+  if (error) throw error;
+
+  // Get staff user_ids from orders
+  const staffIds = [...new Set((orders || []).map(o => o.created_by).filter(Boolean))];
+  
+  // Fetch profiles for staff names
+  let profilesMap: Record<string, string> = {};
+  if (staffIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .in('user_id', staffIds);
+    
+    (profiles || []).forEach(p => {
+      profilesMap[p.user_id] = p.full_name || 'Unknown Staff';
+    });
+  }
+
+  // Build discount details
+  const discountDetails: DiscountDetail[] = (orders || []).map(order => ({
+    order_id: order.id,
+    order_number: order.order_number || order.id.slice(0, 8),
+    date: order.created_at?.split('T')[0] || '',
+    discount_amount: Number(order.discount_amount) || 0,
+    original_total: (Number(order.subtotal) || 0) + (Number(order.discount_amount) || 0),
+    final_total: Number(order.total_amount) || 0,
+    staff_name: order.created_by ? (profilesMap[order.created_by] || 'Unknown Staff') : 'Unknown',
+    staff_id: order.created_by || '',
+  }));
+
+  // Aggregate daily discounts
+  const dailyMap: Record<string, { total_discount: number; order_count: number }> = {};
+  
+  discountDetails.forEach(d => {
+    if (!dailyMap[d.date]) {
+      dailyMap[d.date] = { total_discount: 0, order_count: 0 };
+    }
+    dailyMap[d.date].total_discount += d.discount_amount;
+    dailyMap[d.date].order_count += 1;
+  });
+
+  const dailyDiscounts: DailyDiscount[] = Object.entries(dailyMap)
+    .map(([date, stats]) => ({ date, ...stats }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const totalDiscount = discountDetails.reduce((sum, d) => sum + d.discount_amount, 0);
+  const orderCount = discountDetails.length;
+
+  return {
+    dailyDiscounts,
+    discountDetails,
+    totalDiscount,
+    orderCount,
+  };
+}
+
 export async function getReportingSummary(params: DateRangeParams, branchId?: string) {
   const [
     dailySales, 
@@ -465,7 +563,8 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     paymentBreakdown,
     orderTypeSales,
     itemSalesDetails,
-    salesSummary
+    salesSummary,
+    discountReport
   ] = await Promise.all([
     getDailySales(params, branchId),
     getHourlySales(params, branchId),
@@ -476,6 +575,7 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     getOrderTypeSales(params, branchId),
     getItemSalesDetails(params, branchId),
     getSalesSummary(params, branchId),
+    getDiscountReport(params, branchId),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
@@ -495,6 +595,7 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     orderTypeSales,
     itemSalesDetails,
     salesSummary,
+    discountReport,
     totalRevenue,
     totalOrders,
     avgOrderValue,

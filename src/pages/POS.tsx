@@ -484,14 +484,12 @@ export default function POS() {
         const updatedOrder = await getOrder(orderId);
         paymentTotal = Number(updatedOrder?.total_amount || 0);
         
-        if (isTakeaway) {
-          // OPTIMIZED: Takeaway orders go straight to BILL_REQUESTED with single RPC
-          // No need for SENT_TO_KITCHEN → SERVED → BILL_REQUESTED intermediate states
-          await updateOrderStatus(orderId, 'BILL_REQUESTED');
-        } else {
-          // Dine-in "Pay Now": Also optimized - single call to BILL_REQUESTED
-          await updateOrderStatus(orderId, 'BILL_REQUESTED');
-        }
+        // For new orders going directly to payment, we need to traverse the full
+        // state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED
+        // This satisfies the database workflow validation
+        await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN
+        await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
+        await requestBill(orderId);     // SERVED → BILL_REQUESTED
       }
       
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;

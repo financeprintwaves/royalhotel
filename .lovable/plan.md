@@ -1,74 +1,32 @@
 
-## Plan: Multi-Branch Assignment for Staff Members
 
-### Overview
+## Plan: Fix Payment Failure with Discount + Add Discount Report Tab
 
-Enable staff members to be assigned to multiple branches simultaneously. Some users need access to 1 branch, others need 2 or more. This requires a new database table and UI changes.
+### Problem 1: Payment Failure After Discount
 
-### What Changes
+When paying for a new order (takeaway or dine-in "Pay Now"), the code tries to transition directly from `CREATED` to `BILL_REQUESTED`. The database function only allows:
 
-| Component | Current State | After Change |
-|-----------|--------------|--------------|
-| Branch assignment | Single `branch_id` in profiles | Multiple via `user_branches` table |
-| Staff Management UI | Dropdown select (1 branch) | Checkbox list (multiple branches) |
-| Staff display | Shows single branch name | Shows multiple branch badges |
+```
+CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED → PAID
+```
+
+The current code (lines 487-494 in POS.tsx) does:
+```typescript
+await updateOrderStatus(orderId, 'BILL_REQUESTED'); // FAILS!
+```
+
+### Problem 2: No Discount Tracking in Reports
+
+The Reports page has tabs for Overview, Sales, Payments, Items, and Summary but no way to see discounts given by date, order, or staff member.
 
 ---
 
-### Database Changes
+### Solution
 
-Create a new junction table to store multiple branch assignments per user:
-
-```sql
-CREATE TABLE user_branches (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, branch_id)
-);
-
--- Enable RLS
-ALTER TABLE user_branches ENABLE ROW LEVEL SECURITY;
-
--- Policies: Users can view their own, admins can manage all
-CREATE POLICY "Users can view their own branch assignments"
-  ON user_branches FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Admins can manage all branch assignments"
-  ON user_branches FOR ALL
-  USING (is_admin(auth.uid()));
-```
-
-The existing `profiles.branch_id` column will remain for backward compatibility (primary/default branch).
-
----
-
-### UI Changes - Staff Management Page
-
-Replace the single-select dropdown with a multi-select checkbox popover:
-
-```text
-Current:                          After:
-┌────────────────────────┐       ┌────────────────────────┐
-│ Select branch      ▼   │  →    │ 2 branches selected ▼  │
-└────────────────────────┘       └────────────────────────┘
-                                  ┌────────────────────────┐
-                                  │ ☑ Arabic Bar           │
-                                  │ ☑ Indian Bar           │
-                                  │ ☐ New Branch           │
-                                  └────────────────────────┘
-```
-
-Display selected branches as badges in the table:
-```text
-┌─────────────────────────────────────────────────────┐
-│ Name    │ Email │ Branches                         │
-├─────────┼───────┼──────────────────────────────────┤
-│ John    │ ...   │ [Arabic Bar] [Indian Bar]        │
-└─────────────────────────────────────────────────────┘
-```
+| Issue | Fix |
+|-------|-----|
+| Payment failure | Transition through all required states: `CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED` |
+| Missing discount tab | Add new "Discounts" tab with daily totals, order details, and staff breakdown |
 
 ---
 
@@ -76,108 +34,150 @@ Display selected branches as badges in the table:
 
 | File | Changes |
 |------|---------|
-| **Database** | New `user_branches` table with RLS policies |
-| `src/services/staffService.ts` | Add `assignUserBranches()`, `getUserBranches()` functions |
-| `src/pages/StaffManagement.tsx` | Replace dropdown with checkbox popover, update display to show multiple branches |
-| `src/types/pos.ts` | Add `UserBranch` interface |
+| `src/pages/POS.tsx` | Fix payment flow to use sequential status transitions for new orders |
+| `src/services/reportingService.ts` | Add `getDiscountReport()` function to query orders with discounts |
+| `src/pages/Reports.tsx` | Add new "Discounts" tab with date-wise and order-wise discount data |
+| `src/components/ExportButtons.tsx` | Add discount data to CSV export |
 
 ---
 
 ### Technical Details
 
-#### New Service Functions (staffService.ts)
+#### 1. Fix Payment Flow in POS.tsx (lines 487-494)
 
 ```typescript
-// Get all branches for a user
-export async function getUserBranches(userId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('user_branches')
-    .select('branch_id')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return (data || []).map(d => d.branch_id);
+// Before (broken - invalid transition):
+if (isTakeaway) {
+  await updateOrderStatus(orderId, 'BILL_REQUESTED');
+} else {
+  await updateOrderStatus(orderId, 'BILL_REQUESTED');
 }
 
-// Set branches for a user (replaces all existing)
-export async function assignUserBranches(
-  userId: string, 
-  branchIds: string[]
-): Promise<void> {
-  // Delete existing assignments
-  await supabase.from('user_branches')
-    .delete().eq('user_id', userId);
-  
-  // Insert new assignments
-  if (branchIds.length > 0) {
-    const inserts = branchIds.map(bid => ({ 
-      user_id: userId, branch_id: bid 
-    }));
-    await supabase.from('user_branches').insert(inserts);
-  }
-  
-  // Update primary branch_id in profiles
-  await supabase.from('profiles')
-    .update({ branch_id: branchIds[0] || null })
-    .eq('user_id', userId);
+// After (fixed - transition through all required states):
+// For new orders going directly to payment, we need to traverse 
+// the full state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED
+await sendToKitchen(orderId);     // CREATED → SENT_TO_KITCHEN
+await markAsServed(orderId);      // SENT_TO_KITCHEN → SERVED
+await requestBill(orderId);       // SERVED → BILL_REQUESTED
+```
+
+This follows the same pattern already used for non-kitchen items in `handleSendToKitchen`.
+
+#### 2. New Discount Report Interface (reportingService.ts)
+
+```typescript
+export interface DiscountDetail {
+  order_id: string;
+  order_number: string;
+  date: string;
+  discount_amount: number;
+  original_total: number;
+  final_total: number;
+  staff_name: string;
+  staff_id: string;
+}
+
+export interface DailyDiscount {
+  date: string;
+  total_discount: number;
+  order_count: number;
+}
+
+export async function getDiscountReport(
+  params: DateRangeParams, 
+  branchId?: string
+): Promise<{
+  dailyDiscounts: DailyDiscount[];
+  discountDetails: DiscountDetail[];
+  totalDiscount: number;
+  orderCount: number;
+}> {
+  // Query orders with discount_amount > 0
+  // Join with profiles to get staff name
+  // Aggregate by date for daily totals
 }
 ```
 
-#### Updated Staff Member Type
+#### 3. Add Discounts Tab in Reports.tsx
 
+Add new tab trigger:
 ```typescript
-interface StaffMember {
-  user_id: string;
-  email: string | null;
-  full_name: string | null;
-  branch_id: string | null;      // Primary branch
-  branch_ids: string[];          // All assigned branches
-  branch_names: string[];        // Branch names for display
-  roles: AppRole[];
-  created_at: string;
-  staff_pin?: string | null;
-}
+<TabsTrigger value="discounts">Discounts</TabsTrigger>
 ```
 
-#### Multi-Select Checkbox Component (StaffManagement.tsx)
+Tab content will show:
+- Summary card with total discount amount and order count
+- Daily discount bar chart
+- Table with order details: order number, date, discount amount, staff member
 
-Uses Popover + Checkbox list pattern:
+#### 4. Update Data Types and Fetching
+
+Update the data state and `getReportingSummary` to include discount data:
 ```typescript
-<Popover>
-  <PopoverTrigger asChild>
-    <Button variant="outline" className="w-48">
-      {selectedBranches.length} branch(es) selected
-    </Button>
-  </PopoverTrigger>
-  <PopoverContent>
-    {branches.map(branch => (
-      <div key={branch.id} className="flex items-center gap-2">
-        <Checkbox 
-          checked={selectedBranches.includes(branch.id)}
-          onCheckedChange={(checked) => toggleBranch(branch.id, checked)}
-        />
-        <Label>{branch.name}</Label>
-      </div>
-    ))}
-  </PopoverContent>
-</Popover>
+// Add to data state
+discountReport: {
+  dailyDiscounts: DailyDiscount[];
+  discountDetails: DiscountDetail[];
+  totalDiscount: number;
+  orderCount: number;
+}
 ```
 
 ---
 
-### Backward Compatibility
+### Order Flow After Fix
 
-- `profiles.branch_id` remains as the "primary" branch
-- When multiple branches are assigned, the first one becomes the primary
-- Existing RLS policies using `get_user_branch_id()` continue to work
-- Session tracking uses primary branch from profiles
+```
+New Order → Create → Add Items → Apply Discount → Pay Now:
+
+  [CREATED]
+      ↓ sendToKitchen() 
+  [SENT_TO_KITCHEN] (instant transition)
+      ↓ markAsServed()
+  [SERVED]
+      ↓ requestBill()
+  [BILL_REQUESTED]
+      ↓ finalizePayment()
+  [PAID] ✓
+```
+
+All transitions happen in sequence within the same function call, so the user experience is unchanged - they still click "Pay" once and it completes.
+
+---
+
+### Discount Tab UI Preview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Discounts Tab                                               │
+├─────────────────────────────────────────────────────────────┤
+│ ┌───────────────┐  ┌───────────────┐                       │
+│ │ Total         │  │ Orders with   │                       │
+│ │ Discount      │  │ Discount      │                       │
+│ │ 45.500 OMR    │  │ 23            │                       │
+│ └───────────────┘  └───────────────┘                       │
+│                                                             │
+│ Daily Discount Chart                                        │
+│ ▐▌  ▐█▌  ▐▌  ▐█▌  ▐▌  ▐█▌  ▐▌                              │
+│ Mon  Tue Wed  Thu  Fri  Sat  Sun                           │
+│                                                             │
+│ Order Details                                               │
+│ ┌────────┬────────┬──────────┬───────────┬────────────────┐│
+│ │Order # │ Date   │ Discount │ Final Amt │ Staff          ││
+│ ├────────┼────────┼──────────┼───────────┼────────────────┤│
+│ │INB001  │ Feb 7  │ 0.500    │ 12.500    │ John Doe       ││
+│ │INB002  │ Feb 6  │ 1.000    │ 8.250     │ Jane Smith     ││
+│ └────────┴────────┴──────────┴───────────┴────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ### Summary
 
-| Feature | Implementation |
-|---------|---------------|
-| Store multiple branches | New `user_branches` junction table |
-| Select multiple branches | Checkbox popover in Staff Management |
-| Display branches | Multiple badges per staff member |
-| Primary branch | First selected branch stored in profiles.branch_id |
+| Before | After |
+|--------|-------|
+| Payment fails with "Invalid status transition from CREATED to BILL_REQUESTED" | Payment succeeds by transitioning through all required states |
+| No visibility into discounts given | New "Discounts" tab shows daily totals, order details, and staff breakdown |
+| Cannot track who gave discounts | Discount report includes staff name for accountability |
+

@@ -453,7 +453,9 @@ export type Database = {
           created_by: string | null
           customer_name: string | null
           discount_amount: number | null
+          foc_dancer_name: string | null
           id: string
+          is_foc: boolean | null
           locked_at: string | null
           notes: string | null
           order_number: string | null
@@ -471,7 +473,9 @@ export type Database = {
           created_by?: string | null
           customer_name?: string | null
           discount_amount?: number | null
+          foc_dancer_name?: string | null
           id?: string
+          is_foc?: boolean | null
           locked_at?: string | null
           notes?: string | null
           order_number?: string | null
@@ -489,7 +493,9 @@ export type Database = {
           created_by?: string | null
           customer_name?: string | null
           discount_amount?: number | null
+          foc_dancer_name?: string | null
           id?: string
+          is_foc?: boolean | null
           locked_at?: string | null
           notes?: string | null
           order_number?: string | null

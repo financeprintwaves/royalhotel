@@ -12,6 +12,7 @@ import type {
   ItemSalesDetail,
   SalesSummary,
   DiscountReport,
+  FOCReport,
 } from "@/services/reportingService";
 
 export interface PrintableReportData {
@@ -25,6 +26,7 @@ export interface PrintableReportData {
   itemSalesDetails: ItemSalesDetail[];
   salesSummary: SalesSummary;
   discountReport?: DiscountReport;
+  focReport?: FOCReport;
   totalRevenue: number;
   totalOrders: number;
   avgOrderValue: number;
@@ -342,6 +344,81 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                   <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>
                     {formatCurrency(data.discountReport.discountDetails.reduce((s, i) => s + i.final_total, 0))}
                   </td>
+                  <td className="p-1" style={{ border: "1px solid #ddd" }}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* FOC Content */}
+        {activeTab === "foc" && data.focReport && (
+          <div className="mb-6">
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
+                <p className="text-xs" style={{ color: "#666" }}>Total FOC Value</p>
+                <p className="text-lg font-bold" style={{ color: "#16a34a" }}>{formatCurrency(data.focReport.totalFOCValue)}</p>
+              </div>
+              <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
+                <p className="text-xs" style={{ color: "#666" }}>FOC Orders</p>
+                <p className="text-lg font-bold">{data.focReport.focCount}</p>
+              </div>
+              <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
+                <p className="text-xs" style={{ color: "#666" }}>Unique Dancers</p>
+                <p className="text-lg font-bold">{data.focReport.dancerSummary.length}</p>
+              </div>
+            </div>
+
+            <h3 className="font-bold mb-2" style={{ borderBottom: "1px solid #333" }}>FOC by Dancer</h3>
+            <table className="w-full text-xs mb-4" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f5f5f5" }}>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Dancer</th>
+                  <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Orders</th>
+                  <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.focReport.dancerSummary.map((d) => (
+                  <tr key={d.dancer}>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{d.dancer}</td>
+                    <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{d.count}</td>
+                    <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(d.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h3 className="font-bold mb-2" style={{ borderBottom: "1px solid #333" }}>FOC Order Details</h3>
+            <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f5f5f5" }}>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>#</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Order #</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Date</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Dancer</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Items</th>
+                  <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Value</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Staff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.focReport.focDetails.map((item, idx) => (
+                  <tr key={item.order_id}>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{idx + 1}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.order_number}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{format(new Date(item.date), "MMM dd")}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.dancer_name}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.items.join(', ')}</td>
+                    <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(item.total_value)}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.staff_name}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: "bold", backgroundColor: "#f0f0f0" }}>
+                  <td className="p-1" style={{ border: "1px solid #ddd" }} colSpan={5}>Total</td>
+                  <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(data.focReport.totalFOCValue)}</td>
                   <td className="p-1" style={{ border: "1px solid #ddd" }}></td>
                 </tr>
               </tfoot>

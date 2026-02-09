@@ -1,180 +1,61 @@
 
 
-## Plan: FOC (Free of Cost) for Dancers
+## Plan: Rename "Dancer" to "Person Name" + Bold FOC on Invoice + Fix Portion Selection Bug
 
-### Overview
+### Issue 1: Rename "Dancer Name" to "Person Name"
 
-Add the ability to mark an entire order as FOC (Free of Cost) for dancers. When FOC is selected, the order total becomes zero, a dancer name is recorded, and it appears in a dedicated FOC tab in Reports.
+All references to "Dancer" in the UI will be changed to "Person" across these files:
 
-### What Changes
-
-| Area | Change |
+| File | Change |
 |------|--------|
-| Database | Add `is_foc` (boolean) and `foc_dancer_name` (text) columns to `orders` table |
-| POS Cart | Add a "FOC" toggle button + dancer name input in the order sidebar |
-| Payment Flow | When FOC is on, skip payment entirely -- just close the order at zero cost |
-| Reports | Add "FOC" tab showing date-wise and item-wise FOC data with dancer names |
-| Discount Report | FOC orders excluded from discount tab (they are separate) |
+| `src/pages/POS.tsx` | Placeholder "Dancer Name (required)" -> "Person Name (required)", toast messages |
+| `src/pages/Reports.tsx` | FOC tab: "Dancers" card -> "Persons", "FOC by Dancer" -> "FOC by Person", table headers |
+| `src/services/reportingService.ts` | Interface field names `dancer_name` -> `person_name`, `dancerSummary` -> `personSummary` |
+| `src/components/ExportButtons.tsx` | CSV headers "Dancer" -> "Person" |
+| `src/components/PrintableReport.tsx` | Print headers "Dancer" -> "Person" |
 
----
+Note: The database column `foc_dancer_name` stays unchanged to avoid a migration -- only UI labels change.
 
-### Database Migration
+### Issue 2: Bold "FOC" on Invoice/Receipt
 
-```sql
-ALTER TABLE orders ADD COLUMN is_foc BOOLEAN DEFAULT false;
-ALTER TABLE orders ADD COLUMN foc_dancer_name TEXT;
-```
-
-No new RLS policies needed -- existing order policies cover these columns.
-
----
-
-### POS Changes (src/pages/POS.tsx)
-
-**New state variables:**
-- `isFOC` (boolean) -- toggle for FOC mode
-- `focDancerName` (string) -- dancer name input
-
-**Cart sidebar addition** (below discount section):
+In `src/components/Receipt.tsx`, add a bold **FOC** label when the order is marked as FOC. After the order info section, add:
 
 ```
-┌──────────────────────────────────┐
-│ ☑ FOC (Free of Cost)            │
-│ Dancer Name: [_______________]  │
-└──────────────────────────────────┘
+===== FOC =====
+Person: [Name]
 ```
 
-When FOC is toggled ON:
-- Discount input is hidden (not needed)
-- Grand total shows 0.000 OMR
-- "PAY NOW" button changes to "CONFIRM FOC"
+Styled with large, bold text so it stands out on the thermal receipt.
 
-**FOC processing flow:**
-1. Create order with items (same as now)
-2. Set `is_foc = true`, `foc_dancer_name`, `total_amount = 0`, `discount_amount = subtotal`
-3. Transition through states: CREATED -> SENT_TO_KITCHEN -> SERVED -> BILL_REQUESTED
-4. Finalize payment at 0.000 OMR with method 'cash'
-5. Show receipt with "FOC - Dancer: [Name]"
+### Issue 3: Menu Item Portions Not Showing
 
----
-
-### Reporting Changes
-
-**New service function** in `src/services/reportingService.ts`:
+The bug is in `src/pages/POS.tsx` line 244:
 
 ```typescript
-export interface FOCDetail {
-  order_id: string;
-  order_number: string;
-  date: string;
-  dancer_name: string;
-  items: string[];        // item names from order_items
-  total_value: number;    // original value of items
-  staff_name: string;     // who created the FOC order
-}
-
-export async function getFOCReport(params, branchId?): Promise<{
-  focDetails: FOCDetail[];
-  totalFOCValue: number;
-  focCount: number;
-  dancerSummary: { dancer: string; count: number; value: number }[];
-}>
+if (item.portion_options && item.portion_options.length > 0) {
 ```
 
-**New "FOC" tab in Reports.tsx:**
+When `portion_options` comes from the database as a JSONB value, it could be an object (not an array), so `.length` is undefined and the condition fails. The `PortionSelectionDialog` already handles this with `Array.isArray()`, but the POS click handler does not.
 
+**Fix**: Use `Array.isArray()` check:
+
+```typescript
+const portions = Array.isArray(item.portion_options) ? item.portion_options : [];
+if (portions.length > 0) {
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ FOC Tab                                                     │
-├─────────────────────────────────────────────────────────────┤
-│ ┌───────────────┐  ┌───────────────┐  ┌──────────────────┐ │
-│ │ Total FOC     │  │ FOC Orders    │  │ Dancers          │ │
-│ │ Value         │  │ Count         │  │ Count            │ │
-│ │ 45.500 OMR    │  │ 23            │  │ 5                │ │
-│ └───────────────┘  └───────────────┘  └──────────────────┘ │
-│                                                             │
-│ By Dancer                                                   │
-│ ┌──────────┬────────┬──────────────────────────────────────┐│
-│ │ Dancer   │ Count  │ Total Value                         ││
-│ ├──────────┼────────┼──────────────────────────────────────┤│
-│ │ Maria    │ 8      │ 15.500 OMR                          ││
-│ │ Sofia    │ 5      │ 12.000 OMR                          ││
-│ └──────────┴────────┴──────────────────────────────────────┘│
-│                                                             │
-│ Order Details                                               │
-│ ┌────────┬────────┬──────────┬──────────┬─────────────────┐│
-│ │Order # │ Date   │ Dancer   │ Items    │ Value   │ Staff ││
-│ ├────────┼────────┼──────────┼──────────┼─────────────────┤│
-│ │INB001  │ Feb 9  │ Maria    │ Beer x2  │ 4.000   │ John  ││
-│ └────────┴────────┴──────────┴──────────┴─────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-```
+
+This ensures items with portion options (like the "rhbr" menu item) correctly show the portion selection dialog.
 
 ---
 
-### File Changes
+### Files Changed
 
 | File | Changes |
 |------|---------|
-| **Database** | Add `is_foc` and `foc_dancer_name` columns to orders |
-| `src/pages/POS.tsx` | Add FOC toggle, dancer name input, FOC payment flow |
-| `src/services/reportingService.ts` | Add `getFOCReport()`, include in `getReportingSummary()` |
-| `src/pages/Reports.tsx` | Add "FOC" tab with dancer summary and order details |
-
----
-
-### Technical Details
-
-#### FOC Toggle in POS Cart Sidebar
-
-Added between the discount section and the total:
-
-```typescript
-// New state
-const [isFOC, setIsFOC] = useState(false);
-const [focDancerName, setFocDancerName] = useState('');
-
-// When FOC is on, override grandTotal to 0
-const grandTotal = isFOC ? 0 : (existingTotal + total);
-```
-
-#### FOC Payment Handler
-
-```typescript
-async function handleFOCConfirm() {
-  // Create order, add items
-  const newOrder = await createOrder(selectedTable?.id || null, customerName);
-  await addOrderItemsBatch(newOrder.id, batchItems);
-  
-  // Mark as FOC with full discount
-  await supabase.from('orders').update({
-    is_foc: true,
-    foc_dancer_name: focDancerName,
-    discount_amount: subtotal,
-    total_amount: 0,
-  }).eq('id', newOrder.id);
-  
-  // Transition states and finalize at 0
-  await sendToKitchen(newOrder.id);
-  await markAsServed(newOrder.id);
-  await requestBill(newOrder.id);
-  await finalizePayment(newOrder.id, 0, 'cash');
-}
-```
-
-#### FOC Report Query
-
-```typescript
-// Query orders where is_foc = true
-const { data } = await supabase
-  .from('orders')
-  .select('*, order_items(*, menu_item:menu_items(name, price))')
-  .eq('is_foc', true)
-  .gte('created_at', startDate)
-  .lte('created_at', endDate);
-```
-
-#### Export Support
-
-FOC data will be included in CSV export with columns: Order #, Date, Dancer Name, Items, Value, Staff.
+| `src/pages/POS.tsx` | Rename "Dancer" -> "Person" in UI text; fix `Array.isArray` check for portion_options |
+| `src/components/Receipt.tsx` | Add bold FOC label with person name; accept `is_foc` and `foc_dancer_name` from order |
+| `src/pages/Reports.tsx` | Rename all "Dancer" labels to "Person" |
+| `src/services/reportingService.ts` | Rename interface fields and variables from dancer to person |
+| `src/components/ExportButtons.tsx` | Rename CSV headers from Dancer to Person |
+| `src/components/PrintableReport.tsx` | Rename print headers from Dancer to Person |
 

@@ -320,11 +320,13 @@ export default function POS() {
   }
 
   const [discount, setDiscount] = useState<number>(0);
+  const [isFOC, setIsFOC] = useState(false);
+  const [focDancerName, setFocDancerName] = useState('');
   
   const subtotal = cart.reduce((sum, c) => sum + c.menuItem.price * c.quantity, 0);
   const total = subtotal - discount;
   const existingTotal = existingOrder?.total_amount ? Number(existingOrder.total_amount) : 0;
-  const grandTotal = existingTotal + total;
+  const grandTotal = isFOC ? 0 : (existingTotal + total);
 
   // Check if any cart items require kitchen preparation
   function hasKitchenItems(): boolean {
@@ -416,6 +418,65 @@ export default function POS() {
       
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Failed', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // FOC (Free of Cost) handler
+  async function handleFOCConfirm() {
+    if (cart.length === 0) {
+      toast({ variant: 'destructive', title: 'Cart is empty', description: 'Add items before confirming FOC' });
+      return;
+    }
+    if (!focDancerName.trim()) {
+      toast({ variant: 'destructive', title: 'Dancer name required', description: 'Enter the dancer name for FOC' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const batchItems = cart.map(item => ({
+        menuItem: item.menuItem,
+        quantity: item.quantity,
+        notes: item.notes,
+        isServing: item.isServing,
+      }));
+
+      const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
+      const orderId = newOrder.id;
+      await addOrderItemsBatch(orderId, batchItems);
+
+      // Mark as FOC with full discount
+      const focSubtotal = existingTotal + subtotal;
+      await supabase.from('orders').update({
+        is_foc: true,
+        foc_dancer_name: focDancerName.trim(),
+        discount_amount: focSubtotal,
+        total_amount: 0,
+        subtotal: focSubtotal,
+      }).eq('id', orderId);
+
+      // Traverse state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED
+      await sendToKitchen(orderId);
+      await markAsServed(orderId);
+      await requestBill(orderId);
+      // Finalize at 0
+      await finalizePayment(orderId, 0, 'cash');
+
+      toast({ title: '🎁 FOC Confirmed!', description: `FOC for dancer: ${focDancerName}` });
+
+      setCart([]);
+      setExistingOrder(null);
+      setSelectedTable(null);
+      setCustomerName('');
+      setDiscount(0);
+      setIsFOC(false);
+      setFocDancerName('');
+      setView('floor');
+      refetchTables();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'FOC Failed', description: error.message });
     } finally {
       setLoading(false);
     }
@@ -518,6 +579,8 @@ export default function POS() {
       setSelectedTable(null);
       setCustomerName('');
       setDiscount(0);
+      setIsFOC(false);
+      setFocDancerName('');
       setView('floor');
       setTransactionRef('');
       refetchTables();
@@ -1161,22 +1224,54 @@ export default function POS() {
                   <span>{existingTotal.toFixed(3)} OMR</span>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Discount</span>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  placeholder="0.000"
-                  value={discount || ''}
-                  onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-28 h-7 text-sm text-right"
-                />
-              </div>
-              {discount > 0 && (
+              {!isFOC && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Discount</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    placeholder="0.000"
+                    value={discount || ''}
+                    onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-28 h-7 text-sm text-right"
+                  />
+                </div>
+              )}
+              {!isFOC && discount > 0 && (
                 <div className="flex justify-between text-green-500">
                   <span>Discount Applied</span>
                   <span>-{discount.toFixed(3)} OMR</span>
+                </div>
+              )}
+
+              {/* FOC Toggle */}
+              <div className="flex items-center justify-between gap-2 py-1">
+                <span className="text-muted-foreground text-sm">🎁 FOC (Free)</span>
+                <Button
+                  variant={isFOC ? 'default' : 'outline'}
+                  size="sm"
+                  className={`h-7 text-xs ${isFOC ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                  onClick={() => {
+                    setIsFOC(!isFOC);
+                    if (!isFOC) setDiscount(0);
+                  }}
+                >
+                  {isFOC ? 'FOC ON' : 'FOC OFF'}
+                </Button>
+              </div>
+              {isFOC && (
+                <Input
+                  placeholder="Dancer Name (required)"
+                  value={focDancerName}
+                  onChange={(e) => setFocDancerName(e.target.value)}
+                  className="h-7 text-sm"
+                />
+              )}
+              {isFOC && (
+                <div className="flex justify-between text-green-600 font-medium">
+                  <span>FOC - Full Discount</span>
+                  <span>-{(existingTotal + subtotal).toFixed(3)} OMR</span>
                 </div>
               )}
               <Separator className="my-2" />
@@ -1187,7 +1282,17 @@ export default function POS() {
             </div>
 
             <div className="p-4 grid grid-cols-2 gap-2">
-              {orderType === 'take-out' ? (
+              {isFOC ? (
+                /* FOC: Confirm FOC flow */
+                <Button 
+                  size="lg"
+                  className="col-span-2 flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                  onClick={handleFOCConfirm}
+                  disabled={cart.length === 0 || !focDancerName.trim() || loading}
+                >
+                  🎁 CONFIRM FOC
+                </Button>
+              ) : orderType === 'take-out' ? (
                 /* Takeaway: Payment first flow */
                 <>
                   <Button 

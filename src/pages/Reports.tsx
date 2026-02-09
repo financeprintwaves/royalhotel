@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, BarChart3, TrendingUp, CreditCard, DollarSign, ShoppingCart, 
-  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText, Percent
+  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText, Percent, Gift
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -27,6 +27,8 @@ import {
   type DiscountReport,
   type DailyDiscount,
   type DiscountDetail,
+  type FOCReport,
+  type FOCDetail,
 } from '@/services/reportingService';
 import DateRangePicker, { type DateRange } from '@/components/DateRangePicker';
 import ExportButtons from '@/components/ExportButtons';
@@ -62,6 +64,7 @@ export default function Reports() {
     itemSalesDetails: ItemSalesDetail[];
     salesSummary: SalesSummary;
     discountReport: DiscountReport;
+    focReport: FOCReport;
     totalRevenue: number;
     totalOrders: number;
     avgOrderValue: number;
@@ -133,6 +136,7 @@ export default function Reports() {
                 <TabsTrigger value="payments">Payments</TabsTrigger>
                 <TabsTrigger value="items">Items</TabsTrigger>
                 <TabsTrigger value="discounts">Discounts</TabsTrigger>
+                <TabsTrigger value="foc">FOC</TabsTrigger>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -747,6 +751,150 @@ export default function Reports() {
                               <td className="py-3 px-2 text-right">
                                 {data.discountReport.discountDetails.reduce((sum, i) => sum + i.final_total, 0).toFixed(3)} OMR
                               </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* FOC Tab */}
+            {activeTab === 'foc' && (
+              <div className="space-y-6">
+                {/* Summary Cards */}
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Total FOC Value</CardTitle>
+                      <Gift className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600">
+                        {data.focReport.totalFOCValue.toFixed(3)} OMR
+                      </div>
+                      <p className="text-xs text-muted-foreground">Items given free</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">FOC Orders</CardTitle>
+                      <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{data.focReport.focCount}</div>
+                      <p className="text-xs text-muted-foreground">Total FOC orders</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm font-medium">Dancers</CardTitle>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{data.focReport.dancerSummary.length}</div>
+                      <p className="text-xs text-muted-foreground">Unique dancers</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* By Dancer Table */}
+                {data.focReport.dancerSummary.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        FOC by Dancer
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-3 px-2 font-medium">Dancer</th>
+                              <th className="text-right py-3 px-2 font-medium">Orders</th>
+                              <th className="text-right py-3 px-2 font-medium">Total Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.focReport.dancerSummary.map((d) => (
+                              <tr key={d.dancer} className="border-b hover:bg-muted/50">
+                                <td className="py-3 px-2 font-medium">{d.dancer}</td>
+                                <td className="py-3 px-2 text-right">{d.count}</td>
+                                <td className="py-3 px-2 text-right font-bold">{d.value.toFixed(3)} OMR</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 font-bold">
+                              <td className="py-3 px-2">Total</td>
+                              <td className="py-3 px-2 text-right">{data.focReport.focCount}</td>
+                              <td className="py-3 px-2 text-right">{data.focReport.totalFOCValue.toFixed(3)} OMR</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* FOC Order Details */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      FOC Order Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-2 font-medium">#</th>
+                            <th className="text-left py-3 px-2 font-medium">Order #</th>
+                            <th className="text-left py-3 px-2 font-medium">Date</th>
+                            <th className="text-left py-3 px-2 font-medium">Dancer</th>
+                            <th className="text-left py-3 px-2 font-medium">Items</th>
+                            <th className="text-right py-3 px-2 font-medium">Value</th>
+                            <th className="text-left py-3 px-2 font-medium">Staff</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.focReport.focDetails.map((item, index) => (
+                            <tr key={item.order_id} className="border-b hover:bg-muted/50">
+                              <td className="py-3 px-2 text-muted-foreground">{index + 1}</td>
+                              <td className="py-3 px-2 font-mono text-xs">{item.order_number}</td>
+                              <td className="py-3 px-2">
+                                {new Date(item.date).toLocaleDateString('en-US', { 
+                                  month: 'short', day: 'numeric', year: 'numeric'
+                                })}
+                              </td>
+                              <td className="py-3 px-2 font-medium">{item.dancer_name}</td>
+                              <td className="py-3 px-2 text-xs">{item.items.join(', ')}</td>
+                              <td className="py-3 px-2 text-right font-bold">{item.total_value.toFixed(3)} OMR</td>
+                              <td className="py-3 px-2">
+                                <Badge variant="outline">{item.staff_name}</Badge>
+                              </td>
+                            </tr>
+                          ))}
+                          {data.focReport.focDetails.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                                No FOC orders in this period
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        {data.focReport.focDetails.length > 0 && (
+                          <tfoot>
+                            <tr className="border-t-2 font-bold">
+                              <td colSpan={5} className="py-3 px-2">Total</td>
+                              <td className="py-3 px-2 text-right">{data.focReport.totalFOCValue.toFixed(3)} OMR</td>
                               <td></td>
                             </tr>
                           </tfoot>

@@ -553,6 +553,86 @@ export async function getDiscountReport(params: DateRangeParams, branchId?: stri
   };
 }
 
+// ===== FOC REPORT =====
+
+export interface FOCDetail {
+  order_id: string;
+  order_number: string;
+  date: string;
+  dancer_name: string;
+  items: string[];
+  total_value: number;
+  staff_name: string;
+  staff_id: string;
+}
+
+export interface FOCReport {
+  focDetails: FOCDetail[];
+  totalFOCValue: number;
+  focCount: number;
+  dancerSummary: { dancer: string; count: number; value: number }[];
+}
+
+export async function getFOCReport(params: DateRangeParams, branchId?: string): Promise<FOCReport> {
+  let query = supabase
+    .from('orders')
+    .select('id, order_number, created_at, subtotal, created_by, foc_dancer_name, branch_id, order_items(quantity, menu_item:menu_items(name, price))')
+    .eq('is_foc', true)
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString())
+    .in('order_status', ['PAID', 'CLOSED']);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data: orders, error } = await query;
+  if (error) throw error;
+
+  const staffIds = [...new Set((orders || []).map(o => o.created_by).filter(Boolean))];
+  let profilesMap: Record<string, string> = {};
+  if (staffIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .in('user_id', staffIds);
+    (profiles || []).forEach(p => {
+      profilesMap[p.user_id] = p.full_name || 'Unknown Staff';
+    });
+  }
+
+  const focDetails: FOCDetail[] = (orders || []).map(order => {
+    const items = ((order as any).order_items || []).map((oi: any) => 
+      `${oi.quantity}x ${oi.menu_item?.name || 'Item'}`
+    );
+    return {
+      order_id: order.id,
+      order_number: order.order_number || order.id.slice(0, 8),
+      date: order.created_at?.split('T')[0] || '',
+      dancer_name: order.foc_dancer_name || 'Unknown',
+      items,
+      total_value: Number(order.subtotal) || 0,
+      staff_name: order.created_by ? (profilesMap[order.created_by] || 'Unknown Staff') : 'Unknown',
+      staff_id: order.created_by || '',
+    };
+  });
+
+  const totalFOCValue = focDetails.reduce((sum, d) => sum + d.total_value, 0);
+
+  // Dancer summary
+  const dancerMap: Record<string, { count: number; value: number }> = {};
+  focDetails.forEach(d => {
+    if (!dancerMap[d.dancer_name]) dancerMap[d.dancer_name] = { count: 0, value: 0 };
+    dancerMap[d.dancer_name].count += 1;
+    dancerMap[d.dancer_name].value += d.total_value;
+  });
+  const dancerSummary = Object.entries(dancerMap)
+    .map(([dancer, stats]) => ({ dancer, ...stats }))
+    .sort((a, b) => b.value - a.value);
+
+  return { focDetails, totalFOCValue, focCount: focDetails.length, dancerSummary };
+}
+
 export async function getReportingSummary(params: DateRangeParams, branchId?: string) {
   const [
     dailySales, 
@@ -564,7 +644,8 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     orderTypeSales,
     itemSalesDetails,
     salesSummary,
-    discountReport
+    discountReport,
+    focReport
   ] = await Promise.all([
     getDailySales(params, branchId),
     getHourlySales(params, branchId),
@@ -576,6 +657,7 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     getItemSalesDetails(params, branchId),
     getSalesSummary(params, branchId),
     getDiscountReport(params, branchId),
+    getFOCReport(params, branchId),
   ]);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
@@ -596,6 +678,7 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     itemSalesDetails,
     salesSummary,
     discountReport,
+    focReport,
     totalRevenue,
     totalOrders,
     avgOrderValue,

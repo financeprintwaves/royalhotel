@@ -1,32 +1,114 @@
 
 
-## Plan: Fix Payment Failure with Discount + Add Discount Report Tab
+## Plan: FOC (Free of Cost) for Dancers
 
-### Problem 1: Payment Failure After Discount
+### Overview
 
-When paying for a new order (takeaway or dine-in "Pay Now"), the code tries to transition directly from `CREATED` to `BILL_REQUESTED`. The database function only allows:
+Add the ability to mark an entire order as FOC (Free of Cost) for dancers. When FOC is selected, the order total becomes zero, a dancer name is recorded, and it appears in a dedicated FOC tab in Reports.
 
-```
-CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED → PAID
-```
+### What Changes
 
-The current code (lines 487-494 in POS.tsx) does:
-```typescript
-await updateOrderStatus(orderId, 'BILL_REQUESTED'); // FAILS!
-```
-
-### Problem 2: No Discount Tracking in Reports
-
-The Reports page has tabs for Overview, Sales, Payments, Items, and Summary but no way to see discounts given by date, order, or staff member.
+| Area | Change |
+|------|--------|
+| Database | Add `is_foc` (boolean) and `foc_dancer_name` (text) columns to `orders` table |
+| POS Cart | Add a "FOC" toggle button + dancer name input in the order sidebar |
+| Payment Flow | When FOC is on, skip payment entirely -- just close the order at zero cost |
+| Reports | Add "FOC" tab showing date-wise and item-wise FOC data with dancer names |
+| Discount Report | FOC orders excluded from discount tab (they are separate) |
 
 ---
 
-### Solution
+### Database Migration
 
-| Issue | Fix |
-|-------|-----|
-| Payment failure | Transition through all required states: `CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED` |
-| Missing discount tab | Add new "Discounts" tab with daily totals, order details, and staff breakdown |
+```sql
+ALTER TABLE orders ADD COLUMN is_foc BOOLEAN DEFAULT false;
+ALTER TABLE orders ADD COLUMN foc_dancer_name TEXT;
+```
+
+No new RLS policies needed -- existing order policies cover these columns.
+
+---
+
+### POS Changes (src/pages/POS.tsx)
+
+**New state variables:**
+- `isFOC` (boolean) -- toggle for FOC mode
+- `focDancerName` (string) -- dancer name input
+
+**Cart sidebar addition** (below discount section):
+
+```
+┌──────────────────────────────────┐
+│ ☑ FOC (Free of Cost)            │
+│ Dancer Name: [_______________]  │
+└──────────────────────────────────┘
+```
+
+When FOC is toggled ON:
+- Discount input is hidden (not needed)
+- Grand total shows 0.000 OMR
+- "PAY NOW" button changes to "CONFIRM FOC"
+
+**FOC processing flow:**
+1. Create order with items (same as now)
+2. Set `is_foc = true`, `foc_dancer_name`, `total_amount = 0`, `discount_amount = subtotal`
+3. Transition through states: CREATED -> SENT_TO_KITCHEN -> SERVED -> BILL_REQUESTED
+4. Finalize payment at 0.000 OMR with method 'cash'
+5. Show receipt with "FOC - Dancer: [Name]"
+
+---
+
+### Reporting Changes
+
+**New service function** in `src/services/reportingService.ts`:
+
+```typescript
+export interface FOCDetail {
+  order_id: string;
+  order_number: string;
+  date: string;
+  dancer_name: string;
+  items: string[];        // item names from order_items
+  total_value: number;    // original value of items
+  staff_name: string;     // who created the FOC order
+}
+
+export async function getFOCReport(params, branchId?): Promise<{
+  focDetails: FOCDetail[];
+  totalFOCValue: number;
+  focCount: number;
+  dancerSummary: { dancer: string; count: number; value: number }[];
+}>
+```
+
+**New "FOC" tab in Reports.tsx:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ FOC Tab                                                     │
+├─────────────────────────────────────────────────────────────┤
+│ ┌───────────────┐  ┌───────────────┐  ┌──────────────────┐ │
+│ │ Total FOC     │  │ FOC Orders    │  │ Dancers          │ │
+│ │ Value         │  │ Count         │  │ Count            │ │
+│ │ 45.500 OMR    │  │ 23            │  │ 5                │ │
+│ └───────────────┘  └───────────────┘  └──────────────────┘ │
+│                                                             │
+│ By Dancer                                                   │
+│ ┌──────────┬────────┬──────────────────────────────────────┐│
+│ │ Dancer   │ Count  │ Total Value                         ││
+│ ├──────────┼────────┼──────────────────────────────────────┤│
+│ │ Maria    │ 8      │ 15.500 OMR                          ││
+│ │ Sofia    │ 5      │ 12.000 OMR                          ││
+│ └──────────┴────────┴──────────────────────────────────────┘│
+│                                                             │
+│ Order Details                                               │
+│ ┌────────┬────────┬──────────┬──────────┬─────────────────┐│
+│ │Order # │ Date   │ Dancer   │ Items    │ Value   │ Staff ││
+│ ├────────┼────────┼──────────┼──────────┼─────────────────┤│
+│ │INB001  │ Feb 9  │ Maria    │ Beer x2  │ 4.000   │ John  ││
+│ └────────┴────────┴──────────┴──────────┴─────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -34,150 +116,65 @@ The Reports page has tabs for Overview, Sales, Payments, Items, and Summary but 
 
 | File | Changes |
 |------|---------|
-| `src/pages/POS.tsx` | Fix payment flow to use sequential status transitions for new orders |
-| `src/services/reportingService.ts` | Add `getDiscountReport()` function to query orders with discounts |
-| `src/pages/Reports.tsx` | Add new "Discounts" tab with date-wise and order-wise discount data |
-| `src/components/ExportButtons.tsx` | Add discount data to CSV export |
+| **Database** | Add `is_foc` and `foc_dancer_name` columns to orders |
+| `src/pages/POS.tsx` | Add FOC toggle, dancer name input, FOC payment flow |
+| `src/services/reportingService.ts` | Add `getFOCReport()`, include in `getReportingSummary()` |
+| `src/pages/Reports.tsx` | Add "FOC" tab with dancer summary and order details |
 
 ---
 
 ### Technical Details
 
-#### 1. Fix Payment Flow in POS.tsx (lines 487-494)
+#### FOC Toggle in POS Cart Sidebar
+
+Added between the discount section and the total:
 
 ```typescript
-// Before (broken - invalid transition):
-if (isTakeaway) {
-  await updateOrderStatus(orderId, 'BILL_REQUESTED');
-} else {
-  await updateOrderStatus(orderId, 'BILL_REQUESTED');
-}
+// New state
+const [isFOC, setIsFOC] = useState(false);
+const [focDancerName, setFocDancerName] = useState('');
 
-// After (fixed - transition through all required states):
-// For new orders going directly to payment, we need to traverse 
-// the full state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED
-await sendToKitchen(orderId);     // CREATED → SENT_TO_KITCHEN
-await markAsServed(orderId);      // SENT_TO_KITCHEN → SERVED
-await requestBill(orderId);       // SERVED → BILL_REQUESTED
+// When FOC is on, override grandTotal to 0
+const grandTotal = isFOC ? 0 : (existingTotal + total);
 ```
 
-This follows the same pattern already used for non-kitchen items in `handleSendToKitchen`.
-
-#### 2. New Discount Report Interface (reportingService.ts)
+#### FOC Payment Handler
 
 ```typescript
-export interface DiscountDetail {
-  order_id: string;
-  order_number: string;
-  date: string;
-  discount_amount: number;
-  original_total: number;
-  final_total: number;
-  staff_name: string;
-  staff_id: string;
-}
-
-export interface DailyDiscount {
-  date: string;
-  total_discount: number;
-  order_count: number;
-}
-
-export async function getDiscountReport(
-  params: DateRangeParams, 
-  branchId?: string
-): Promise<{
-  dailyDiscounts: DailyDiscount[];
-  discountDetails: DiscountDetail[];
-  totalDiscount: number;
-  orderCount: number;
-}> {
-  // Query orders with discount_amount > 0
-  // Join with profiles to get staff name
-  // Aggregate by date for daily totals
+async function handleFOCConfirm() {
+  // Create order, add items
+  const newOrder = await createOrder(selectedTable?.id || null, customerName);
+  await addOrderItemsBatch(newOrder.id, batchItems);
+  
+  // Mark as FOC with full discount
+  await supabase.from('orders').update({
+    is_foc: true,
+    foc_dancer_name: focDancerName,
+    discount_amount: subtotal,
+    total_amount: 0,
+  }).eq('id', newOrder.id);
+  
+  // Transition states and finalize at 0
+  await sendToKitchen(newOrder.id);
+  await markAsServed(newOrder.id);
+  await requestBill(newOrder.id);
+  await finalizePayment(newOrder.id, 0, 'cash');
 }
 ```
 
-#### 3. Add Discounts Tab in Reports.tsx
+#### FOC Report Query
 
-Add new tab trigger:
 ```typescript
-<TabsTrigger value="discounts">Discounts</TabsTrigger>
+// Query orders where is_foc = true
+const { data } = await supabase
+  .from('orders')
+  .select('*, order_items(*, menu_item:menu_items(name, price))')
+  .eq('is_foc', true)
+  .gte('created_at', startDate)
+  .lte('created_at', endDate);
 ```
 
-Tab content will show:
-- Summary card with total discount amount and order count
-- Daily discount bar chart
-- Table with order details: order number, date, discount amount, staff member
+#### Export Support
 
-#### 4. Update Data Types and Fetching
-
-Update the data state and `getReportingSummary` to include discount data:
-```typescript
-// Add to data state
-discountReport: {
-  dailyDiscounts: DailyDiscount[];
-  discountDetails: DiscountDetail[];
-  totalDiscount: number;
-  orderCount: number;
-}
-```
-
----
-
-### Order Flow After Fix
-
-```
-New Order → Create → Add Items → Apply Discount → Pay Now:
-
-  [CREATED]
-      ↓ sendToKitchen() 
-  [SENT_TO_KITCHEN] (instant transition)
-      ↓ markAsServed()
-  [SERVED]
-      ↓ requestBill()
-  [BILL_REQUESTED]
-      ↓ finalizePayment()
-  [PAID] ✓
-```
-
-All transitions happen in sequence within the same function call, so the user experience is unchanged - they still click "Pay" once and it completes.
-
----
-
-### Discount Tab UI Preview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Discounts Tab                                               │
-├─────────────────────────────────────────────────────────────┤
-│ ┌───────────────┐  ┌───────────────┐                       │
-│ │ Total         │  │ Orders with   │                       │
-│ │ Discount      │  │ Discount      │                       │
-│ │ 45.500 OMR    │  │ 23            │                       │
-│ └───────────────┘  └───────────────┘                       │
-│                                                             │
-│ Daily Discount Chart                                        │
-│ ▐▌  ▐█▌  ▐▌  ▐█▌  ▐▌  ▐█▌  ▐▌                              │
-│ Mon  Tue Wed  Thu  Fri  Sat  Sun                           │
-│                                                             │
-│ Order Details                                               │
-│ ┌────────┬────────┬──────────┬───────────┬────────────────┐│
-│ │Order # │ Date   │ Discount │ Final Amt │ Staff          ││
-│ ├────────┼────────┼──────────┼───────────┼────────────────┤│
-│ │INB001  │ Feb 7  │ 0.500    │ 12.500    │ John Doe       ││
-│ │INB002  │ Feb 6  │ 1.000    │ 8.250     │ Jane Smith     ││
-│ └────────┴────────┴──────────┴───────────┴────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Summary
-
-| Before | After |
-|--------|-------|
-| Payment fails with "Invalid status transition from CREATED to BILL_REQUESTED" | Payment succeeds by transitioning through all required states |
-| No visibility into discounts given | New "Discounts" tab shows daily totals, order details, and staff breakdown |
-| Cannot track who gave discounts | Discount report includes staff name for accountability |
+FOC data will be included in CSV export with columns: Order #, Date, Dancer Name, Items, Value, Staff.
 

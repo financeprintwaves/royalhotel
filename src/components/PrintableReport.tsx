@@ -364,24 +364,24 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                 <p className="text-lg font-bold">{data.focReport.focCount}</p>
               </div>
               <div className="p-3 rounded" style={{ border: "1px solid #ddd" }}>
-                <p className="text-xs" style={{ color: "#666" }}>Unique Dancers</p>
-                <p className="text-lg font-bold">{data.focReport.dancerSummary.length}</p>
+              <p className="text-xs" style={{ color: "#666" }}>Unique Persons</p>
+                <p className="text-lg font-bold">{data.focReport.personSummary.length}</p>
               </div>
             </div>
 
-            <h3 className="font-bold mb-2" style={{ borderBottom: "1px solid #333" }}>FOC by Dancer</h3>
+            <h3 className="font-bold mb-2" style={{ borderBottom: "1px solid #333" }}>FOC by Person</h3>
             <table className="w-full text-xs mb-4" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ backgroundColor: "#f5f5f5" }}>
-                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Dancer</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Person</th>
                   <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Orders</th>
                   <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Value</th>
                 </tr>
               </thead>
               <tbody>
-                {data.focReport.dancerSummary.map((d) => (
-                  <tr key={d.dancer}>
-                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{d.dancer}</td>
+                {data.focReport.personSummary.map((d) => (
+                  <tr key={d.person}>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{d.person}</td>
                     <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{d.count}</td>
                     <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(d.value)}</td>
                   </tr>
@@ -396,7 +396,7 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                   <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>#</th>
                   <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Order #</th>
                   <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Date</th>
-                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Dancer</th>
+                  <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Person</th>
                   <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Items</th>
                   <th className="text-right p-1" style={{ border: "1px solid #ddd" }}>Value</th>
                   <th className="text-left p-1" style={{ border: "1px solid #ddd" }}>Staff</th>
@@ -408,7 +408,7 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                     <td className="p-1" style={{ border: "1px solid #ddd" }}>{idx + 1}</td>
                     <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.order_number}</td>
                     <td className="p-1" style={{ border: "1px solid #ddd" }}>{format(new Date(item.date), "MMM dd")}</td>
-                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.dancer_name}</td>
+                    <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.person_name}</td>
                     <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.items.join(', ')}</td>
                     <td className="text-right p-1" style={{ border: "1px solid #ddd" }}>{formatCurrency(item.total_value)}</td>
                     <td className="p-1" style={{ border: "1px solid #ddd" }}>{item.staff_name}</td>

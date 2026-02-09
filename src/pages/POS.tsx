@@ -241,7 +241,8 @@ export default function POS() {
     if (!item.is_available) return;
     
     // If item has portion options, show portion dialog
-    if (item.portion_options && item.portion_options.length > 0) {
+    const portions = Array.isArray(item.portion_options) ? item.portion_options : [];
+    if (portions.length > 0) {
       setSelectedServingItem(item);
       setShowServingDialog(true);
     }
@@ -430,7 +431,7 @@ export default function POS() {
       return;
     }
     if (!focDancerName.trim()) {
-      toast({ variant: 'destructive', title: 'Dancer name required', description: 'Enter the dancer name for FOC' });
+      toast({ variant: 'destructive', title: 'Person name required', description: 'Enter the person name for FOC' });
       return;
     }
 
@@ -464,7 +465,7 @@ export default function POS() {
       // Finalize at 0
       await finalizePayment(orderId, 0, 'cash');
 
-      toast({ title: '🎁 FOC Confirmed!', description: `FOC for dancer: ${focDancerName}` });
+      toast({ title: '🎁 FOC Confirmed!', description: `FOC for: ${focDancerName}` });
 
       setCart([]);
       setExistingOrder(null);
@@ -1262,7 +1263,7 @@ export default function POS() {
               </div>
               {isFOC && (
                 <Input
-                  placeholder="Dancer Name (required)"
+                  placeholder="Person Name (required)"
                   value={focDancerName}
                   onChange={(e) => setFocDancerName(e.target.value)}
                   className="h-7 text-sm"

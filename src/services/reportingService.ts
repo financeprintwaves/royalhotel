@@ -559,7 +559,7 @@ export interface FOCDetail {
   order_id: string;
   order_number: string;
   date: string;
-  dancer_name: string;
+  person_name: string;
   items: string[];
   total_value: number;
   staff_name: string;
@@ -570,7 +570,7 @@ export interface FOCReport {
   focDetails: FOCDetail[];
   totalFOCValue: number;
   focCount: number;
-  dancerSummary: { dancer: string; count: number; value: number }[];
+  personSummary: { person: string; count: number; value: number }[];
 }
 
 export async function getFOCReport(params: DateRangeParams, branchId?: string): Promise<FOCReport> {
@@ -609,7 +609,7 @@ export async function getFOCReport(params: DateRangeParams, branchId?: string): 
       order_id: order.id,
       order_number: order.order_number || order.id.slice(0, 8),
       date: order.created_at?.split('T')[0] || '',
-      dancer_name: order.foc_dancer_name || 'Unknown',
+      person_name: order.foc_dancer_name || 'Unknown',
       items,
       total_value: Number(order.subtotal) || 0,
       staff_name: order.created_by ? (profilesMap[order.created_by] || 'Unknown Staff') : 'Unknown',
@@ -619,18 +619,18 @@ export async function getFOCReport(params: DateRangeParams, branchId?: string): 
 
   const totalFOCValue = focDetails.reduce((sum, d) => sum + d.total_value, 0);
 
-  // Dancer summary
-  const dancerMap: Record<string, { count: number; value: number }> = {};
+  // Person summary
+  const personMap: Record<string, { count: number; value: number }> = {};
   focDetails.forEach(d => {
-    if (!dancerMap[d.dancer_name]) dancerMap[d.dancer_name] = { count: 0, value: 0 };
-    dancerMap[d.dancer_name].count += 1;
-    dancerMap[d.dancer_name].value += d.total_value;
+    if (!personMap[d.person_name]) personMap[d.person_name] = { count: 0, value: 0 };
+    personMap[d.person_name].count += 1;
+    personMap[d.person_name].value += d.total_value;
   });
-  const dancerSummary = Object.entries(dancerMap)
-    .map(([dancer, stats]) => ({ dancer, ...stats }))
+  const personSummary = Object.entries(personMap)
+    .map(([person, stats]) => ({ person, ...stats }))
     .sort((a, b) => b.value - a.value);
 
-  return { focDetails, totalFOCValue, focCount: focDetails.length, dancerSummary };
+  return { focDetails, totalFOCValue, focCount: focDetails.length, personSummary };
 }
 
 export async function getReportingSummary(params: DateRangeParams, branchId?: string) {

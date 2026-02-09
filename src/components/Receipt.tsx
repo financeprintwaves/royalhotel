@@ -210,6 +210,25 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           </div>
         )}
 
+        {/* FOC Label */}
+        {(order as any).is_foc && (
+          <div style={{
+            textAlign: 'center',
+            margin: '12px 0',
+            padding: '8px',
+            border: '2px solid #000',
+          }}>
+            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 4px 0' }}>
+              ===== FOC =====
+            </p>
+            {(order as any).foc_dancer_name && (
+              <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>
+                Person: {(order as any).foc_dancer_name}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Footer */}
         <div style={styles.footer}>
           {customerName && <p style={{ fontWeight: 500, marginBottom: '8px' }}>Thank you, {customerName}!</p>}

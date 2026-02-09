@@ -104,18 +104,18 @@ export function generateCSV(data: PrintableReportData, activeTab: string): strin
     csvContent += "Summary\n";
     csvContent += `Total FOC Value,${formatCurrency(focReport.totalFOCValue)} OMR\n`;
     csvContent += `FOC Orders,${focReport.focCount}\n`;
-    csvContent += `Unique Dancers,${focReport.dancerSummary.length}\n\n`;
+    csvContent += `Unique Persons,${focReport.personSummary.length}\n\n`;
     
-    csvContent += "By Dancer\n";
-    csvContent += "Dancer,Orders,Total Value (OMR)\n";
-    focReport.dancerSummary.forEach((d: any) => {
-      csvContent += `"${d.dancer}",${d.count},${formatCurrency(d.value)}\n`;
+    csvContent += "By Person\n";
+    csvContent += "Person,Orders,Total Value (OMR)\n";
+    focReport.personSummary.forEach((d: any) => {
+      csvContent += `"${d.person}",${d.count},${formatCurrency(d.value)}\n`;
     });
     
     csvContent += "\nOrder Details\n";
-    csvContent += "Order #,Date,Dancer,Items,Value (OMR),Staff\n";
+    csvContent += "Order #,Date,Person,Items,Value (OMR),Staff\n";
     focReport.focDetails.forEach((item: any) => {
-      csvContent += `"${item.order_number}",${item.date},"${item.dancer_name}","${item.items.join('; ')}",${formatCurrency(item.total_value)},"${item.staff_name}"\n`;
+      csvContent += `"${item.order_number}",${item.date},"${item.person_name}","${item.items.join('; ')}",${formatCurrency(item.total_value)},"${item.staff_name}"\n`;
     });
   }
 

@@ -791,23 +791,23 @@ export default function Reports() {
                   </Card>
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <CardTitle className="text-sm font-medium">Dancers</CardTitle>
+                      <CardTitle className="text-sm font-medium">Persons</CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{data.focReport.dancerSummary.length}</div>
-                      <p className="text-xs text-muted-foreground">Unique dancers</p>
+                      <div className="text-2xl font-bold">{data.focReport.personSummary.length}</div>
+                      <p className="text-xs text-muted-foreground">Unique persons</p>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* By Dancer Table */}
-                {data.focReport.dancerSummary.length > 0 && (
+                {data.focReport.personSummary.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
-                        FOC by Dancer
+                        FOC by Person
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -815,15 +815,15 @@ export default function Reports() {
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b">
-                              <th className="text-left py-3 px-2 font-medium">Dancer</th>
+                              <th className="text-left py-3 px-2 font-medium">Person</th>
                               <th className="text-right py-3 px-2 font-medium">Orders</th>
                               <th className="text-right py-3 px-2 font-medium">Total Value</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {data.focReport.dancerSummary.map((d) => (
-                              <tr key={d.dancer} className="border-b hover:bg-muted/50">
-                                <td className="py-3 px-2 font-medium">{d.dancer}</td>
+                            {data.focReport.personSummary.map((d) => (
+                              <tr key={d.person} className="border-b hover:bg-muted/50">
+                                <td className="py-3 px-2 font-medium">{d.person}</td>
                                 <td className="py-3 px-2 text-right">{d.count}</td>
                                 <td className="py-3 px-2 text-right font-bold">{d.value.toFixed(3)} OMR</td>
                               </tr>
@@ -858,7 +858,7 @@ export default function Reports() {
                             <th className="text-left py-3 px-2 font-medium">#</th>
                             <th className="text-left py-3 px-2 font-medium">Order #</th>
                             <th className="text-left py-3 px-2 font-medium">Date</th>
-                            <th className="text-left py-3 px-2 font-medium">Dancer</th>
+                            <th className="text-left py-3 px-2 font-medium">Person</th>
                             <th className="text-left py-3 px-2 font-medium">Items</th>
                             <th className="text-right py-3 px-2 font-medium">Value</th>
                             <th className="text-left py-3 px-2 font-medium">Staff</th>
@@ -874,7 +874,7 @@ export default function Reports() {
                                   month: 'short', day: 'numeric', year: 'numeric'
                                 })}
                               </td>
-                              <td className="py-3 px-2 font-medium">{item.dancer_name}</td>
+                              <td className="py-3 px-2 font-medium">{item.person_name}</td>
                               <td className="py-3 px-2 text-xs">{item.items.join(', ')}</td>
                               <td className="py-3 px-2 text-right font-bold">{item.total_value.toFixed(3)} OMR</td>
                               <td className="py-3 px-2">

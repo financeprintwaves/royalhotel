@@ -1,61 +1,59 @@
 
 
-## Plan: Rename "Dancer" to "Person Name" + Bold FOC on Invoice + Fix Portion Selection Bug
+## Fix: Portion Selection Dialog Not Showing for RHBR Items
 
-### Issue 1: Rename "Dancer Name" to "Person Name"
+### Root Cause
 
-All references to "Dancer" in the UI will be changed to "Person" across these files:
+The `portion_options` column in the database stores values as **double-encoded JSON strings** rather than proper JSON arrays. When Supabase returns the data:
 
-| File | Change |
-|------|--------|
-| `src/pages/POS.tsx` | Placeholder "Dancer Name (required)" -> "Person Name (required)", toast messages |
-| `src/pages/Reports.tsx` | FOC tab: "Dancers" card -> "Persons", "FOC by Dancer" -> "FOC by Person", table headers |
-| `src/services/reportingService.ts` | Interface field names `dancer_name` -> `person_name`, `dancerSummary` -> `personSummary` |
-| `src/components/ExportButtons.tsx` | CSV headers "Dancer" -> "Person" |
-| `src/components/PrintableReport.tsx` | Print headers "Dancer" -> "Person" |
+- Expected: `[{name: "Single", price: 0.99}, ...]` (a JavaScript array)
+- Actual: `"[{\"name\":\"Single\",\"price\":0.99}, ...]"` (a string containing JSON)
 
-Note: The database column `foc_dancer_name` stays unchanged to avoid a migration -- only UI labels change.
+So `Array.isArray(item.portion_options)` returns `false`, and the portion dialog never opens. The item gets added directly to cart instead.
 
-### Issue 2: Bold "FOC" on Invoice/Receipt
+This affects ALL items with portions (Chicken Biryani Regular, Mutton Biryani, Fruit Salad, etc.) across all branches.
 
-In `src/components/Receipt.tsx`, add a bold **FOC** label when the order is marked as FOC. After the order info section, add:
+### Fix
 
-```
-===== FOC =====
-Person: [Name]
-```
+Update the portion parsing logic in two files to handle both formats (string and array):
 
-Styled with large, bold text so it stands out on the thermal receipt.
+**File: `src/pages/POS.tsx`** (line ~244)
 
-### Issue 3: Menu Item Portions Not Showing
-
-The bug is in `src/pages/POS.tsx` line 244:
-
-```typescript
-if (item.portion_options && item.portion_options.length > 0) {
-```
-
-When `portion_options` comes from the database as a JSONB value, it could be an object (not an array), so `.length` is undefined and the condition fails. The `PortionSelectionDialog` already handles this with `Array.isArray()`, but the POS click handler does not.
-
-**Fix**: Use `Array.isArray()` check:
-
+Change:
 ```typescript
 const portions = Array.isArray(item.portion_options) ? item.portion_options : [];
-if (portions.length > 0) {
 ```
 
-This ensures items with portion options (like the "rhbr" menu item) correctly show the portion selection dialog.
+To:
+```typescript
+let portions: PortionOption[] = [];
+if (Array.isArray(item.portion_options)) {
+  portions = item.portion_options;
+} else if (typeof item.portion_options === 'string') {
+  try { portions = JSON.parse(item.portion_options); } catch {}
+}
+```
 
----
+**File: `src/components/PortionSelectionDialog.tsx`** (line ~24)
+
+Same fix for the `portionOptions` variable:
+```typescript
+let portionOptions: PortionOption[] = [];
+if (Array.isArray(item.portion_options)) {
+  portionOptions = item.portion_options;
+} else if (typeof item.portion_options === 'string') {
+  try { portionOptions = JSON.parse(item.portion_options); } catch {}
+}
+```
 
 ### Files Changed
 
-| File | Changes |
-|------|---------|
-| `src/pages/POS.tsx` | Rename "Dancer" -> "Person" in UI text; fix `Array.isArray` check for portion_options |
-| `src/components/Receipt.tsx` | Add bold FOC label with person name; accept `is_foc` and `foc_dancer_name` from order |
-| `src/pages/Reports.tsx` | Rename all "Dancer" labels to "Person" |
-| `src/services/reportingService.ts` | Rename interface fields and variables from dancer to person |
-| `src/components/ExportButtons.tsx` | Rename CSV headers from Dancer to Person |
-| `src/components/PrintableReport.tsx` | Rename print headers from Dancer to Person |
+| File | Change |
+|------|--------|
+| `src/pages/POS.tsx` | Parse string-encoded portion_options in `handleMenuItemClick` |
+| `src/components/PortionSelectionDialog.tsx` | Parse string-encoded portion_options in dialog component |
+
+### Why This Happens
+
+When portion options were saved via the Menu Management UI, they were likely stored using `JSON.stringify()` into a JSONB column, which double-encodes the value as a string instead of a native JSON array.
 

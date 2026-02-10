@@ -241,7 +241,12 @@ export default function POS() {
     if (!item.is_available) return;
     
     // If item has portion options, show portion dialog
-    const portions = Array.isArray(item.portion_options) ? item.portion_options : [];
+    let portions: PortionOption[] = [];
+    if (Array.isArray(item.portion_options)) {
+      portions = item.portion_options;
+    } else if (typeof item.portion_options === 'string') {
+      try { portions = JSON.parse(item.portion_options); } catch {}
+    }
     if (portions.length > 0) {
       setSelectedServingItem(item);
       setShowServingDialog(true);

@@ -1,59 +1,42 @@
 
 
-## Fix: Portion Selection Dialog Not Showing for RHBR Items
+## Fix: Stop Double-Encoding portion_options at the Source
 
-### Root Cause
+### Problem
 
-The `portion_options` column in the database stores values as **double-encoded JSON strings** rather than proper JSON arrays. When Supabase returns the data:
+In `src/services/menuService.ts`, portion options are manually stringified with `JSON.stringify()` before being sent to the database. Since the `portion_options` column is JSONB, Supabase automatically serializes JSON -- so the manual stringify causes double-encoding (a string containing JSON, instead of a native JSON array).
 
-- Expected: `[{name: "Single", price: 0.99}, ...]` (a JavaScript array)
-- Actual: `"[{\"name\":\"Single\",\"price\":0.99}, ...]"` (a string containing JSON)
+### Changes
 
-So `Array.isArray(item.portion_options)` returns `false`, and the portion dialog never opens. The item gets added directly to cart instead.
+**File: `src/services/menuService.ts`**
 
-This affects ALL items with portions (Chicken Biryani Regular, Mutton Biryani, Fruit Salad, etc.) across all branches.
+1. **Line 222** (in `createMenuItemForBranch`): Change:
+   ```
+   portion_options: options.portionOptions ? JSON.stringify(options.portionOptions) : null,
+   ```
+   To:
+   ```
+   portion_options: options.portionOptions || null,
+   ```
 
-### Fix
+2. **Lines 241-244** (in `updateMenuItemWithPortions`): Remove the JSON.stringify serialization block. Change:
+   ```
+   if (updates.portion_options !== undefined) {
+     updateData.portion_options = updates.portion_options ? JSON.stringify(updates.portion_options) : null;
+   }
+   ```
+   To:
+   ```
+   // No special handling needed -- JSONB column handles serialization automatically
+   ```
 
-Update the portion parsing logic in two files to handle both formats (string and array):
+### Verification
 
-**File: `src/pages/POS.tsx`** (line ~244)
-
-Change:
-```typescript
-const portions = Array.isArray(item.portion_options) ? item.portion_options : [];
-```
-
-To:
-```typescript
-let portions: PortionOption[] = [];
-if (Array.isArray(item.portion_options)) {
-  portions = item.portion_options;
-} else if (typeof item.portion_options === 'string') {
-  try { portions = JSON.parse(item.portion_options); } catch {}
-}
-```
-
-**File: `src/components/PortionSelectionDialog.tsx`** (line ~24)
-
-Same fix for the `portionOptions` variable:
-```typescript
-let portionOptions: PortionOption[] = [];
-if (Array.isArray(item.portion_options)) {
-  portionOptions = item.portion_options;
-} else if (typeof item.portion_options === 'string') {
-  try { portionOptions = JSON.parse(item.portion_options); } catch {}
-}
-```
+After the fix, go to POS in the RHBR branch and click "Chicken Biryani Regular" to confirm the portion selection dialog appears. Existing double-encoded data will still work thanks to the string-parsing fallback already in POS.tsx and PortionSelectionDialog.tsx. Any newly saved items will store portion_options as native JSON arrays.
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `src/pages/POS.tsx` | Parse string-encoded portion_options in `handleMenuItemClick` |
-| `src/components/PortionSelectionDialog.tsx` | Parse string-encoded portion_options in dialog component |
-
-### Why This Happens
-
-When portion options were saved via the Menu Management UI, they were likely stored using `JSON.stringify()` into a JSONB column, which double-encodes the value as a string instead of a native JSON array.
+| `src/services/menuService.ts` | Remove `JSON.stringify()` from lines 222 and 241-244 |
 

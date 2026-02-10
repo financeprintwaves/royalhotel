@@ -205,22 +205,24 @@ export async function createMenuItemForBranch(
     portionOptions?: PortionOption[];
   }
 ): Promise<MenuItem> {
+  const insertData = {
+    branch_id: branchId,
+    category_id: options.categoryId,
+    name: options.name,
+    price: options.price,
+    description: options.description,
+    image_url: options.imageUrl,
+    bottle_size_ml: options.bottleSizeMl,
+    cost_price: options.costPrice,
+    serving_size_ml: options.servingSizeMl,
+    serving_price: options.servingPrice,
+    billing_type: options.billingType || 'bottle_only',
+    portion_options: options.portionOptions || null,
+  } as any;
+
   const { data, error } = await supabase
     .from('menu_items')
-    .insert({
-      branch_id: branchId,
-      category_id: options.categoryId,
-      name: options.name,
-      price: options.price,
-      description: options.description,
-      image_url: options.imageUrl,
-      bottle_size_ml: options.bottleSizeMl,
-      cost_price: options.costPrice,
-      serving_size_ml: options.servingSizeMl,
-      serving_price: options.servingPrice,
-      billing_type: options.billingType || 'bottle_only',
-      portion_options: options.portionOptions ? JSON.stringify(options.portionOptions) : null,
-    })
+    .insert(insertData)
     .select(`
       *,
       category:categories(id, name)
@@ -238,10 +240,7 @@ export async function updateMenuItemWithPortions(
 ): Promise<MenuItem> {
   const updateData: Record<string, unknown> = { ...updates };
   
-  // Handle portion_options serialization
-  if (updates.portion_options !== undefined) {
-    updateData.portion_options = updates.portion_options ? JSON.stringify(updates.portion_options) : null;
-  }
+  // No special handling needed -- JSONB column handles serialization automatically
   
   const { data, error } = await supabase
     .from('menu_items')

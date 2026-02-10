@@ -20,7 +20,12 @@ export default function PortionSelectionDialog({
   if (!item) return null;
 
   // Ensure portion_options is always an array (could be object/null from DB)
-  const portionOptions = Array.isArray(item.portion_options) ? item.portion_options : [];
+  let portionOptions: PortionOption[] = [];
+  if (Array.isArray(item.portion_options)) {
+    portionOptions = item.portion_options;
+  } else if (typeof item.portion_options === 'string') {
+    try { portionOptions = JSON.parse(item.portion_options); } catch {}
+  }
   
   // Check if item has custom portion options
   const hasPortionOptions = portionOptions.length > 0;

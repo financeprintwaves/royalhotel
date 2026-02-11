@@ -296,7 +296,7 @@ async function recalculateOrderTotals(orderId: string): Promise<void> {
 // BATCH: Add multiple items to order in a single operation (MAJOR PERFORMANCE BOOST)
 export async function addOrderItemsBatch(
   orderId: string,
-  items: { menuItem: MenuItem; quantity: number; notes?: string; isServing?: boolean }[]
+  items: { menuItem: MenuItem; quantity: number; notes?: string; isServing?: boolean; portionName?: string }[]
 ): Promise<void> {
   if (items.length === 0) return;
 
@@ -324,6 +324,7 @@ export async function addOrderItemsBatch(
     total_price: item.menuItem.price * item.quantity,
     notes: item.notes || null,
     is_serving: item.isServing || false,
+    portion_name: item.portionName || null,
   }));
 
   // Single bulk insert

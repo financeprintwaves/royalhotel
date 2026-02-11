@@ -15,6 +15,7 @@ import { finalizePayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
+import { playOrderNotification } from '@/lib/notificationSound';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -65,6 +66,7 @@ export default function Orders() {
   useOrdersRealtime(
     useCallback(() => {
       console.log('New order received');
+      playOrderNotification();
       loadOrders();
     }, [loadOrders]),
     useCallback(() => {

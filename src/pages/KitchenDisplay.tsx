@@ -8,6 +8,7 @@ import { getKitchenOrders, markAsServed } from '@/services/orderService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useToast } from '@/hooks/use-toast';
 import type { Order } from '@/types/pos';
+import { playOrderNotification } from '@/lib/notificationSound';
 
 export default function KitchenDisplay() {
   const { toast } = useToast();
@@ -35,6 +36,7 @@ export default function KitchenDisplay() {
     // On insert - reload to get full order with items
     useCallback(() => {
       console.log('New order received, reloading...');
+      playOrderNotification();
       loadOrders();
       toast({ title: 'New Order!', description: 'A new order has arrived' });
     }, [loadOrders, toast]),

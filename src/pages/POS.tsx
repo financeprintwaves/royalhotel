@@ -358,6 +358,7 @@ export default function POS() {
         quantity: item.quantity,
         notes: item.notes,
         isServing: item.isServing,
+        portionName: item.selectedPortion?.name,
       }));
       
       // Check if any items require kitchen
@@ -447,6 +448,7 @@ export default function POS() {
         quantity: item.quantity,
         notes: item.notes,
         isServing: item.isServing,
+        portionName: item.selectedPortion?.name,
       }));
 
       const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);

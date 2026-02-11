@@ -163,7 +163,7 @@ export async function createBranch(
 // Update branch (admin only)
 export async function updateBranch(
   branchId: string,
-  updates: Partial<Pick<Branch, 'name' | 'address' | 'phone' | 'is_active'>>
+  updates: Partial<Pick<Branch, 'name' | 'address' | 'phone' | 'is_active'>> & { logo_url?: string }
 ): Promise<Branch> {
   const { data, error } = await supabase
     .from('branches')

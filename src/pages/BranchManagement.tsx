@@ -31,9 +31,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Building2, Plus, Pencil, Trash2, Phone, MapPin, Hash } from 'lucide-react';
+import { ArrowLeft, Building2, Plus, Pencil, Trash2, Phone, MapPin, Hash, Upload, Image } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAllBranches, createBranch, updateBranch, deactivateBranch } from '@/services/staffService';
+import { supabase } from '@/integrations/supabase/client';
 import type { Branch } from '@/types/pos';
 
 export default function BranchManagement() {
@@ -49,6 +50,9 @@ export default function BranchManagement() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [orderPrefix, setOrderPrefix] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string>('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -80,13 +84,16 @@ export default function BranchManagement() {
       setAddress(branch.address || '');
       setPhone(branch.phone || '');
       setOrderPrefix(branch.order_prefix || 'INB');
+      setLogoPreview((branch as any).logo_url || '');
     } else {
       setEditingBranch(null);
       setName('');
       setAddress('');
       setPhone('');
       setOrderPrefix('');
+      setLogoPreview('');
     }
+    setLogoFile(null);
     setDialogOpen(true);
   }
 
@@ -104,20 +111,52 @@ export default function BranchManagement() {
     }
 
     try {
+      let logoUrl: string | undefined;
+      
+      // Upload logo if selected
+      if (logoFile) {
+        setUploadingLogo(true);
+        const fileExt = logoFile.name.split('.').pop();
+        const filePath = `${editingBranch?.id || crypto.randomUUID()}/logo.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('branch-logos')
+          .upload(filePath, logoFile, { upsert: true });
+        
+        if (uploadError) throw uploadError;
+        
+        const { data: urlData } = supabase.storage
+          .from('branch-logos')
+          .getPublicUrl(filePath);
+        
+        logoUrl = urlData.publicUrl;
+        setUploadingLogo(false);
+      }
+
       if (editingBranch) {
-        await updateBranch(editingBranch.id, {
+        const updateData: any = {
           name: name.trim(),
           address: address.trim() || undefined,
           phone: phone.trim() || undefined,
-        });
+        };
+        if (logoUrl) updateData.logo_url = logoUrl;
+        
+        await updateBranch(editingBranch.id, updateData);
         toast({ title: 'Success', description: 'Branch updated' });
       } else {
-        await createBranch(name.trim(), address.trim() || undefined, phone.trim() || undefined, prefix || 'INB');
+        const newBranch = await createBranch(name.trim(), address.trim() || undefined, phone.trim() || undefined, prefix || 'INB');
+        
+        // If logo was uploaded, update the new branch with logo_url
+        if (logoUrl) {
+          await supabase.from('branches').update({ logo_url: logoUrl }).eq('id', newBranch.id);
+        }
+        
         toast({ title: 'Success', description: 'Branch created' });
       }
       setDialogOpen(false);
       loadBranches();
     } catch (error: any) {
+      setUploadingLogo(false);
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     }
   }
@@ -236,7 +275,27 @@ export default function BranchManagement() {
                         Used in order numbers (e.g., ARB2501001)
                       </p>
                     </div>
-                  )}
+                   )}
+                  <div className="space-y-2">
+                    <Label>Branch Logo</Label>
+                    {logoPreview && (
+                      <img src={logoPreview} alt="Logo preview" className="h-16 object-contain rounded border p-1" />
+                    )}
+                    <Input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setLogoFile(file);
+                          setLogoPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Upload a logo for receipts (recommended: PNG, max 200KB)
+                    </p>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>

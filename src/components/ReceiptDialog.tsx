@@ -20,6 +20,7 @@ interface BranchInfo {
   name: string;
   address?: string;
   phone?: string;
+  logo_url?: string;
 }
 
 export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = false }: ReceiptDialogProps) {
@@ -78,7 +79,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
       
       const { data } = await supabase
         .from('branches')
-        .select('name, address, phone')
+        .select('name, address, phone, logo_url')
         .eq('id', profile.branch_id)
         .maybeSingle();
       
@@ -124,6 +125,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
             branchName={branchInfo?.name || 'Restaurant POS'}
             branchAddress={branchInfo?.address}
             branchPhone={branchInfo?.phone}
+            branchLogo={branchInfo?.logo_url || undefined}
             waiterName={waiterName}
           />
         </div>

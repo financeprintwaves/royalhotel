@@ -7,11 +7,12 @@ interface ReceiptProps {
   branchName?: string;
   branchAddress?: string;
   branchPhone?: string;
+  branchLogo?: string;
   waiterName?: string;
 }
 
 const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
-  ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone, waiterName }, ref) => {
+  ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone, branchLogo, waiterName }, ref) => {
     // Ensure orderItems is always an array (could be null, undefined, or object from DB)
     const rawOrderItems = (order as any).order_items;
     const orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
@@ -125,6 +126,13 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
       <div ref={ref} style={styles.container}>
         {/* Header */}
         <div style={styles.header}>
+          {branchLogo && (
+            <img 
+              src={branchLogo} 
+              alt={branchName} 
+              style={{ width: '40mm', maxHeight: '20mm', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }} 
+            />
+          )}
           <h1 style={styles.title}>{branchName}</h1>
           {branchAddress && <p style={styles.subtitle}>{branchAddress}</p>}
           {branchPhone && <p style={styles.subtitle}>Tel: {branchPhone}</p>}
@@ -170,7 +178,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           {orderItems.map((item: any) => (
             <div key={item.id} style={styles.itemRow}>
               <span style={styles.itemName}>
-                {item.quantity}x {item.menu_item?.name || 'Item'}
+                {item.quantity}x {item.menu_item?.name || 'Item'}{item.portion_name ? ` (${item.portion_name})` : ''}
               </span>
               <span>{Number(item.total_price).toFixed(3)} OMR</span>
             </div>

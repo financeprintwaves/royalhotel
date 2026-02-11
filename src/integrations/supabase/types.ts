@@ -20,6 +20,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_active: boolean | null
+          logo_url: string | null
           name: string
           order_prefix: string
           phone: string | null
@@ -30,6 +31,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          logo_url?: string | null
           name: string
           order_prefix?: string
           phone?: string | null
@@ -40,6 +42,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          logo_url?: string | null
           name?: string
           order_prefix?: string
           phone?: string | null
@@ -330,6 +333,7 @@ export type Database = {
           menu_item_id: string | null
           notes: string | null
           order_id: string
+          portion_name: string | null
           quantity: number
           total_price: number
           unit_price: number
@@ -341,6 +345,7 @@ export type Database = {
           menu_item_id?: string | null
           notes?: string | null
           order_id: string
+          portion_name?: string | null
           quantity: number
           total_price: number
           unit_price: number
@@ -352,6 +357,7 @@ export type Database = {
           menu_item_id?: string | null
           notes?: string | null
           order_id?: string
+          portion_name?: string | null
           quantity?: number
           total_price?: number
           unit_price?: number

@@ -226,6 +226,7 @@ export interface CartItem {
   notes?: string;
   isServing?: boolean; // true if ordering by shot/glass for by_serving items
   selectedPortion?: PortionOption; // Selected portion for items with portion_options
+  portionName?: string; // Explicit portion name for reliable saving
 }
 
 // Order workflow helpers

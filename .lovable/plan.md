@@ -1,103 +1,62 @@
 
 
-## Three Features: Portions on Receipt, Order Ringtone, Logo on Print
+## Fix: Branch Edit Dialog for Managers + Confirm All 3 Features Work
 
----
+### Problem Found
 
-### 1. Show Portion Names on Receipt/Invoice
+The edit/logo-upload dialog in Branch Management is wrapped inside `{isAdmin && (...)}` (line 229). This means:
+- Only admins can see the dialog
+- When a manager clicks the edit pencil button, nothing happens because the Dialog component isn't rendered for them
+- Managers cannot upload logos for their branch
 
-**Problem**: When a portion (e.g., "Regular", "Large") is selected in POS, the portion name is never saved to the database. The `order_items` table has no column for it. So the receipt only shows "1x Chicken Biryani" instead of "1x Chicken Biryani (Regular)".
+### Fix (Single File Change)
 
-**Fix**:
+**File: `src/pages/BranchManagement.tsx`**
 
-- **Add `portion_name` column** to `order_items` table via migration:
-  ```sql
-  ALTER TABLE order_items ADD COLUMN portion_name TEXT DEFAULT NULL;
-  ```
+Move the Dialog component outside the `{isAdmin && (...)}` block so it renders for both admins and managers:
 
-- **Save portion name when creating order items** in `src/services/orderService.ts` (`addOrderItemsBatch`):
-  - Accept `portionName` in the batch item data
-  - Include `portion_name` in the insert
+1. Keep the "Add Branch" button inside `{isAdmin && (...)}` (only admins can create branches)
+2. Move the `<Dialog open={dialogOpen} ...>` with its `<DialogContent>` outside and after the header, so it renders for any user with `canManage` permission
+3. The "Add Branch" button simply calls `openDialog()` and sets `dialogOpen = true`
 
-- **Pass portion name from POS cart** in `src/pages/POS.tsx`:
-  - In `handleSendToKitchen` and `handleFOCConfirm`, map `selectedPortion?.name` into the batch items
+This is a structural move -- no new logic needed. The `canEditBranch()` function already correctly allows managers to edit their own branch.
 
-- **Display portion name on Receipt** in `src/components/Receipt.tsx`:
-  - Change item display from `{item.menu_item?.name}` to `{item.menu_item?.name}{item.portion_name ? ` (${item.portion_name})` : ''}`
+### Already Implemented (No Changes Needed)
 
-| File | Change |
-|------|--------|
-| Migration SQL | Add `portion_name` column to `order_items` |
-| `src/services/orderService.ts` | Accept and save `portion_name` in `addOrderItemsBatch` |
-| `src/pages/POS.tsx` | Pass `selectedPortion?.name` as `portionName` in batch items |
-| `src/components/Receipt.tsx` | Display portion name next to item name |
+These features are already working in the codebase from the previous implementation:
 
----
+| Feature | Status | How It Works |
+|---------|--------|--------------|
+| Portion name on receipt | Done | `portion_name` column exists in `order_items`, saved via `addOrderItemsBatch`, displayed in `Receipt.tsx` line 181 |
+| Order ringtone | Done | `notificationSound.ts` plays Web Audio chime, triggered in `Orders.tsx` and `KitchenDisplay.tsx` on new order insert |
+| Logo on receipt | Done | `logo_url` column exists in `branches`, `ReceiptDialog.tsx` fetches it, `Receipt.tsx` renders it in header |
+| Logo upload UI | Partially done | The upload form exists but is only visible to admins due to the dialog bug above |
 
-### 2. Ringtone When New Order Arrives (Orders Page)
+### Technical Detail
 
-**Problem**: When a new order is received on the Orders page, there's no audible notification.
+The fix restructures lines 229-306 of `BranchManagement.tsx`:
 
-**Fix**:
+**Before:**
+```
+{isAdmin && (
+  <Dialog open={dialogOpen} ...>
+    <DialogTrigger><Button>Add Branch</Button></DialogTrigger>
+    <DialogContent>...form with logo upload...</DialogContent>
+  </Dialog>
+)}
+```
 
-- **Create a notification sound utility** `src/lib/notificationSound.ts` using the Web Audio API to generate a pleasant ringtone (no external audio file needed).
+**After:**
+```
+{isAdmin && (
+  <Button onClick={() => openDialog()}>Add Branch</Button>
+)}
 
-- **Play sound on new order** in `src/pages/Orders.tsx`:
-  - In the `useOrdersRealtime` `onInsert` callback, play the notification sound
-  - Also show a toast (already exists)
+{/* Dialog rendered for all managers/admins */}
+<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+  <DialogContent>...form with logo upload...</DialogContent>
+</Dialog>
+```
 
-- **Same for Kitchen Display** in `src/pages/KitchenDisplay.tsx`:
-  - Play sound when new kitchen order arrives
-
-| File | Change |
-|------|--------|
-| `src/lib/notificationSound.ts` | New file: Web Audio API ringtone generator |
-| `src/pages/Orders.tsx` | Play ringtone on new order insert |
-| `src/pages/KitchenDisplay.tsx` | Play ringtone on new order insert |
-
----
-
-### 3. Logo on Printed Receipt
-
-**Problem**: No logo appears on receipts/printouts.
-
-**Fix**:
-
-- **Add `logo_url` column** to `branches` table via migration:
-  ```sql
-  ALTER TABLE branches ADD COLUMN logo_url TEXT DEFAULT NULL;
-  ```
-
-- **Create a storage bucket** for branch logos:
-  ```sql
-  INSERT INTO storage.buckets (id, name, public) VALUES ('branch-logos', 'branch-logos', true);
-  ```
-
-- **Fetch and pass logo URL** in `src/components/ReceiptDialog.tsx`:
-  - Include `logo_url` in the branch info query
-  - Pass it to the Receipt component
-
-- **Display logo on Receipt** in `src/components/Receipt.tsx`:
-  - Add `branchLogo` prop
-  - Render an `<img>` tag at the top of the receipt header (centered, ~40mm wide for 80mm thermal printer)
-
-- **Upload logo UI** in Branch Management (`src/pages/BranchManagement.tsx`):
-  - Add a logo upload field so admins can set the logo per branch
-
-| File | Change |
-|------|--------|
-| Migration SQL | Add `logo_url` to `branches`, create `branch-logos` storage bucket |
-| `src/components/Receipt.tsx` | Add `branchLogo` prop, render logo image in header |
-| `src/components/ReceiptDialog.tsx` | Fetch and pass `logo_url` from branch data |
-| `src/pages/BranchManagement.tsx` | Add logo upload UI for branches |
-
----
-
-### Summary of All Changes
-
-| Area | Files Modified | New Files |
-|------|---------------|-----------|
-| Portions on receipt | Migration, `orderService.ts`, `POS.tsx`, `Receipt.tsx` | None |
-| Order ringtone | `Orders.tsx`, `KitchenDisplay.tsx` | `src/lib/notificationSound.ts` |
-| Logo on print | Migration, `Receipt.tsx`, `ReceiptDialog.tsx`, `BranchManagement.tsx` | None |
+Only one file is changed: `src/pages/BranchManagement.tsx`.
 

@@ -292,7 +292,8 @@ export default function POS() {
         menuItem: { ...item, price }, // Override price based on selection
         quantity: 1, 
         isServing,
-        selectedPortion
+        selectedPortion,
+        portionName: selectedPortion?.name || undefined,
       }];
     });
   }
@@ -358,7 +359,7 @@ export default function POS() {
         quantity: item.quantity,
         notes: item.notes,
         isServing: item.isServing,
-        portionName: item.selectedPortion?.name,
+        portionName: item.portionName || item.selectedPortion?.name,
       }));
       
       // Check if any items require kitchen
@@ -448,7 +449,7 @@ export default function POS() {
         quantity: item.quantity,
         notes: item.notes,
         isServing: item.isServing,
-        portionName: item.selectedPortion?.name,
+        portionName: item.portionName || item.selectedPortion?.name,
       }));
 
       const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
@@ -519,6 +520,7 @@ export default function POS() {
         quantity: item.quantity,
         notes: item.notes,
         isServing: item.isServing,
+        portionName: item.portionName || item.selectedPortion?.name,
       }));
       
       const isTakeaway = orderType === 'take-out' && !existingOrder;
@@ -1522,6 +1524,7 @@ export default function POS() {
                         quantity: item.quantity,
                         notes: item.notes,
                         isServing: item.isServing,
+                        portionName: item.portionName || item.selectedPortion?.name,
                       }));
                       
                       const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);

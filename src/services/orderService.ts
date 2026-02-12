@@ -316,16 +316,20 @@ export async function addOrderItemsBatch(
   }
 
   // Prepare bulk insert data
-  const insertData = items.map(item => ({
-    order_id: orderId,
-    menu_item_id: item.menuItem.id,
-    quantity: item.quantity,
-    unit_price: item.menuItem.price,
-    total_price: item.menuItem.price * item.quantity,
-    notes: item.notes || null,
-    is_serving: item.isServing || false,
-    portion_name: item.portionName || null,
-  }));
+  const insertData = items.map(item => {
+    const portionName = item.portionName || null;
+    console.log('[OrderService] Batch item:', item.menuItem.name, 'portionName:', portionName, 'raw:', item.portionName);
+    return {
+      order_id: orderId,
+      menu_item_id: item.menuItem.id,
+      quantity: item.quantity,
+      unit_price: item.menuItem.price,
+      total_price: item.menuItem.price * item.quantity,
+      notes: item.notes || null,
+      is_serving: item.isServing || false,
+      portion_name: portionName,
+    };
+  });
 
   // Single bulk insert
   const { error } = await supabase

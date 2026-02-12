@@ -11,7 +11,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -227,85 +226,85 @@ export default function BranchManagement() {
             </div>
           </div>
           {isAdmin && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => openDialog()}>
-                  <Plus className="h-4 w-4 mr-2" />Add Branch
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingBranch ? 'Edit Branch' : 'Add Branch'}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Branch Name *</Label>
-                    <Input 
-                      value={name} 
-                      onChange={(e) => setName(e.target.value)} 
-                      placeholder="e.g., Downtown Location"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Address</Label>
-                    <Input 
-                      value={address} 
-                      onChange={(e) => setAddress(e.target.value)} 
-                      placeholder="123 Main Street"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input 
-                      value={phone} 
-                      onChange={(e) => setPhone(e.target.value)} 
-                      placeholder="+968 1234 5678"
-                    />
-                  </div>
-                  {!editingBranch && (
-                    <div className="space-y-2">
-                      <Label>Order Prefix (2-5 letters)</Label>
-                      <Input 
-                        value={orderPrefix} 
-                        onChange={(e) => setOrderPrefix(e.target.value.toUpperCase())} 
-                        placeholder="e.g., ARB, INB"
-                        maxLength={5}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Used in order numbers (e.g., ARB2501001)
-                      </p>
-                    </div>
-                   )}
-                  <div className="space-y-2">
-                    <Label>Branch Logo</Label>
-                    {logoPreview && (
-                      <img src={logoPreview} alt="Logo preview" className="h-16 object-contain rounded border p-1" />
-                    )}
-                    <Input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setLogoFile(file);
-                          setLogoPreview(URL.createObjectURL(file));
-                        }
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Upload a logo for receipts (recommended: PNG, max 200KB)
-                    </p>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleSave}>{editingBranch ? 'Update' : 'Create'}</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => openDialog()}>
+              <Plus className="h-4 w-4 mr-2" />Add Branch
+            </Button>
           )}
         </div>
       </header>
+
+      {/* Dialog rendered for all managers/admins */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingBranch ? 'Edit Branch' : 'Add Branch'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Branch Name *</Label>
+              <Input 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="e.g., Downtown Location"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <Input 
+                value={address} 
+                onChange={(e) => setAddress(e.target.value)} 
+                placeholder="123 Main Street"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                placeholder="+968 1234 5678"
+              />
+            </div>
+            {!editingBranch && (
+              <div className="space-y-2">
+                <Label>Order Prefix (2-5 letters)</Label>
+                <Input 
+                  value={orderPrefix} 
+                  onChange={(e) => setOrderPrefix(e.target.value.toUpperCase())} 
+                  placeholder="e.g., ARB, INB"
+                  maxLength={5}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used in order numbers (e.g., ARB2501001)
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Branch Logo</Label>
+              {logoPreview && (
+                <img src={logoPreview} alt="Logo preview" className="h-16 object-contain rounded border p-1" />
+              )}
+              <Input 
+                type="file" 
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setLogoFile(file);
+                    setLogoPreview(URL.createObjectURL(file));
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Upload a logo for receipts (recommended: PNG, max 200KB)
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{editingBranch ? 'Update' : 'Create'}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <main className="p-6 space-y-6">
         {/* Stats */}

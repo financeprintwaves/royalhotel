@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,8 +86,6 @@ export default function POS() {
   const canSwitchBranch = isAdmin();
   const isManagerOrAdminUser = isManagerOrAdmin();
   
-  // Debug log for role checking
-  console.log('POS roles check:', { roles, isManagerOrAdminUser, canSwitchBranch });
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -167,19 +165,33 @@ export default function POS() {
     }
   }, [view, loadAllOrders, loadKitchenOrders]);
 
-  // Realtime subscription for orders
+  // Debounced realtime refetch - prevents burst refetches (3-4 calls down to 1)
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefetch = useCallback((fn: () => void) => {
+    if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+    realtimeTimerRef.current = setTimeout(fn, 300);
+  }, []);
+
+  // Realtime subscription for orders - with debouncing & view-gating
   useOrdersRealtime(
-    useCallback(() => {
-      if (view === 'orders') loadAllOrders();
+    useCallback((newOrder) => {
+      if (view === 'orders') debouncedRefetch(loadAllOrders);
       if (view === 'kitchen') {
-        loadKitchenOrders();
+        debouncedRefetch(loadKitchenOrders);
         toast({ title: 'New Order!', description: 'A new order has arrived' });
       }
-    }, [view, loadAllOrders, loadKitchenOrders, toast]),
-    useCallback(() => {
-      if (view === 'orders') loadAllOrders();
-      if (view === 'kitchen') loadKitchenOrders();
-    }, [view, loadAllOrders, loadKitchenOrders]),
+    }, [view, loadAllOrders, loadKitchenOrders, toast, debouncedRefetch]),
+    useCallback((updatedOrder) => {
+      // Surgical update: patch only the changed order in local state
+      setAllOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+      setKitchenOrders(prev => {
+        // If order moved past kitchen states, remove it
+        if (['SERVED', 'BILL_REQUESTED', 'PAID', 'CLOSED'].includes(updatedOrder.order_status)) {
+          return prev.filter(o => o.id !== updatedOrder.id);
+        }
+        return prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
+      });
+    }, []),
     useCallback((deletedId: string) => {
       setAllOrders(prev => prev.filter(o => o.id !== deletedId));
       setKitchenOrders(prev => prev.filter(o => o.id !== deletedId));
@@ -534,8 +546,8 @@ export default function POS() {
           await addOrderItemsBatch(orderId, batchItems);
         }
         
-        const updatedOrder = await getOrder(orderId);
-        paymentTotal = Number(updatedOrder?.total_amount || 0);
+        // Use local total + existing to avoid extra DB round-trip
+        paymentTotal = existingTotal + total;
         
         if (existingOrder.order_status !== 'BILL_REQUESTED') {
           await updateOrderStatus(orderId, 'BILL_REQUESTED');
@@ -552,8 +564,8 @@ export default function POS() {
           await applyDiscount(orderId, discount);
         }
         
-        const updatedOrder = await getOrder(orderId);
-        paymentTotal = Number(updatedOrder?.total_amount || 0);
+        // Use local grandTotal to avoid extra DB round-trip
+        paymentTotal = grandTotal;
         
         // For new orders going directly to payment, we need to traverse the full
         // state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED

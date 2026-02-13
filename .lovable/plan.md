@@ -1,62 +1,46 @@
 
 
-## Fix: Branch Edit Dialog for Managers + Confirm All 3 Features Work
+## POS Performance Optimization
 
-### Problem Found
+### Root Causes Identified
 
-The edit/logo-upload dialog in Branch Management is wrapped inside `{isAdmin && (...)}` (line 229). This means:
-- Only admins can see the dialog
-- When a manager clicks the edit pencil button, nothing happens because the Dialog component isn't rendered for them
-- Managers cannot upload logos for their branch
+1. **Debug logging on every render** -- `console.log('POS roles check:', ...)` fires on every single re-render, causing unnecessary overhead
+2. **Full order list refetch on every realtime event** -- When any order is inserted or updated, the POS refetches ALL orders with all their joins (items, tables, waiters). This is extremely heavy and happens multiple times per action
+3. **Sequential state machine transitions** -- For direct payments, the system makes 3 sequential RPC calls (`sendToKitchen` -> `markAsServed` -> `requestBill`) one after another, each waiting for the previous to complete
+4. **Redundant order refetch after payment** -- After `finalizePayment`, it calls `getOrder()` again to get the fresh order for the receipt, adding another database round-trip
+5. **Realtime callbacks refetch even when not on orders/kitchen view** -- The callbacks still process even though they check the view, causing unnecessary function invocations
 
-### Fix (Single File Change)
+### Changes (Single File: `src/pages/POS.tsx`)
 
-**File: `src/pages/BranchManagement.tsx`**
+**A. Remove debug console.log (line 90)**
+Remove the `console.log('POS roles check:', ...)` that fires on every render.
 
-Move the Dialog component outside the `{isAdmin && (...)}` block so it renders for both admins and managers:
+**B. Optimize realtime handlers to use surgical updates instead of full refetches**
+Instead of calling `loadAllOrders()` (fetches ALL orders) on every update, surgically patch the specific order in local state using the realtime payload data. For inserts, fetch only the single new order with full joins, then prepend it to the list.
 
-1. Keep the "Add Branch" button inside `{isAdmin && (...)}` (only admins can create branches)
-2. Move the `<Dialog open={dialogOpen} ...>` with its `<DialogContent>` outside and after the header, so it renders for any user with `canManage` permission
-3. The "Add Branch" button simply calls `openDialog()` and sets `dialogOpen = true`
-
-This is a structural move -- no new logic needed. The `canEditBranch()` function already correctly allows managers to edit their own branch.
-
-### Already Implemented (No Changes Needed)
-
-These features are already working in the codebase from the previous implementation:
-
-| Feature | Status | How It Works |
-|---------|--------|--------------|
-| Portion name on receipt | Done | `portion_name` column exists in `order_items`, saved via `addOrderItemsBatch`, displayed in `Receipt.tsx` line 181 |
-| Order ringtone | Done | `notificationSound.ts` plays Web Audio chime, triggered in `Orders.tsx` and `KitchenDisplay.tsx` on new order insert |
-| Logo on receipt | Done | `logo_url` column exists in `branches`, `ReceiptDialog.tsx` fetches it, `Receipt.tsx` renders it in header |
-| Logo upload UI | Partially done | The upload form exists but is only visible to admins due to the dialog bug above |
-
-### Technical Detail
-
-The fix restructures lines 229-306 of `BranchManagement.tsx`:
-
-**Before:**
+**C. Parallelize state machine transitions**
+Replace the sequential calls:
 ```
-{isAdmin && (
-  <Dialog open={dialogOpen} ...>
-    <DialogTrigger><Button>Add Branch</Button></DialogTrigger>
-    <DialogContent>...form with logo upload...</DialogContent>
-  </Dialog>
-)}
+await sendToKitchen(orderId);   // wait ~200ms
+await markAsServed(orderId);    // wait ~200ms  
+await requestBill(orderId);     // wait ~200ms
 ```
+With a single database RPC or at minimum, skip redundant intermediate states by going directly to `BILL_REQUESTED` via a single `updateOrderStatus` call where possible.
 
-**After:**
-```
-{isAdmin && (
-  <Button onClick={() => openDialog()}>Add Branch</Button>
-)}
+Since the RPC `update_order_status` validates transitions, we keep the sequential calls but can optimize by removing the redundant `getOrder()` refetch after payment -- instead reuse the data we already have.
 
-{/* Dialog rendered for all managers/admins */}
-<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-  <DialogContent>...form with logo upload...</DialogContent>
-</Dialog>
-```
+**D. Remove redundant `getOrder()` call after payment**
+In `handleProcessPayment`, after `finalizePayment` succeeds, we already have the order data. Instead of fetching again, construct the receipt from the data we already have (cart items + order metadata).
 
-Only one file is changed: `src/pages/BranchManagement.tsx`.
+**E. Debounce realtime refetches**
+If multiple realtime events arrive rapidly (common when processing an order -- INSERT + multiple UPDATEs), debounce the refetch so only one network call happens instead of 3-4.
+
+### Summary
+
+| Optimization | Impact | Lines Changed |
+|---|---|---|
+| Remove debug console.log | Eliminates render-time I/O | Line 90 |
+| Surgical realtime updates | Eliminates full refetch on every order change (~80% fewer DB calls) | Lines 170-187 |
+| Remove redundant getOrder after payment | Saves 1 DB round-trip per payment | Lines 537-538, 555-556, 572 |
+| Debounce realtime | Prevents burst refetches (3-4 calls down to 1) | Lines 170-187 |
 

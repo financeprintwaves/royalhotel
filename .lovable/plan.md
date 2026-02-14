@@ -1,46 +1,77 @@
 
 
-## POS Performance Optimization
+## Set Up POS as Installable PWA
 
-### Root Causes Identified
+Convert the POS application into a Progressive Web App (PWA) so it can be installed on tablets and desktops like a native app, with offline caching and instant loading.
 
-1. **Debug logging on every render** -- `console.log('POS roles check:', ...)` fires on every single re-render, causing unnecessary overhead
-2. **Full order list refetch on every realtime event** -- When any order is inserted or updated, the POS refetches ALL orders with all their joins (items, tables, waiters). This is extremely heavy and happens multiple times per action
-3. **Sequential state machine transitions** -- For direct payments, the system makes 3 sequential RPC calls (`sendToKitchen` -> `markAsServed` -> `requestBill`) one after another, each waiting for the previous to complete
-4. **Redundant order refetch after payment** -- After `finalizePayment`, it calls `getOrder()` again to get the fresh order for the receipt, adding another database round-trip
-5. **Realtime callbacks refetch even when not on orders/kitchen view** -- The callbacks still process even though they check the view, causing unnecessary function invocations
+### What You'll Get
 
-### Changes (Single File: `src/pages/POS.tsx`)
+- **Install to Home Screen**: Staff can install the POS directly from the browser -- it opens full-screen like a real app
+- **Fast Loading**: All menu data, UI assets, and pages are cached locally -- no waiting for network on repeat visits
+- **Offline Resilience**: The app shell loads even without internet; cached menu items and categories remain available
+- **Auto Updates**: When you publish changes, the app automatically updates in the background
 
-**A. Remove debug console.log (line 90)**
-Remove the `console.log('POS roles check:', ...)` that fires on every render.
+### Changes
 
-**B. Optimize realtime handlers to use surgical updates instead of full refetches**
-Instead of calling `loadAllOrders()` (fetches ALL orders) on every update, surgically patch the specific order in local state using the realtime payload data. For inserts, fetch only the single new order with full joins, then prepend it to the list.
+#### 1. Install `vite-plugin-pwa` dependency
 
-**C. Parallelize state machine transitions**
-Replace the sequential calls:
-```
-await sendToKitchen(orderId);   // wait ~200ms
-await markAsServed(orderId);    // wait ~200ms  
-await requestBill(orderId);     // wait ~200ms
-```
-With a single database RPC or at minimum, skip redundant intermediate states by going directly to `BILL_REQUESTED` via a single `updateOrderStatus` call where possible.
+Add the `vite-plugin-pwa` package which handles service worker generation, manifest creation, and caching strategies.
 
-Since the RPC `update_order_status` validates transitions, we keep the sequential calls but can optimize by removing the redundant `getOrder()` refetch after payment -- instead reuse the data we already have.
+#### 2. Update `vite.config.ts`
 
-**D. Remove redundant `getOrder()` call after payment**
-In `handleProcessPayment`, after `finalizePayment` succeeds, we already have the order data. Instead of fetching again, construct the receipt from the data we already have (cart items + order metadata).
+Configure the PWA plugin with:
+- App name: "Royal Hotel POS"
+- Theme color matching the brand
+- `navigateFallbackDenylist` to exclude `/~oauth` from service worker caching
+- Precaching of all static assets (JS, CSS, images, fonts)
+- Runtime caching strategy for API calls (network-first with fallback)
+- Auto-update behavior so new versions install seamlessly
 
-**E. Debounce realtime refetches**
-If multiple realtime events arrive rapidly (common when processing an order -- INSERT + multiple UPDATEs), debounce the refetch so only one network call happens instead of 3-4.
+#### 3. Update `index.html`
 
-### Summary
+Add mobile-optimized meta tags:
+- `<meta name="apple-mobile-web-app-capable">` for iOS full-screen mode
+- `<meta name="theme-color">` for browser chrome styling
+- `<link rel="apple-touch-icon">` for iOS home screen icon
+- Update the title to "Royal Hotel POS"
 
-| Optimization | Impact | Lines Changed |
-|---|---|---|
-| Remove debug console.log | Eliminates render-time I/O | Line 90 |
-| Surgical realtime updates | Eliminates full refetch on every order change (~80% fewer DB calls) | Lines 170-187 |
-| Remove redundant getOrder after payment | Saves 1 DB round-trip per payment | Lines 537-538, 555-556, 572 |
-| Debounce realtime | Prevents burst refetches (3-4 calls down to 1) | Lines 170-187 |
+#### 4. Create PWA icons in `public/`
+
+Generate the required icon files:
+- `pwa-192x192.png` -- standard PWA icon
+- `pwa-512x512.png` -- splash screen icon
+- `apple-touch-icon-180x180.png` -- iOS home screen icon
+
+These will be simple branded placeholder icons with "RH" text.
+
+#### 5. Create Install Page (`src/pages/InstallPWA.tsx`)
+
+A dedicated `/install` page that:
+- Detects if the app is already installed
+- Shows an "Install" button that triggers the browser's install prompt
+- Provides step-by-step instructions for iOS (Share -> Add to Home Screen)
+- Shows a success message if already installed
+
+#### 6. Add `/install` route to `App.tsx`
+
+Register the new install page route (accessible without login so staff can install easily).
+
+### Files Changed
+
+| File | Action |
+|------|--------|
+| `vite.config.ts` | Add PWA plugin configuration |
+| `index.html` | Add mobile meta tags, update title |
+| `public/pwa-192x192.png` | Create PWA icon |
+| `public/pwa-512x512.png` | Create PWA icon |
+| `public/apple-touch-icon-180x180.png` | Create iOS icon |
+| `src/pages/InstallPWA.tsx` | New install page |
+| `src/App.tsx` | Add /install route |
+
+### How to Install After Setup
+
+1. Open the POS on your tablet/desktop browser
+2. Go to `/install` or use the browser menu
+3. Tap "Install" or "Add to Home Screen"
+4. The POS now launches full-screen like a native app
 

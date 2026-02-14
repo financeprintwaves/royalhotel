@@ -18,6 +18,7 @@ import MenuManagement from "@/pages/MenuManagement";
 import Inventory from "@/pages/Inventory";
 import BranchManagement from "@/pages/BranchManagement";
 import NotFound from "@/pages/NotFound";
+import InstallPWA from "@/pages/InstallPWA";
 
 // Optimized React Query configuration for performance
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+      <Route path="/install" element={<InstallPWA />} />
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/pos" element={<ProtectedRoute><POS /></ProtectedRoute>} />
       <Route path="/new-order" element={<ProtectedRoute><NewOrder /></ProtectedRoute>} />

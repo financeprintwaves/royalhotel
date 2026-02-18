@@ -1,77 +1,66 @@
 
 
-## Set Up POS as Installable PWA
+## Instant Billing: Single-RPC Payment
 
-Convert the POS application into a Progressive Web App (PWA) so it can be installed on tablets and desktops like a native app, with offline caching and instant loading.
+### The Problem
 
-### What You'll Get
+When you click "Pay Now", the system makes **4 sequential network calls** to the database:
+1. sendToKitchen (~200ms)
+2. markAsServed (~200ms)
+3. requestBill (~200ms)
+4. finalizePayment (~200ms)
 
-- **Install to Home Screen**: Staff can install the POS directly from the browser -- it opens full-screen like a real app
-- **Fast Loading**: All menu data, UI assets, and pages are cached locally -- no waiting for network on repeat visits
-- **Offline Resilience**: The app shell loads even without internet; cached menu items and categories remain available
-- **Auto Updates**: When you publish changes, the app automatically updates in the background
+Total: **~800ms+ of waiting** before the bill appears.
+
+### The Solution
+
+Replace all 4 calls with a **single database function** (`quick_pay_order`) that does everything in one call (~200ms total). The bill will appear in under 1 second.
 
 ### Changes
 
-#### 1. Install `vite-plugin-pwa` dependency
+#### 1. Create database function `quick_pay_order`
 
-Add the `vite-plugin-pwa` package which handles service worker generation, manifest creation, and caching strategies.
+A single SQL function that atomically:
+- Transitions the order through all required states (CREATED -> SENT_TO_KITCHEN -> SERVED -> BILL_REQUESTED -> PAID)
+- Records the payment
+- Deducts inventory
+- Returns success
 
-#### 2. Update `vite.config.ts`
+This runs entirely inside the database -- one network round-trip instead of four.
 
-Configure the PWA plugin with:
-- App name: "Royal Hotel POS"
-- Theme color matching the brand
-- `navigateFallbackDenylist` to exclude `/~oauth` from service worker caching
-- Precaching of all static assets (JS, CSS, images, fonts)
-- Runtime caching strategy for API calls (network-first with fallback)
-- Auto-update behavior so new versions install seamlessly
+#### 2. Add `quickPayOrder` to `src/services/orderService.ts`
 
-#### 3. Update `index.html`
+A new function that calls the `quick_pay_order` RPC.
 
-Add mobile-optimized meta tags:
-- `<meta name="apple-mobile-web-app-capable">` for iOS full-screen mode
-- `<meta name="theme-color">` for browser chrome styling
-- `<link rel="apple-touch-icon">` for iOS home screen icon
-- Update the title to "Royal Hotel POS"
+#### 3. Update `src/pages/POS.tsx` payment flow
 
-#### 4. Create PWA icons in `public/`
+Replace the 4 sequential calls:
+```
+await sendToKitchen(orderId);
+await markAsServed(orderId);
+await requestBill(orderId);
+await finalizePayment(orderId, total, method, ref);
+```
 
-Generate the required icon files:
-- `pwa-192x192.png` -- standard PWA icon
-- `pwa-512x512.png` -- splash screen icon
-- `apple-touch-icon-180x180.png` -- iOS home screen icon
+With one call:
+```
+await quickPayOrder(orderId, total, method, ref);
+```
 
-These will be simple branded placeholder icons with "RH" text.
+The receipt is already built from local state (no extra DB call), so after this single RPC returns, the bill shows immediately.
 
-#### 5. Create Install Page (`src/pages/InstallPWA.tsx`)
+### Result
 
-A dedicated `/install` page that:
-- Detects if the app is already installed
-- Shows an "Install" button that triggers the browser's install prompt
-- Provides step-by-step instructions for iOS (Share -> Add to Home Screen)
-- Shows a success message if already installed
-
-#### 6. Add `/install` route to `App.tsx`
-
-Register the new install page route (accessible without login so staff can install easily).
+| Before | After |
+|--------|-------|
+| 4 network calls (~800ms+) | 1 network call (~200ms) |
+| Bill appears in 1-2 seconds | Bill appears in under 1 second |
 
 ### Files Changed
 
 | File | Action |
 |------|--------|
-| `vite.config.ts` | Add PWA plugin configuration |
-| `index.html` | Add mobile meta tags, update title |
-| `public/pwa-192x192.png` | Create PWA icon |
-| `public/pwa-512x512.png` | Create PWA icon |
-| `public/apple-touch-icon-180x180.png` | Create iOS icon |
-| `src/pages/InstallPWA.tsx` | New install page |
-| `src/App.tsx` | Add /install route |
-
-### How to Install After Setup
-
-1. Open the POS on your tablet/desktop browser
-2. Go to `/install` or use the browser menu
-3. Tap "Install" or "Add to Home Screen"
-4. The POS now launches full-screen like a native app
+| Database migration | New `quick_pay_order` function |
+| `src/services/orderService.ts` | Add `quickPayOrder` wrapper |
+| `src/pages/POS.tsx` | Replace 4 calls with 1 call |
 

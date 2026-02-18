@@ -160,6 +160,29 @@ export default function NewOrder() {
     }
   }
 
+  // For takeaway: execute order and print bill immediately, then go to Orders page for payment
+  async function handleExecuteAndGetBill() {
+    if (!order) return;
+    setLoading(true);
+    try {
+      // Request bill (prepares order for payment)
+      await requestBill(order.id);
+      
+      // Show receipt dialog with autoPrint enabled - bill prints immediately
+      setShowReceiptDialog(true);
+      
+      // Auto-navigate to Orders page after bill is printed (2 seconds delay)
+      setTimeout(() => {
+        navigate('/');
+        toast({ title: 'Takeaway Order Created!', description: 'Bill printed. Please process payment on Orders page.' });
+      }, 2000);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Failed', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleProcessPayment() {
     if (!order) return;
     setLoading(true);
@@ -351,17 +374,32 @@ export default function NewOrder() {
                 <Separator />
                 <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{total.toFixed(3)} OMR</span></div>
                 <Separator />
-                <div className="flex gap-4">
-                  <Button className="flex-1" onClick={handleSendToKitchen} disabled={loading}>
-                    <Send className="h-4 w-4 mr-2" />Send to Kitchen
-                  </Button>
-                  <Button className="flex-1" variant="secondary" onClick={handleRequestBillAndPay} disabled={loading}>
-                    <CreditCard className="h-4 w-4 mr-2" />Quick Pay
-                  </Button>
-                </div>
+                
+                {/* Takeaway flow: Order & Execute (no kitchen, no payment here) */}
+                {!selectedTable && (
+                  <div>
+                    <Button className="w-full" size="lg" onClick={handleExecuteAndGetBill} disabled={loading}>
+                      <CreditCard className="h-4 w-4 mr-2" />Order & Execute - Get Bill
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center mt-2">Bill will print immediately. Payment on Orders page.</p>
+                  </div>
+                )}
+                
+                {/* Table flow: Send to Kitchen + Quick Pay */}
+                {selectedTable && (
+                  <div className="flex gap-4">
+                    <Button className="flex-1" onClick={handleSendToKitchen} disabled={loading}>
+                      <Send className="h-4 w-4 mr-2" />Send to Kitchen
+                    </Button>
+                    <Button className="flex-1" variant="secondary" onClick={handleRequestBillAndPay} disabled={loading}>
+                      <CreditCard className="h-4 w-4 mr-2" />Quick Pay
+                    </Button>
+                  </div>
+                )}
+                
                 <div className="mt-3">
-                  {/* Invoice / Print before payment (useful for takeaway) */}
-                  <Button variant="outline" onClick={() => setShowReceiptDialog(true)} disabled={!order}>
+                  {/* Invoice / Print before payment (useful for table orders) */}
+                  <Button variant="outline" onClick={() => setShowReceiptDialog(true)} disabled={!order} className="w-full">
                     Print Invoice / Issue Receipt
                   </Button>
                 </div>
@@ -412,12 +450,12 @@ export default function NewOrder() {
         </DialogContent>
       </Dialog>
 
-      {/* Receipt Dialog - Shows immediately after payment */}
+      {/* Receipt Dialog - Shows immediately after payment or execute */}
       <ReceiptDialog 
         open={showReceiptDialog} 
         onOpenChange={setShowReceiptDialog} 
         order={order}
-        autoPrint={false}
+        autoPrint={!selectedTable} // Auto-print for takeaway (when no table selected)
       />
     </div>
   );

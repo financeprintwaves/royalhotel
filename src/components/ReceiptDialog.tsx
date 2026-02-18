@@ -111,30 +111,27 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
 
   // Auto-print immediately when dialog opens with autoPrint flag - NO DELAY
   useEffect(() => {
-    async function tryLocalPrint() {
+    async function autoprint() {
       if (!receiptRef.current) return;
+      
+      // Wait for receipt to render
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       try {
         // Send inner HTML to local print daemon (if running)
         const html = receiptRef.current.outerHTML;
         await printToLocalPrinter(html);
         setHasPrinted(true);
-        return true;
       } catch (err) {
         // no local printer available or failed - fall back to browser print
         console.warn('Local printer failed or not reachable, falling back to browser print', err);
-        return false;
+        handlePrint();
+        setHasPrinted(true);
       }
     }
 
     if (open && autoPrint && !hasPrinted && receiptRef.current) {
-      // Try local print first, otherwise fallback to browser print
-      setTimeout(async () => {
-        const ok = await tryLocalPrint();
-        if (!ok) {
-          handlePrint();
-          setHasPrinted(true);
-        }
-      }, 100);
+      autoprint();
     }
   }, [open, autoPrint, hasPrinted, handlePrint]);
 

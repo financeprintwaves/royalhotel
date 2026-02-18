@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Printer } from 'lucide-react';
+import { Printer, Loader2 } from 'lucide-react';
 import Receipt from './Receipt';
 import { getOrderPayments } from '@/services/paymentService';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
   const [hasPrinted, setHasPrinted] = useState(false);
   const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
   const [waiterName, setWaiterName] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
   const { profile } = useAuth();
 
   // Use react-to-print for fast, reliable printing
@@ -53,50 +54,68 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
 
   useEffect(() => {
     if (order && open) {
-      getOrderPayments(order.id)
-        .then(setPayments)
-        .catch(console.error);
+      setIsLoading(true);
       setHasPrinted(false);
       
-      // Fetch waiter name
-      if (order.created_by) {
-        supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('user_id', order.created_by)
-          .maybeSingle()
-          .then(({ data }) => {
-            setWaiterName(data?.full_name || '');
-          });
-      }
+      // Fetch all optional data in parallel - don't block receipt display
+      Promise.all([
+        // Fetch payments for this order
+        getOrderPayments(order.id)
+          .then(data => setPayments(data || []))
+          .catch(err => {
+            console.error('Failed to load payments:', err);
+            setPayments([]);
+          }),
+        
+        // Fetch waiter name and branch info in parallel
+        Promise.all([
+          // Get waiter profile
+          order.created_by 
+            ? supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('user_id', order.created_by)
+                .maybeSingle()
+                .then(({ data, error }) => {
+                  if (error) console.error('Failed to load waiter:', error);
+                  setWaiterName(data?.full_name || '');
+                })
+                .catch(err => {
+                  console.error('Failed to load waiter:', err);
+                  setWaiterName('');
+                })
+            : Promise.resolve(),
+          
+          // Get branch info
+          profile?.branch_id
+            ? supabase
+                .from('branches')
+                .select('name, address, phone, logo_url')
+                .eq('id', profile.branch_id)
+                .maybeSingle()
+                .then(({ data, error }) => {
+                  if (error) console.error('Failed to load branch:', error);
+                  if (data) setBranchInfo(data);
+                })
+                .catch(err => {
+                  console.error('Failed to load branch:', err);
+                })
+            : Promise.resolve(),
+        ]),
+      ]).finally(() => {
+        setIsLoading(false);
+      });
     }
-  }, [order, open]);
-
-  // Fetch branch info
-  useEffect(() => {
-    async function fetchBranchInfo() {
-      if (!profile?.branch_id) return;
-      
-      const { data } = await supabase
-        .from('branches')
-        .select('name, address, phone, logo_url')
-        .eq('id', profile.branch_id)
-        .maybeSingle();
-      
-      if (data) {
-        setBranchInfo(data);
-      }
-    }
-    
-    fetchBranchInfo();
-  }, [profile?.branch_id]);
+  }, [order, open, profile?.branch_id]);
 
   // Auto-print immediately when dialog opens with autoPrint flag - NO DELAY
   useEffect(() => {
     if (open && autoPrint && !hasPrinted && receiptRef.current) {
       // Immediate print - no delay for fast checkout
-      handlePrint();
-      setHasPrinted(true);
+      setTimeout(() => {
+        handlePrint();
+        setHasPrinted(true);
+      }, 100);
     }
   }, [open, autoPrint, hasPrinted, handlePrint]);
 
@@ -111,13 +130,21 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-fit">
         <DialogHeader>
-          <DialogTitle>Receipt Preview</DialogTitle>
+          <DialogTitle>📄 Receipt Preview</DialogTitle>
           <DialogDescription>
             Order #{order.order_number || order.id.slice(-8).toUpperCase()}
           </DialogDescription>
         </DialogHeader>
         
-        <div className="border rounded-lg overflow-hidden bg-white print-receipt-container">
+        <div className="border rounded-lg overflow-hidden bg-white print-receipt-container relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10 rounded-lg">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Loading details...</p>
+              </div>
+            </div>
+          )}
           <Receipt
             ref={receiptRef}
             order={order} 
@@ -134,7 +161,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button onClick={onPrintClick}>
+          <Button onClick={onPrintClick} disabled={isLoading}>
             <Printer className="h-4 w-4 mr-2" />
             Print Receipt
           </Button>

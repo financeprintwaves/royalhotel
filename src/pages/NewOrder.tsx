@@ -14,6 +14,7 @@ import { getTables } from '@/services/tableService';
 import { getCategories, getMenuItems } from '@/services/menuService';
 import { createOrder, addOrderItem, sendToKitchen, requestBill } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
+import ReceiptDialog from '@/components/ReceiptDialog';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod } from '@/types/pos';
 
 type Step = 'table' | 'menu' | 'cart' | 'payment';
@@ -34,6 +35,7 @@ export default function NewOrder() {
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
 
   useEffect(() => {
@@ -164,9 +166,17 @@ export default function NewOrder() {
     try {
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
       await finalizePayment(order.id, total, paymentMethod, ref);
+      
+      // Show receipt immediately - no delay
       setShowPaymentDialog(false);
-      toast({ title: 'Payment Successful!', description: `$${total.toFixed(2)} received via ${paymentMethod}` });
-      navigate('/');
+      setShowReceiptDialog(true);
+      
+      // Auto-navigate after receipt dialog closes (after 5 seconds for user to see receipt)
+      setTimeout(() => {
+        navigate('/');
+      }, 5000);
+      
+      toast({ title: 'Payment Successful!', description: `${total.toFixed(2)} OMR received via ${paymentMethod}` });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
     } finally {
@@ -395,6 +405,14 @@ export default function NewOrder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receipt Dialog - Shows immediately after payment */}
+      <ReceiptDialog 
+        open={showReceiptDialog} 
+        onOpenChange={setShowReceiptDialog} 
+        order={order}
+        autoPrint={false}
+      />
     </div>
   );
 }

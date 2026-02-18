@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Printer, Loader2 } from 'lucide-react';
 import Receipt from './Receipt';
 import { getOrderPayments } from '@/services/paymentService';
+import printToLocalPrinter from '@/services/printService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Order, Payment } from '@/types/pos';
@@ -110,11 +111,29 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
 
   // Auto-print immediately when dialog opens with autoPrint flag - NO DELAY
   useEffect(() => {
-    if (open && autoPrint && !hasPrinted && receiptRef.current) {
-      // Immediate print - no delay for fast checkout
-      setTimeout(() => {
-        handlePrint();
+    async function tryLocalPrint() {
+      if (!receiptRef.current) return;
+      try {
+        // Send inner HTML to local print daemon (if running)
+        const html = receiptRef.current.outerHTML;
+        await printToLocalPrinter(html);
         setHasPrinted(true);
+        return true;
+      } catch (err) {
+        // no local printer available or failed - fall back to browser print
+        console.warn('Local printer failed or not reachable, falling back to browser print', err);
+        return false;
+      }
+    }
+
+    if (open && autoPrint && !hasPrinted && receiptRef.current) {
+      // Try local print first, otherwise fallback to browser print
+      setTimeout(async () => {
+        const ok = await tryLocalPrint();
+        if (!ok) {
+          handlePrint();
+          setHasPrinted(true);
+        }
       }, 100);
     }
   }, [open, autoPrint, hasPrinted, handlePrint]);

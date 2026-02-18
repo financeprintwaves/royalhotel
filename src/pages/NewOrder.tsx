@@ -359,6 +359,12 @@ export default function NewOrder() {
                     <CreditCard className="h-4 w-4 mr-2" />Quick Pay
                   </Button>
                 </div>
+                <div className="mt-3">
+                  {/* Invoice / Print before payment (useful for takeaway) */}
+                  <Button variant="outline" onClick={() => setShowReceiptDialog(true)} disabled={!order}>
+                    Print Invoice / Issue Receipt
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

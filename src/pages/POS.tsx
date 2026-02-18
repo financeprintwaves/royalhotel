@@ -18,7 +18,7 @@ import {
   Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer
 } from 'lucide-react';
 import { 
-  createOrder, addOrderItemsBatch, sendToKitchen, getOrder, getOrders, getKitchenOrders, 
+  createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
   markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus
 } from '@/services/orderService';
 import { finalizePayment, processSplitPayment } from '@/services/paymentService';
@@ -580,11 +580,48 @@ export default function POS() {
       
       setShowPaymentDialog(false);
       
-      // Fetch fresh order data for receipt (includes correct discount)
-      const freshOrder = await getOrder(orderId);
+      // Build receipt from local state - zero DB round-trip
+      const localReceipt = {
+        id: orderId,
+        order_number: null,
+        branch_id: selectedBranch,
+        table_id: selectedTable?.id || null,
+        table: selectedTable ? { id: selectedTable.id, table_number: selectedTable.table_number, capacity: selectedTable.capacity } : null,
+        order_status: 'PAID' as const,
+        payment_status: 'paid' as const,
+        subtotal: subtotal + existingTotal,
+        discount_amount: discount,
+        tax_amount: 0,
+        total_amount: paymentTotal,
+        customer_name: customerName || null,
+        is_foc: isFOC,
+        foc_dancer_name: focDancerName || null,
+        notes: null,
+        created_by: profile?.user_id || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        locked_at: null,
+        order_items: [
+          ...(existingOrder?.order_items || []),
+          ...cart.map(c => ({
+            id: crypto.randomUUID(),
+            order_id: orderId,
+            menu_item_id: c.menuItem.id,
+            quantity: c.quantity,
+            unit_price: c.menuItem.price,
+            total_price: c.menuItem.price * c.quantity,
+            notes: c.notes || null,
+            is_serving: c.isServing || false,
+            portion_name: c.portionName || c.selectedPortion?.name || null,
+            created_at: new Date().toISOString(),
+            menu_item: { id: c.menuItem.id, name: c.menuItem.name, price: c.menuItem.price, image_url: c.menuItem.image_url || null },
+          })),
+        ],
+        waiter: profile ? { full_name: profile.full_name } : null,
+      } as unknown as Order;
       
       // Show receipt immediately - no animation delay
-      setReceiptOrder(freshOrder);
+      setReceiptOrder(localReceipt);
       setShowReceiptDialog(true);
       toast({ title: 'Payment Successful!' });
       
@@ -653,11 +690,16 @@ export default function POS() {
       setSelectedOrderForPayment(null);
       setTransactionRef('');
       
-      // Fetch fresh order data for receipt (includes correct discount)
-      const freshOrder = await getOrder(selectedOrderForPayment.id);
+      // Build receipt from existing order data - no extra DB call
+      const localReceipt = {
+        ...selectedOrderForPayment,
+        order_status: 'PAID' as const,
+        payment_status: 'paid' as const,
+        updated_at: new Date().toISOString(),
+      } as unknown as Order;
       
       // Show receipt immediately - no animation delay
-      setReceiptOrder(freshOrder);
+      setReceiptOrder(localReceipt);
       setShowReceiptDialog(true);
       toast({ title: 'Payment Successful!' });
       

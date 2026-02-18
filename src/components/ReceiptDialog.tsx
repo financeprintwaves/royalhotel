@@ -114,26 +114,37 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
     async function autoprint() {
       if (!receiptRef.current) return;
       
-      // Wait for receipt to render
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
       try {
+        // Wait for React to fully render and DOM to stabilize
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Log for debugging
+        console.log('Auto-printing receipt for order:', order?.order_number || order?.id);
+        
         // Send inner HTML to local print daemon (if running)
         const html = receiptRef.current.outerHTML;
-        await printToLocalPrinter(html);
+        const result = await printToLocalPrinter(html);
+        console.log('Print sent to local daemon:', result);
         setHasPrinted(true);
       } catch (err) {
         // no local printer available or failed - fall back to browser print
-        console.warn('Local printer failed or not reachable, falling back to browser print', err);
-        handlePrint();
-        setHasPrinted(true);
+        console.warn('Local printer failed or not reachable, attempting browser print', err);
+        try {
+          // Wait another moment for any pending renders
+          await new Promise(resolve => setTimeout(resolve, 300));
+          handlePrint();
+          setHasPrinted(true);
+        } catch (printErr) {
+          console.error('Browser print also failed:', printErr);
+          setHasPrinted(true);
+        }
       }
     }
 
     if (open && autoPrint && !hasPrinted && receiptRef.current) {
       autoprint();
     }
-  }, [open, autoPrint, hasPrinted, handlePrint]);
+  }, [open, autoPrint, hasPrinted, handlePrint, order?.order_number, order?.id]);
 
   // Manual print button handler - uses same react-to-print
   const onPrintClick = useCallback(() => {

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, Smartphone, Users } from 'lucide-react';
 import { getTables } from '@/services/tableService';
 import { getCategories, getMenuItems } from '@/services/menuService';
-import { createOrder, addOrderItem, sendToKitchen, requestBill } from '@/services/orderService';
+import { createOrder, addOrderItem, sendToKitchen, requestBill, getOrder } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod } from '@/types/pos';
@@ -165,17 +165,23 @@ export default function NewOrder() {
     if (!order) return;
     setLoading(true);
     try {
-      // Request bill (prepares order for payment)
+      // Request bill (prepares order for payment and generates order_number)
       await requestBill(order.id);
+      
+      // Refresh order to get the newly generated order_number
+      const updatedOrder = await getOrder(order.id);
+      if (updatedOrder) {
+        setOrder(updatedOrder);
+      }
       
       // Show receipt dialog with autoPrint enabled - bill prints immediately
       setShowReceiptDialog(true);
       
-      // Auto-navigate to Orders page after bill is printed (2 seconds delay)
+      // Auto-navigate to Orders page after bill is printed (3 seconds delay for printing)
       setTimeout(() => {
         navigate('/');
         toast({ title: 'Takeaway Order Created!', description: 'Bill printed. Please process payment on Orders page.' });
-      }, 2000);
+      }, 3000);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Failed', description: error.message });
     } finally {
@@ -189,6 +195,12 @@ export default function NewOrder() {
     try {
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
       await finalizePayment(order.id, total, paymentMethod, ref);
+      
+      // Refresh order to ensure we have latest data
+      const updatedOrder = await getOrder(order.id);
+      if (updatedOrder) {
+        setOrder(updatedOrder);
+      }
       
       // Show receipt immediately - no delay
       setShowPaymentDialog(false);

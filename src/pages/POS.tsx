@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
-  markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus
+  markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus,
+  quickPayOrder
 } from '@/services/orderService';
 import { finalizePayment, processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -478,12 +479,8 @@ export default function POS() {
         subtotal: focSubtotal,
       }).eq('id', orderId);
 
-      // Traverse state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED
-      await sendToKitchen(orderId);
-      await markAsServed(orderId);
-      await requestBill(orderId);
-      // Finalize at 0
-      await finalizePayment(orderId, 0, 'cash');
+      // Single atomic RPC handles full state traversal + payment
+      await quickPayOrder(orderId, 0, 'cash');
 
       toast({ title: '🎁 FOC Confirmed!', description: `FOC for: ${focDancerName}` });
 
@@ -549,9 +546,7 @@ export default function POS() {
         // Use local total + existing to avoid extra DB round-trip
         paymentTotal = existingTotal + total;
         
-        if (existingOrder.order_status !== 'BILL_REQUESTED') {
-          await updateOrderStatus(orderId, 'BILL_REQUESTED');
-        }
+        // quick_pay_order handles state traversal from any status
       } else {
         const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
         orderId = newOrder.id;
@@ -567,16 +562,12 @@ export default function POS() {
         // Use local grandTotal to avoid extra DB round-trip
         paymentTotal = grandTotal;
         
-        // For new orders going directly to payment, we need to traverse the full
-        // state machine: CREATED → SENT_TO_KITCHEN → SERVED → BILL_REQUESTED
-        // This satisfies the database workflow validation
-        await sendToKitchen(orderId);   // CREATED → SENT_TO_KITCHEN
-        await markAsServed(orderId);    // SENT_TO_KITCHEN → SERVED
-        await requestBill(orderId);     // SERVED → BILL_REQUESTED
+        // For new orders, quick_pay_order handles state traversal in one call
       }
       
       const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
-      await finalizePayment(orderId, paymentTotal, paymentMethod, ref);
+      // Single atomic RPC: traverses states + records payment + deducts inventory
+      await quickPayOrder(orderId, paymentTotal, paymentMethod, ref);
       
       setShowPaymentDialog(false);
       

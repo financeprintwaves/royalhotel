@@ -4,6 +4,8 @@ import type {
   OrderItem, 
   OrderStatus, 
   UpdateOrderStatusResponse,
+  FinalizePaymentResponse,
+  PaymentMethod,
   MenuItem
 } from '@/types/pos';
 
@@ -427,6 +429,34 @@ export async function updateOrderNotes(orderId: string, notes: string): Promise<
     .eq('id', orderId);
 
   if (error) throw error;
+}
+
+// Quick pay: single RPC that traverses CREATED→PAID, records payment, deducts inventory
+export async function quickPayOrder(
+  orderId: string,
+  amount: number,
+  paymentMethod: PaymentMethod,
+  transactionReference?: string,
+  notes?: string
+): Promise<FinalizePaymentResponse> {
+  const idempotencyKey = generateIdempotencyKey();
+
+  const { data, error } = await supabase.rpc('quick_pay_order', {
+    p_order_id: orderId,
+    p_amount: amount,
+    p_payment_method: paymentMethod,
+    p_idempotency_key: idempotencyKey,
+    p_transaction_reference: transactionReference || null,
+    p_notes: notes || null,
+  });
+
+  if (error) throw error;
+  
+  const response = data as unknown as FinalizePaymentResponse;
+  if (!response.success) {
+    throw new Error(response.error || 'Quick payment failed');
+  }
+  return response;
 }
 
 // Cancel order (admin only)

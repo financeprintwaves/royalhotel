@@ -953,6 +953,17 @@ export type Database = {
         Args: { p_order_id: string; p_payments: Json }
         Returns: Json
       }
+      quick_pay_order: {
+        Args: {
+          p_amount: number
+          p_idempotency_key: string
+          p_notes?: string
+          p_order_id: string
+          p_payment_method: Database["public"]["Enums"]["payment_method"]
+          p_transaction_reference?: string
+        }
+        Returns: Json
+      }
       update_order_status: {
         Args: {
           p_new_status: Database["public"]["Enums"]["order_status"]

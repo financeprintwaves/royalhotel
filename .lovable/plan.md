@@ -1,32 +1,28 @@
 
 
-## Fix Build Errors and Optimize Print Flow
+## Add Pre-Payment Invoice Preview to Payment Dialog
 
-### 1. Fix TypeScript Build Errors in ReceiptDialog.tsx
+### What Changes
 
-The Supabase client's `.maybeSingle().then()` returns a `PromiseLike` which doesn't have `.catch()`. Fix by wrapping the Supabase calls in proper `Promise` wrappers or using try/catch within `.then()`.
+The payment dialog will show a complete bill summary at the top -- listing all items, quantities, prices, subtotal, discount, and total -- before the payment method selection. This gives staff a clear invoice preview before confirming payment, for both table orders and takeaway.
 
-**File**: `src/components/ReceiptDialog.tsx`
-- Lines 75-87: Wrap the waiter profile fetch so `.catch()` is on a real `Promise`
-- Lines 92-103: Same fix for branch info fetch
+### Implementation
 
-### 2. No Other Code Changes Needed
+**File: `src/pages/POS.tsx`** (single file change)
 
-The payment flow is already optimized:
-- `quickPayOrder` single-RPC is already in place (1 network call instead of 4)
-- Receipt is already built from local state (zero extra DB calls)
-- `ReceiptDialog` already attempts local printer first, falls back to browser print
-- `printService.ts` already sends HTML to `localhost:3001/print` for silent printing
+Insert a bill summary section inside the payment dialog, right after the `DialogHeader` and before the payment method toggle. The summary will:
 
-The "invoice before pay" and "skip print dialog" features require a local print daemon running on the POS terminal (already integrated via `printService.ts`). The browser cannot silently print without user interaction due to security restrictions -- the existing architecture correctly handles this by trying the local daemon first.
+1. Show order items with quantity, name, and line total (from cart for new orders, or from `selectedOrderForPayment.order_items` for existing orders)
+2. Show subtotal, discount (if any), and grand total
+3. Show table number or "Takeaway" label
+4. Use a compact, receipt-like layout with a `ScrollArea` (max height ~200px) so it doesn't overflow on long orders
+5. Use a `Separator` to visually divide the invoice preview from the payment controls
 
 ### Technical Details
 
-The only actual code change is fixing the TS errors on lines 84 and 101 of `ReceiptDialog.tsx`. The `.then()` on Supabase's `PostgrestFilterBuilder` returns `PromiseLike<void>`, not `Promise<void>`, so `.catch()` is unavailable. Fix: wrap each call in `Promise.resolve(...)` to convert to a full `Promise`.
-
-### Files Changed
-
-| File | Action |
-|------|--------|
-| `src/components/ReceiptDialog.tsx` | Fix 2 TypeScript errors (wrap Supabase calls in Promise.resolve) |
+- For new orders (from cart): iterate over `cart` array and `existingOrder?.order_items` to build the item list
+- For existing orders (from Orders view): use `selectedOrderForPayment.order_items`
+- All data is already in local state -- zero network calls needed
+- The dialog width stays at `max-w-md` but gains a scrollable item list
+- Currency formatted as OMR with 3 decimal places using existing `formatOMR` or inline `.toFixed(3)`
 

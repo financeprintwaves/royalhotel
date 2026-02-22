@@ -118,7 +118,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
       
       try {
         // Wait for React to fully render and DOM to stabilize
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Log for debugging
         console.log('Auto-printing receipt for order:', order?.order_number || order?.id);
@@ -129,17 +129,9 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
         console.log('Print sent to local daemon:', result);
         setHasPrinted(true);
       } catch (err) {
-        // no local printer available or failed - fall back to browser print
-        console.warn('Local printer failed or not reachable, attempting browser print', err);
-        try {
-          // Wait another moment for any pending renders
-          await new Promise(resolve => setTimeout(resolve, 300));
-          handlePrint();
-          setHasPrinted(true);
-        } catch (printErr) {
-          console.error('Browser print also failed:', printErr);
-          setHasPrinted(true);
-        }
+        // No local printer available - skip silently (no browser print dialog)
+        console.info('Local printer not available, skipping auto-print. Use manual Print button if needed.', err);
+        setHasPrinted(true);
       }
     }
 

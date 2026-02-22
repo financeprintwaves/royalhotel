@@ -1,66 +1,32 @@
 
 
-## Instant Billing: Single-RPC Payment
+## Fix Build Errors and Optimize Print Flow
 
-### The Problem
+### 1. Fix TypeScript Build Errors in ReceiptDialog.tsx
 
-When you click "Pay Now", the system makes **4 sequential network calls** to the database:
-1. sendToKitchen (~200ms)
-2. markAsServed (~200ms)
-3. requestBill (~200ms)
-4. finalizePayment (~200ms)
+The Supabase client's `.maybeSingle().then()` returns a `PromiseLike` which doesn't have `.catch()`. Fix by wrapping the Supabase calls in proper `Promise` wrappers or using try/catch within `.then()`.
 
-Total: **~800ms+ of waiting** before the bill appears.
+**File**: `src/components/ReceiptDialog.tsx`
+- Lines 75-87: Wrap the waiter profile fetch so `.catch()` is on a real `Promise`
+- Lines 92-103: Same fix for branch info fetch
 
-### The Solution
+### 2. No Other Code Changes Needed
 
-Replace all 4 calls with a **single database function** (`quick_pay_order`) that does everything in one call (~200ms total). The bill will appear in under 1 second.
+The payment flow is already optimized:
+- `quickPayOrder` single-RPC is already in place (1 network call instead of 4)
+- Receipt is already built from local state (zero extra DB calls)
+- `ReceiptDialog` already attempts local printer first, falls back to browser print
+- `printService.ts` already sends HTML to `localhost:3001/print` for silent printing
 
-### Changes
+The "invoice before pay" and "skip print dialog" features require a local print daemon running on the POS terminal (already integrated via `printService.ts`). The browser cannot silently print without user interaction due to security restrictions -- the existing architecture correctly handles this by trying the local daemon first.
 
-#### 1. Create database function `quick_pay_order`
+### Technical Details
 
-A single SQL function that atomically:
-- Transitions the order through all required states (CREATED -> SENT_TO_KITCHEN -> SERVED -> BILL_REQUESTED -> PAID)
-- Records the payment
-- Deducts inventory
-- Returns success
-
-This runs entirely inside the database -- one network round-trip instead of four.
-
-#### 2. Add `quickPayOrder` to `src/services/orderService.ts`
-
-A new function that calls the `quick_pay_order` RPC.
-
-#### 3. Update `src/pages/POS.tsx` payment flow
-
-Replace the 4 sequential calls:
-```
-await sendToKitchen(orderId);
-await markAsServed(orderId);
-await requestBill(orderId);
-await finalizePayment(orderId, total, method, ref);
-```
-
-With one call:
-```
-await quickPayOrder(orderId, total, method, ref);
-```
-
-The receipt is already built from local state (no extra DB call), so after this single RPC returns, the bill shows immediately.
-
-### Result
-
-| Before | After |
-|--------|-------|
-| 4 network calls (~800ms+) | 1 network call (~200ms) |
-| Bill appears in 1-2 seconds | Bill appears in under 1 second |
+The only actual code change is fixing the TS errors on lines 84 and 101 of `ReceiptDialog.tsx`. The `.then()` on Supabase's `PostgrestFilterBuilder` returns `PromiseLike<void>`, not `Promise<void>`, so `.catch()` is unavailable. Fix: wrap each call in `Promise.resolve(...)` to convert to a full `Promise`.
 
 ### Files Changed
 
 | File | Action |
 |------|--------|
-| Database migration | New `quick_pay_order` function |
-| `src/services/orderService.ts` | Add `quickPayOrder` wrapper |
-| `src/pages/POS.tsx` | Replace 4 calls with 1 call |
+| `src/components/ReceiptDialog.tsx` | Fix 2 TypeScript errors (wrap Supabase calls in Promise.resolve) |
 

@@ -1408,6 +1408,84 @@ export default function POS() {
                 : grandTotal.toFixed(3)} OMR
             </DialogTitle>
           </DialogHeader>
+
+          {/* Pre-Payment Invoice Preview */}
+          {(() => {
+            const invoiceItems = selectedOrderForPayment
+              ? (Array.isArray(selectedOrderForPayment.order_items) ? selectedOrderForPayment.order_items : [])
+              : [
+                  ...(existingOrder?.order_items || []).map((item: any) => ({
+                    id: item.id,
+                    name: item.menu_item?.name || 'Item',
+                    quantity: item.quantity,
+                    portion_name: item.portion_name,
+                    total_price: Number(item.total_price),
+                  })),
+                  ...cart.map(c => ({
+                    id: c.menuItem.id + (c.selectedPortion?.name || ''),
+                    name: c.menuItem.name,
+                    quantity: c.quantity,
+                    portion_name: c.portionName || c.selectedPortion?.name || null,
+                    total_price: c.menuItem.price * c.quantity,
+                  })),
+                ];
+            const invoiceSubtotal = selectedOrderForPayment
+              ? Number(selectedOrderForPayment.subtotal || selectedOrderForPayment.total_amount || 0)
+              : subtotal + existingTotal;
+            const invoiceDiscount = selectedOrderForPayment
+              ? Number(selectedOrderForPayment.discount_amount || 0)
+              : discount;
+            const invoiceTotal = selectedOrderForPayment
+              ? Number(selectedOrderForPayment.total_amount || 0)
+              : grandTotal;
+            const tableLabel = selectedOrderForPayment?.table
+              ? `Table ${(selectedOrderForPayment.table as any).table_number}`
+              : selectedTable
+                ? `Table ${selectedTable.table_number}`
+                : 'Takeaway';
+
+            return (
+              <div className="border rounded-md p-3 bg-muted/30">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-semibold">Invoice Preview</span>
+                  <Badge variant="outline" className="text-xs">{tableLabel}</Badge>
+                </div>
+                <ScrollArea className="max-h-[180px]">
+                  <div className="space-y-1 pr-3">
+                    {invoiceItems.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="flex justify-between text-xs">
+                        <span className="truncate mr-2">
+                          {item.quantity || 1}x {item.menu_item?.name || item.name || 'Item'}
+                          {(item.portion_name) && <span className="text-muted-foreground"> ({item.portion_name})</span>}
+                        </span>
+                        <span className="whitespace-nowrap font-mono">
+                          {(Number(item.total_price) || 0).toFixed(3)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <Separator className="my-2" />
+                {invoiceDiscount > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span className="font-mono">{invoiceSubtotal.toFixed(3)} OMR</span>
+                  </div>
+                )}
+                {invoiceDiscount > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Discount</span>
+                    <span className="font-mono">-{invoiceDiscount.toFixed(3)} OMR</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-bold mt-1">
+                  <span>Total</span>
+                  <span className="font-mono">{invoiceTotal.toFixed(3)} OMR</span>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="space-y-4">
             {/* Payment Method Toggle */}
             <div className="flex items-center gap-2 mb-2">

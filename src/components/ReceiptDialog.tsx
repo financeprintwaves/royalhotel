@@ -72,12 +72,13 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
         Promise.all([
           // Get waiter profile
           order.created_by 
-            ? supabase
-                .from('profiles')
-                .select('full_name')
-                .eq('user_id', order.created_by)
-                .maybeSingle()
-                .then(({ data, error }) => {
+            ? Promise.resolve(
+                supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('user_id', order.created_by)
+                  .maybeSingle()
+              ).then(({ data, error }) => {
                   if (error) console.error('Failed to load waiter:', error);
                   setWaiterName(data?.full_name || '');
                 })
@@ -89,12 +90,13 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
           
           // Get branch info
           profile?.branch_id
-            ? supabase
-                .from('branches')
-                .select('name, address, phone, logo_url')
-                .eq('id', profile.branch_id)
-                .maybeSingle()
-                .then(({ data, error }) => {
+            ? Promise.resolve(
+                supabase
+                  .from('branches')
+                  .select('name, address, phone, logo_url')
+                  .eq('id', profile.branch_id)
+                  .maybeSingle()
+              ).then(({ data, error }) => {
                   if (error) console.error('Failed to load branch:', error);
                   if (data) setBranchInfo(data);
                 })

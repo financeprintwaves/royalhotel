@@ -143,6 +143,8 @@ export interface Order {
   order_items?: OrderItem[];
 }
 
+export type ItemStatus = 'pending' | 'ready';
+
 export interface OrderItem {
   id: string;
   order_id: string;
@@ -152,6 +154,7 @@ export interface OrderItem {
   total_price: number;
   notes: string | null;
   created_at: string;
+  item_status: ItemStatus;
   menu_item?: MenuItem;
 }
 

@@ -1391,7 +1391,7 @@ export default function POS() {
                   </Button>
                 </>
               ) : (
-                /* Dine-in/Delivery: Kitchen first flow */
+              /* Dine-in/Delivery: Auto-send to kitchen + Pay option */
                 <>
                   <Button 
                     variant="secondary" 
@@ -1400,8 +1400,8 @@ export default function POS() {
                     onClick={handleSendToKitchen}
                     disabled={cart.length === 0 || loading}
                   >
-                    <ChefHat className="h-4 w-4" />
-                    {hasKitchenItems() ? 'KITCHEN' : 'SERVE'}
+                    <Check className="h-4 w-4" />
+                    CONFIRM ORDER
                   </Button>
                   <Button 
                     size="lg"

@@ -330,6 +330,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_serving: boolean | null
+          item_status: string
           menu_item_id: string | null
           notes: string | null
           order_id: string
@@ -342,6 +343,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_serving?: boolean | null
+          item_status?: string
           menu_item_id?: string | null
           notes?: string | null
           order_id: string
@@ -354,6 +356,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_serving?: boolean | null
+          item_status?: string
           menu_item_id?: string | null
           notes?: string | null
           order_id?: string

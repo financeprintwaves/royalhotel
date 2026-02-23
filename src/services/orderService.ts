@@ -459,6 +459,19 @@ export async function quickPayOrder(
   return response;
 }
 
+// Update individual order item status (for kitchen per-item tracking)
+export async function updateOrderItemStatus(
+  itemId: string,
+  status: 'pending' | 'ready'
+): Promise<void> {
+  const { error } = await supabase
+    .from('order_items')
+    .update({ item_status: status } as any)
+    .eq('id', itemId);
+
+  if (error) throw error;
+}
+
 // Cancel order (admin only)
 export async function cancelOrder(orderId: string): Promise<void> {
   // Get order with table info

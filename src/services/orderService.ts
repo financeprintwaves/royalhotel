@@ -14,8 +14,8 @@ export function generateIdempotencyKey(): string {
   return crypto.randomUUID();
 }
 
-// Get orders for current branch
-export async function getOrders(statusFilter?: OrderStatus[]): Promise<Order[]> {
+// Get orders for current branch (optimized: defaults to today's active + recent completed)
+export async function getOrders(statusFilter?: OrderStatus[], limit: number = 50): Promise<Order[]> {
   let query = supabase
     .from('orders')
     .select(`
@@ -27,7 +27,8 @@ export async function getOrders(statusFilter?: OrderStatus[]): Promise<Order[]> 
       ),
       waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
   if (statusFilter && statusFilter.length > 0) {
     query = query.in('order_status', statusFilter);

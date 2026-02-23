@@ -417,23 +417,19 @@ export async function getItemSalesDetails(params: DateRangeParams, branchId?: st
     .sort((a, b) => b.revenue - a.revenue);
 }
 
-export async function getSalesSummary(params: DateRangeParams, branchId?: string): Promise<SalesSummary> {
-  const [dailySales, hourlySales, topItems, categorySales, orderTypeSales] = await Promise.all([
-    getDailySales(params, branchId),
-    getHourlySales(params, branchId),
-    getTopSellingItems(params, 1, branchId),
-    getCategorySales(params, branchId),
-    getOrderTypeSales(params, branchId),
-  ]);
-
+// Build sales summary from pre-fetched data (no extra queries!)
+export function buildSalesSummary(
+  dailySales: DailySales[],
+  hourlySales: HourlySales[],
+  topItems: TopSellingItem[],
+  categorySales: CategorySales[],
+  orderTypeSales: OrderTypeSales[],
+): SalesSummary {
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
   const totalOrders = dailySales.reduce((sum, d) => sum + d.orders, 0);
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-  // Find peak hour
   const peakHour = hourlySales.reduce((max, h) => h.orders > max.orders ? h : max, hourlySales[0]);
-
-  // Find peak day
   const peakDay = dailySales.reduce((max, d) => d.revenue > max.revenue ? d : max, dailySales[0]);
 
   const dineIn = orderTypeSales.find(o => o.type === 'dine-in') || { orders: 0, revenue: 0 };
@@ -441,7 +437,7 @@ export async function getSalesSummary(params: DateRangeParams, branchId?: string
 
   return {
     gross_revenue: totalRevenue,
-    net_revenue: totalRevenue, // No tax deduction per user request
+    net_revenue: totalRevenue,
     total_orders: totalOrders,
     avg_order_value: avgOrderValue,
     dine_in_orders: dineIn.orders,
@@ -634,6 +630,7 @@ export async function getFOCReport(params: DateRangeParams, branchId?: string): 
 }
 
 export async function getReportingSummary(params: DateRangeParams, branchId?: string) {
+  // Fetch all data in parallel (no duplicate queries!)
   const [
     dailySales, 
     hourlySales, 
@@ -643,7 +640,6 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     paymentBreakdown,
     orderTypeSales,
     itemSalesDetails,
-    salesSummary,
     discountReport,
     focReport
   ] = await Promise.all([
@@ -655,16 +651,17 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     getPaymentBreakdown(params, branchId),
     getOrderTypeSales(params, branchId),
     getItemSalesDetails(params, branchId),
-    getSalesSummary(params, branchId),
     getDiscountReport(params, branchId),
     getFOCReport(params, branchId),
   ]);
+
+  // Build summary from already-fetched data (was previously doing 5 extra queries!)
+  const salesSummary = buildSalesSummary(dailySales, hourlySales, topItems, categorySales, orderTypeSales);
 
   const totalRevenue = dailySales.reduce((sum, d) => sum + d.revenue, 0);
   const totalOrders = dailySales.reduce((sum, d) => sum + d.orders, 0);
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-  // Find peak hour
   const peakHour = hourlySales.reduce((max, h) => h.orders > max.orders ? h : max, hourlySales[0]);
 
   return {

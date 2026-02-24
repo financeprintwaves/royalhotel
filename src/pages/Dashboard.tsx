@@ -170,7 +170,7 @@ export default function Dashboard() {
             </Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{activeOrders.length}</div></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Tables Occupied</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{occupiedTables.length} / {tables.length}</div></CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Today's Revenue</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">${todayRevenue.toFixed(2)}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Today's Revenue</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{todayRevenue.toFixed(3)} OMR</div></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Pending Bills</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{pendingBills.length}</div></CardContent></Card>
           </div>
         )}

@@ -211,7 +211,7 @@ export default function NewOrder() {
         navigate('/');
       }, 5000);
       
-      toast({ title: 'Payment Successful!', description: `${total.toFixed(2)} OMR received via ${paymentMethod}` });
+      toast({ title: 'Payment Successful!', description: `${total.toFixed(3)} OMR received via ${paymentMethod}` });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
     } finally {
@@ -309,7 +309,7 @@ export default function NewOrder() {
                     <h4 className="font-semibold truncate">{item.name}</h4>
                     <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="font-bold text-primary">${item.price.toFixed(2)}</span>
+                      <span className="font-bold text-primary">{item.price.toFixed(3)} OMR</span>
                       {!item.is_available && <Badge variant="destructive">Unavailable</Badge>}
                     </div>
                   </CardContent>
@@ -332,7 +332,7 @@ export default function NewOrder() {
                     <div key={item.menuItem.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{item.menuItem.name}</p>
-                        <p className="text-sm text-muted-foreground">${(item.menuItem.price * item.quantity).toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">{(item.menuItem.price * item.quantity).toFixed(3)} OMR</p>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateCartQuantity(item.menuItem.id, -1)}>
@@ -379,7 +379,7 @@ export default function NewOrder() {
                   {cart.map(item => (
                     <div key={item.menuItem.id} className="flex justify-between">
                       <span>{item.quantity}x {item.menuItem.name}</span>
-                      <span>${(item.menuItem.price * item.quantity).toFixed(2)}</span>
+                      <span>{(item.menuItem.price * item.quantity).toFixed(3)} OMR</span>
                     </div>
                   ))}
                 </div>
@@ -425,7 +425,7 @@ export default function NewOrder() {
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Process Payment - ${total.toFixed(2)}</DialogTitle>
+            <DialogTitle>Process Payment - {total.toFixed(3)} OMR</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">

@@ -597,7 +597,7 @@ export default function MenuManagement() {
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="font-semibold">{item.name}</h3>
-                        <p className="text-lg font-bold text-primary">${item.price.toFixed(2)}</p>
+                        <p className="text-lg font-bold text-primary">{item.price.toFixed(3)} OMR</p>
                         {item.category && (
                           <Badge variant="outline" className="mt-1">{item.category.name}</Badge>
                         )}

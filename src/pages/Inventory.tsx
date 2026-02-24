@@ -346,7 +346,7 @@ export default function InventoryPage() {
                               <div>
                                 <div className="font-medium">{item.menu_item?.name || 'Unknown Item'}</div>
                                 <div className="text-sm text-muted-foreground">
-                                  {item.menu_item?.price?.toFixed(2)} OMR
+                                  {item.menu_item?.price?.toFixed(3)} OMR
                                 </div>
                               </div>
                             </div>

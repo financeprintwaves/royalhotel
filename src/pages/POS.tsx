@@ -20,7 +20,7 @@ import {
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
   markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus,
-  quickPayOrder
+  quickPayOrder, updateOrderItemQuantity, removeOrderItem
 } from '@/services/orderService';
 import { processSplitPayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -1222,9 +1222,59 @@ export default function POS() {
             <div className="px-4 py-2 bg-muted/50 border-b">
               <div className="text-xs font-medium text-muted-foreground mb-2">Previous Items</div>
               {existingOrder.order_items.map((item: any) => (
-                <div key={item.id} className="flex justify-between text-xs py-1 opacity-70">
-                  <span>{item.quantity}x {item.menu_item?.name || 'Item'}</span>
-                  <span>{Number(item.total_price).toFixed(3)} OMR</span>
+                <div key={item.id} className="flex items-center gap-2 text-xs py-1">
+                  <div className="flex-1 min-w-0">
+                    <span className="truncate">{item.quantity}x {item.menu_item?.name || 'Item'}</span>
+                    <span className="ml-2 text-muted-foreground">{Number(item.total_price).toFixed(3)} OMR</span>
+                  </div>
+                  {existingOrder.locked_at === null && (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5"
+                        onClick={async () => {
+                          if (item.quantity <= 1) return;
+                          try {
+                            await updateOrderItemQuantity(item.id, item.quantity - 1);
+                            const { data: refreshed } = await supabase.from('orders').select('*, order_items(*, menu_item:menu_items(id, name, price, image_url))').eq('id', existingOrder.id).single();
+                            if (refreshed) setExistingOrder(refreshed as any);
+                          } catch (e: any) { toast({ variant: 'destructive', title: 'Error', description: e.message }); }
+                        }}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-4 text-center">{item.quantity}</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5"
+                        onClick={async () => {
+                          try {
+                            await updateOrderItemQuantity(item.id, item.quantity + 1);
+                            const { data: refreshed } = await supabase.from('orders').select('*, order_items(*, menu_item:menu_items(id, name, price, image_url))').eq('id', existingOrder.id).single();
+                            if (refreshed) setExistingOrder(refreshed as any);
+                          } catch (e: any) { toast({ variant: 'destructive', title: 'Error', description: e.message }); }
+                        }}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5 text-destructive"
+                        onClick={async () => {
+                          try {
+                            await removeOrderItem(item.id);
+                            const { data: refreshed } = await supabase.from('orders').select('*, order_items(*, menu_item:menu_items(id, name, price, image_url))').eq('id', existingOrder.id).single();
+                            if (refreshed) setExistingOrder(refreshed as any);
+                          } catch (e: any) { toast({ variant: 'destructive', title: 'Error', description: e.message }); }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
               <Separator className="my-2" />

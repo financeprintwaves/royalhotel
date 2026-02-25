@@ -27,6 +27,7 @@ import { printKOT, printInvoice } from '@/services/printerService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
 import { supabase } from '@/integrations/supabase/client';
+import { saveCartDraft, loadCartDraft, clearCartDraft } from '@/services/localDb';
 import { FloorCanvas } from '@/components/FloorCanvas';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import PortionSelectionDialog from '@/components/PortionSelectionDialog';
@@ -133,6 +134,26 @@ export default function POS() {
       }
     }
   }, [branches, selectedBranch, canSwitchBranch, profile?.branch_id]);
+
+  // Restore cart from IndexedDB on mount
+  useEffect(() => {
+    if (selectedBranch) {
+      loadCartDraft(selectedBranch).then(saved => {
+        if (saved && saved.length > 0) setCart(saved);
+      });
+    }
+  }, [selectedBranch]);
+
+  // Auto-save cart to IndexedDB on every change
+  useEffect(() => {
+    if (selectedBranch) {
+      if (cart.length > 0) {
+        saveCartDraft(cart, selectedBranch);
+      } else {
+        clearCartDraft();
+      }
+    }
+  }, [cart, selectedBranch]);
 
   // Orders view functions
   const loadAllOrders = useCallback(async () => {
@@ -1360,7 +1381,7 @@ export default function POS() {
                         size="icon" 
                         variant="ghost" 
                         className="h-6 w-6" 
-                        onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1)}
+                        onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
@@ -1369,7 +1390,7 @@ export default function POS() {
                         size="icon" 
                         variant="ghost" 
                         className="h-6 w-6" 
-                        onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1)}
+                        onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -1377,7 +1398,7 @@ export default function POS() {
                         size="icon" 
                         variant="ghost" 
                         className="h-6 w-6 text-destructive" 
-                        onClick={() => removeFromCart(item.menuItem.id, item.isServing)}
+                        onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>

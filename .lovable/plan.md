@@ -1,101 +1,68 @@
 
 
-## Printer Settings Page + Kitchen Reprint KOT Button
+## Fix Cart Buttons, Clear Orders, and Add Dexie Local Database
 
-### Overview
-1. Create a `printer_settings` database table to store configurable printer name per branch
-2. Build a Printer Settings admin page at `/settings/printer`
-3. Update `printerService.ts` to read the configured printer name from the database instead of hardcoding `POS_PRINTER`
-4. Add a "Print KOT" button to each order card on the Kitchen Display
-5. Add route and Dashboard link for the new settings page
+### 1. Bug Fix: Cart +/- and Delete Buttons Not Working for Portion Items
 
----
+**Root Cause Found**: In `POS.tsx` lines 1363, 1372, and 1380, the `updateCartQuantity()` and `removeFromCart()` calls do NOT pass `item.selectedPortion`. The matching logic inside these functions checks `!c.selectedPortion` when no portion is passed, so portion-based items never match and the buttons silently do nothing.
 
-### 1. Database Migration: `printer_settings` Table
+**Fix**: Pass `item.selectedPortion` to all three button handlers:
+```typescript
+// Line 1363 - Minus button
+onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}
 
-Create a new table to store printer configuration per branch:
+// Line 1372 - Plus button  
+onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}
 
-```sql
-CREATE TABLE public.printer_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  branch_id UUID NOT NULL UNIQUE,
-  printer_name TEXT NOT NULL DEFAULT 'POS_PRINTER',
-  is_enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.printer_settings ENABLE ROW LEVEL SECURITY;
-
--- Admins and managers can manage printer settings
-CREATE POLICY "Admins and managers can manage printer settings"
-  ON public.printer_settings FOR ALL
-  TO authenticated
-  USING (is_manager_or_admin(auth.uid()) AND (branch_id = get_user_branch_id(auth.uid()) OR is_admin(auth.uid())))
-  WITH CHECK (is_manager_or_admin(auth.uid()) AND (branch_id = get_user_branch_id(auth.uid()) OR is_admin(auth.uid())));
-
--- All authenticated staff can read printer settings for their branch
-CREATE POLICY "Staff can view printer settings"
-  ON public.printer_settings FOR SELECT
-  TO authenticated
-  USING (branch_id = get_user_branch_id(auth.uid()) OR is_admin(auth.uid()));
+// Line 1380 - Delete button
+onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}
 ```
 
-No edge functions needed -- this is a simple CRUD table accessed via the client SDK.
+**File**: `src/pages/POS.tsx` (3 line edits)
 
 ---
 
-### 2. New File: `src/pages/PrinterSettings.tsx`
+### 2. Clear All Previous Orders
 
-Admin-only settings page with:
-- Input field for printer name (default: "POS_PRINTER")
-- Toggle for enabling/disabling auto-print
-- Save button that upserts into `printer_settings`
-- Test Print button that sends a test page to the configured printer
-- Accessible only to admin and manager roles
+Use the database insert tool to delete all existing order data for a fresh start:
+- Delete `order_items` (child rows first)
+- Delete `payments` 
+- Delete `order_status_log`
+- Delete `orders`
+- Reset `order_sequences` counters to 0
+- Reset all occupied tables back to "available"
 
----
-
-### 3. Update `src/services/printerService.ts`
-
-- Remove hardcoded `const PRINTER_NAME = 'POS_PRINTER'`
-- Add `getPrinterName(branchId)` function that queries `printer_settings` table, caches result in memory
-- `silentPrint()` accepts an optional printer name override, defaults to the cached setting
-- Export `printKOT` for reuse from Kitchen Display
+This will be done via SQL DELETE statements through the data tool.
 
 ---
 
-### 4. Update `src/pages/KitchenDisplay.tsx`
+### 3. Add Dexie (IndexedDB) for Local-First Speed
 
-- Add `Printer` icon import from lucide-react
-- Add a "Print KOT" button to each `OrderCard` (next to the Complete button area)
-- The button calls `printKOT()` with the order's items, table name, and order number
-- Update the `OrderCard` props to include `onPrintKOT` callback
-- The button is always visible (not just when all items are ready), so staff can reprint anytime
+**Install**: `dexie` package
 
----
+**New file**: `src/services/localDb.ts`
+- Define a Dexie database with tables: `menuItems`, `categories`, `cartDrafts`, `pendingOrders`
+- `menuItems` and `categories` are cached locally from the server on first load, then served from IndexedDB on subsequent loads (instant)
+- `cartDrafts` stores the current cart state so it survives page refreshes
+- `pendingOrders` stores orders that failed to send (offline resilience)
 
-### 5. Update `src/App.tsx`
+**Update**: `src/hooks/useMenuData.ts`
+- On query success, write menu items and categories to Dexie
+- On query start, check Dexie first and return cached data as `initialData` to React Query (instant render, then background refresh)
 
-- Import `PrinterSettings` page
-- Add route: `/settings/printer`
-
----
-
-### 6. Update `src/pages/Dashboard.tsx`
-
-- Add a "Printer Settings" link card for admin/manager roles (with Printer icon)
+**Update**: `src/pages/POS.tsx`
+- Save cart to Dexie on every cart change (auto-persist)
+- Restore cart from Dexie on mount (survives refresh)
 
 ---
 
 ### Files Summary
 
-| Action | File |
-|--------|------|
-| NEW | `src/pages/PrinterSettings.tsx` |
-| EDIT | `src/services/printerService.ts` -- dynamic printer name from DB |
-| EDIT | `src/pages/KitchenDisplay.tsx` -- add Print KOT button per order |
-| EDIT | `src/App.tsx` -- add printer settings route |
-| EDIT | `src/pages/Dashboard.tsx` -- add settings link |
-| MIGRATION | New `printer_settings` table with RLS |
+| Action | File | Purpose |
+|--------|------|---------|
+| EDIT | `src/pages/POS.tsx` | Fix 3 button handlers + cart persistence |
+| NEW | `src/services/localDb.ts` | Dexie IndexedDB database definition |
+| EDIT | `src/hooks/useMenuData.ts` | Prefill React Query from Dexie cache |
+| DATA | orders/order_items/payments | Clear all previous order data |
+| INSTALL | `dexie` | IndexedDB wrapper library |
 

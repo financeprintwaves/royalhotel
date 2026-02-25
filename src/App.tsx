@@ -11,6 +11,7 @@ import NewOrder from "@/pages/NewOrder";
 import Orders from "@/pages/Orders";
 import Tables from "@/pages/Tables";
 import KitchenDisplay from "@/pages/KitchenDisplay";
+import PrinterSettings from "@/pages/PrinterSettings";
 import Reports from "@/pages/Reports";
 import Reservations from "@/pages/Reservations";
 import StaffManagement from "@/pages/StaffManagement";
@@ -72,6 +73,7 @@ function AppRoutes() {
       <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
       <Route path="/tables" element={<ProtectedRoute><Tables /></ProtectedRoute>} />
       <Route path="/kitchen" element={<ProtectedRoute><KitchenDisplay /></ProtectedRoute>} />
+      <Route path="/settings/printer" element={<ProtectedRoute><PrinterSettings /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/reservations" element={<ProtectedRoute><Reservations /></ProtectedRoute>} />
       <Route path="/staff" element={<ProtectedRoute><StaffManagement /></ProtectedRoute>} />

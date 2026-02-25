@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 // Dynamically import qz-tray (it attaches to window)
 let qz: any = null;
@@ -16,7 +17,55 @@ async function loadQZ() {
   }
 }
 
-const PRINTER_NAME = 'POS_PRINTER';
+// ─── Dynamic Printer Name from DB ──────────────────────────
+
+let cachedPrinterName: string | null = null;
+let cachedIsEnabled: boolean | null = null;
+let cacheExpiry = 0;
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function fetchPrinterSettings(): Promise<{ printerName: string; isEnabled: boolean }> {
+  const now = Date.now();
+  if (cachedPrinterName && now < cacheExpiry) {
+    return { printerName: cachedPrinterName, isEnabled: cachedIsEnabled ?? true };
+  }
+
+  try {
+    // Get current user's branch
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { printerName: 'POS_PRINTER', isEnabled: true };
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('branch_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!profile?.branch_id) return { printerName: 'POS_PRINTER', isEnabled: true };
+
+    const { data } = await supabase
+      .from('printer_settings')
+      .select('printer_name, is_enabled')
+      .eq('branch_id', profile.branch_id)
+      .maybeSingle();
+
+    cachedPrinterName = data?.printer_name || 'POS_PRINTER';
+    cachedIsEnabled = data?.is_enabled ?? true;
+    cacheExpiry = now + CACHE_TTL;
+
+    return { printerName: cachedPrinterName, isEnabled: cachedIsEnabled };
+  } catch {
+    return { printerName: cachedPrinterName || 'POS_PRINTER', isEnabled: cachedIsEnabled ?? true };
+  }
+}
+
+/** Clear cached settings (call after saving new settings) */
+export function clearPrinterCache() {
+  cachedPrinterName = null;
+  cachedIsEnabled = null;
+  cacheExpiry = 0;
+}
 
 /** Connect to QZ Tray websocket. Caches connection. */
 export async function connectPrinter(): Promise<boolean> {
@@ -48,14 +97,21 @@ export async function connectPrinter(): Promise<boolean> {
 }
 
 /** Fire-and-forget print. Returns true if sent, false if skipped. */
-async function silentPrint(html: string): Promise<boolean> {
+async function silentPrint(html: string, overridePrinterName?: string): Promise<boolean> {
   try {
+    const settings = await fetchPrinterSettings();
+    if (!settings.isEnabled && !overridePrinterName) {
+      console.log('Auto-print disabled in settings');
+      return false;
+    }
+
     const connected = await connectPrinter();
     if (!connected) {
       toast.warning('Printer not connected – QZ Tray is not running');
       return false;
     }
-    const config = qz.configs.create(PRINTER_NAME);
+    const printerName = overridePrinterName || settings.printerName;
+    const config = qz.configs.create(printerName);
     const data = [{ type: 'html', format: 'plain', data: html }];
     await qz.print(config, data);
     return true;

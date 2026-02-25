@@ -25,11 +25,11 @@ import InstallPWA from "@/pages/InstallPWA";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,      // Data stays fresh for 5 minutes
+      staleTime: 10 * 60 * 1000,     // Data stays fresh for 10 minutes
       gcTime: 30 * 60 * 1000,        // Keep in cache for 30 minutes
       refetchOnWindowFocus: false,   // Don't refetch on tab switch
       refetchOnMount: false,         // Don't refetch on component mount if data exists
-      retry: 2,                       // Retry failed requests twice
+      retry: 1,                       // Retry failed requests once
     },
   },
 });

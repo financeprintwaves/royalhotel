@@ -87,10 +87,11 @@ function getDatesBetween(startDate: Date, endDate: Date): string[] {
 export async function getDailySales(params: DateRangeParams, branchId?: string): Promise<DailySales[]> {
   let query = supabase
     .from('orders')
-    .select('created_at, total_amount, order_status, branch_id')
+    .select('created_at, total_amount, order_status, branch_id, payment_status')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
-    .in('order_status', ['PAID', 'CLOSED']);
+    .in('order_status', ['PAID', 'CLOSED'])
+    .eq('payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('branch_id', branchId);
@@ -123,10 +124,11 @@ export async function getDailySales(params: DateRangeParams, branchId?: string):
 export async function getHourlySales(params: DateRangeParams, branchId?: string): Promise<HourlySales[]> {
   let query = supabase
     .from('orders')
-    .select('created_at, total_amount, order_status, branch_id')
+    .select('created_at, total_amount, order_status, branch_id, payment_status')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
-    .in('order_status', ['PAID', 'CLOSED']);
+    .in('order_status', ['PAID', 'CLOSED'])
+    .eq('payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('branch_id', branchId);
@@ -165,7 +167,8 @@ export async function getTopSellingItems(params: DateRangeParams, limit: number 
     `)
     .gte('order.created_at', params.startDate.toISOString())
     .lte('order.created_at', params.endDate.toISOString())
-    .in('order.order_status', ['PAID', 'CLOSED']);
+    .in('order.order_status', ['PAID', 'CLOSED'])
+    .eq('order.payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('order.branch_id', branchId);
@@ -204,7 +207,8 @@ export async function getCategorySales(params: DateRangeParams, branchId?: strin
     `)
     .gte('order.created_at', params.startDate.toISOString())
     .lte('order.created_at', params.endDate.toISOString())
-    .in('order.order_status', ['PAID', 'CLOSED']);
+    .in('order.order_status', ['PAID', 'CLOSED'])
+    .eq('order.payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('order.branch_id', branchId);
@@ -238,7 +242,8 @@ export async function getStaffPerformance(params: DateRangeParams, branchId?: st
     .select('id, total_amount, created_by, branch_id')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
-    .in('order_status', ['PAID', 'CLOSED']);
+    .in('order_status', ['PAID', 'CLOSED'])
+    .eq('payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('branch_id', branchId);
@@ -335,7 +340,8 @@ export async function getOrderTypeSales(params: DateRangeParams, branchId?: stri
     .select('table_id, total_amount, branch_id')
     .gte('created_at', params.startDate.toISOString())
     .lte('created_at', params.endDate.toISOString())
-    .in('order_status', ['PAID', 'CLOSED']);
+    .in('order_status', ['PAID', 'CLOSED'])
+    .eq('payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('branch_id', branchId);
@@ -376,7 +382,8 @@ export async function getItemSalesDetails(params: DateRangeParams, branchId?: st
     `)
     .gte('order.created_at', params.startDate.toISOString())
     .lte('order.created_at', params.endDate.toISOString())
-    .in('order.order_status', ['PAID', 'CLOSED']);
+    .in('order.order_status', ['PAID', 'CLOSED'])
+    .eq('order.payment_status', 'paid');
 
   if (branchId) {
     query = query.eq('order.branch_id', branchId);

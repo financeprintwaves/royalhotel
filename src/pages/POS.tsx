@@ -1500,11 +1500,21 @@ export default function POS() {
                   🎁 CONFIRM FOC
                 </Button>
               ) : orderType === 'take-out' ? (
-                /* Takeaway: Payment first flow */
+                /* Takeaway: Send to Kitchen OR Pay & Collect */
                 <>
                   <Button 
+                    variant="secondary"
                     size="lg"
-                    className="col-span-2 flex items-center gap-2 bg-primary"
+                    className="flex items-center gap-2"
+                    onClick={handleSendToKitchen}
+                    disabled={cart.length === 0 || loading}
+                  >
+                    <ChefHat className="h-4 w-4" />
+                    SEND TO KITCHEN
+                  </Button>
+                  <Button 
+                    size="lg"
+                    className="flex items-center gap-2 bg-primary"
                     onClick={handleTakeawayPayment}
                     disabled={cart.length === 0 || loading}
                   >

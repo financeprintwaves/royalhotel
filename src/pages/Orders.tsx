@@ -9,8 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User } from 'lucide-react';
-import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders } from '@/services/orderService';
+import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User, Ban } from 'lucide-react';
+import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders, cancelOrder } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import ReceiptDialog from '@/components/ReceiptDialog';
@@ -116,6 +116,20 @@ export default function Orders() {
       else if (action === 'served') await markAsServed(order.id);
       else if (action === 'bill') await requestBill(order.id);
       toast({ title: 'Status Updated' });
+      loadOrders();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCancelOrder(order: Order) {
+    if (!confirm(`Cancel order ${order.order_number || order.id.slice(-8)}? This cannot be undone.`)) return;
+    setLoading(true);
+    try {
+      await cancelOrder(order.id);
+      toast({ title: 'Order Cancelled' });
       loadOrders();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -319,6 +333,9 @@ export default function Orders() {
                           </Button>
                         </>
                       )}
+                      <Button size="sm" variant="destructive" onClick={() => handleCancelOrder(order)} disabled={loading}>
+                        <Ban className="h-3 w-3 mr-1" />Cancel
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

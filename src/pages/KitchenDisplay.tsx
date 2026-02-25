@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, ChefHat, Check, Clock, Wifi, WifiOff, UtensilsCrossed, ShoppingBag, Flame, Bell, Volume2 } from 'lucide-react';
+import { ArrowLeft, ChefHat, Check, Clock, Wifi, WifiOff, UtensilsCrossed, ShoppingBag, Flame, Bell, Volume2, Printer } from 'lucide-react';
 import { getKitchenOrders, markAsServed, updateOrderItemStatus } from '@/services/orderService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Order } from '@/types/pos';
 import { playOrderNotification } from '@/lib/notificationSound';
+import { printKOT } from '@/services/printerService';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -36,10 +37,11 @@ interface OrderItemWithStatus {
   menu_item?: { id: string; name: string; price: number; image_url: string | null };
 }
 
-function OrderCard({ order, onItemToggle, onComplete, loading }: {
+function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
   order: Order;
   onItemToggle: (itemId: string, currentStatus: string) => void;
   onComplete: (orderId: string) => void;
+  onPrintKOT: (order: Order) => void;
   loading: boolean;
 }) {
   const items = (order as any).order_items as OrderItemWithStatus[] || [];
@@ -179,17 +181,29 @@ function OrderCard({ order, onItemToggle, onComplete, loading }: {
           </div>
         )}
 
-        {allReady && (
+        {/* Print KOT + Complete buttons */}
+        <div className="flex gap-2 mt-2">
           <Button
-            className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold shadow-lg shadow-emerald-500/25 transition-all duration-200"
-            onClick={() => onComplete(order.id)}
-            disabled={loading}
-            size="lg"
+            variant="outline"
+            className="flex-1 border-slate-600 text-slate-300 hover:bg-white/10 hover:text-white"
+            onClick={() => onPrintKOT(order)}
+            size="sm"
           >
-            <Check className="h-5 w-5 mr-2" />
-            Complete Order
+            <Printer className="h-4 w-4 mr-1" />
+            Print KOT
           </Button>
-        )}
+          {allReady && (
+            <Button
+              className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold shadow-lg shadow-emerald-500/25 transition-all duration-200"
+              onClick={() => onComplete(order.id)}
+              disabled={loading}
+              size="sm"
+            >
+              <Check className="h-4 w-4 mr-1" />
+              Complete
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -325,6 +339,27 @@ export default function KitchenDisplay() {
     }
   }
 
+  async function handlePrintKOT(order: Order) {
+    const items = ((order as any).order_items || []) as OrderItemWithStatus[];
+    const tableNumber = (order as any).table?.table_number;
+    const tableName = order.table_id ? `Table ${tableNumber}` : null;
+    
+    const kotItems = items.map(item => ({
+      name: item.menu_item?.name || 'Item',
+      quantity: item.quantity,
+      notes: item.notes,
+    }));
+
+    try {
+      const sent = await printKOT(tableName, kotItems, order.order_number);
+      if (sent) {
+        toast({ title: '🖨️ KOT Printed', description: `KOT for ${tableName || 'Takeaway'} sent to printer` });
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Print Failed', description: err.message });
+    }
+  }
+
   const renderSection = (
     title: string,
     icon: React.ReactNode,
@@ -354,6 +389,7 @@ export default function KitchenDisplay() {
                 order={order}
                 onItemToggle={handleItemToggle}
                 onComplete={handleComplete}
+                onPrintKOT={handlePrintKOT}
                 loading={loading}
               />
             ))

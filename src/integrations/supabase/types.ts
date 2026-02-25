@@ -597,6 +597,41 @@ export type Database = {
           },
         ]
       }
+      printer_settings: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          printer_name: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          printer_name?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          printer_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printer_settings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

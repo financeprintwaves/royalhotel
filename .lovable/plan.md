@@ -1,35 +1,60 @@
 
 
-## Fix Currency: Replace All USD ($) with OMR and Use 3 Decimal Places
+## QZ Tray Silent Printing Integration
 
-All dollar signs and 2-decimal formatting will be replaced with proper OMR formatting (3 decimal places) across every affected file.
+Add direct silent printing to a single thermal printer ("POS_PRINTER") for both Kitchen Order Tickets (KOT) and Customer Invoices, without any browser print dialog.
 
-### Files to Fix
+---
 
-| File | Issue |
-|------|-------|
-| `src/pages/NewOrder.tsx` | 5 places using `$` prefix and `toFixed(2)` instead of OMR |
-| `src/pages/Dashboard.tsx` | Revenue card showing `$todayRevenue.toFixed(2)` |
-| `src/pages/MenuManagement.tsx` | Menu item price showing `$item.price.toFixed(2)` |
-| `src/pages/Inventory.tsx` | Item price using `toFixed(2)` (already says OMR but wrong decimals) |
+### What Changes
 
-### Changes
+**1. Install dependency**
+- Add `qz-tray` package
 
-**NewOrder.tsx** -- 5 fixes:
-- Line 214: `${total.toFixed(2)} OMR` -> `${total.toFixed(3)} OMR`
-- Line 312: `$\{item.price.toFixed(2)}` -> `{item.price.toFixed(3)} OMR`
-- Line 335: `$\{...toFixed(2)}` -> `{...toFixed(3)} OMR`
-- Line 382: `$\{...toFixed(2)}` -> `{...toFixed(3)} OMR`
-- Line 428: `$\{total.toFixed(2)}` -> `{total.toFixed(3)} OMR`
+**2. New file: `src/services/printerService.ts`**
+- `connectPrinter()` -- connects to QZ Tray websocket, caches connection
+- `printKOT(order, cart, tableName)` -- generates 80mm KOT HTML and sends to "POS_PRINTER"
+- `printInvoice(order, cart, payments, branchInfo, waiterName)` -- generates 80mm invoice HTML and sends to "POS_PRINTER"
+- Both use `qz.print()` with raw HTML content type
+- Fallback: if QZ Tray is not running, shows a toast warning but does NOT block POS workflow
 
-**Dashboard.tsx** -- 1 fix:
-- Line 173: `$\{todayRevenue.toFixed(2)}` -> `{todayRevenue.toFixed(3)} OMR`
+**3. KOT HTML template**
+- 280px width, monospace font
+- Header: "--- KITCHEN COPY ---"
+- Table number or "TAKEAWAY"
+- Timestamp
+- Items with qty, notes, portion name
+- No prices (kitchen doesn't need them)
 
-**MenuManagement.tsx** -- 1 fix:
-- Line 600: `$\{item.price.toFixed(2)}` -> `{item.price.toFixed(3)} OMR`
+**4. Invoice HTML template**
+- 280px width, monospace font
+- Header: "--- CUSTOMER BILL ---"
+- Restaurant name, address, phone
+- Order number, table, date/time, waiter
+- Items with qty, price
+- Subtotal, discount, total
+- Payment method
+- "Thank you" footer
 
-**Inventory.tsx** -- 1 fix:
-- Line 349: `toFixed(2)` -> `toFixed(3)`
+**5. Hook into POS.tsx**
+- **`handleSendToKitchen()`** (line ~364): After order is saved and sent to kitchen, call `printKOT()` silently
+- **`handleProcessPayment()`** (line ~525): After `quickPayOrder()` succeeds and receipt is built, call `printInvoice()` silently
+- Both calls are fire-and-forget with try/catch -- failures show a toast but don't break the flow
 
-All changes use the same `X.XXX OMR` format already established throughout the rest of the app (POS, Receipts, Reports, Orders pages).
+**6. Replace existing printService.ts**
+- The current `printToLocalPrinter` (localhost:3001 daemon) is replaced by QZ Tray
+- `ReceiptDialog` manual "Print" button stays unchanged (uses react-to-print for browser dialog as fallback)
+
+---
+
+### Technical Details
+
+```text
+File changes:
+  NEW   src/services/printerService.ts   (QZ Tray connect + KOT/Invoice generators + print functions)
+  EDIT  src/pages/POS.tsx                (import printerService, add print calls in 2 handlers)
+  ADD   qz-tray dependency              (npm install)
+```
+
+**No database changes. No UI rebuild. Minimal code additions.**
 

@@ -54,7 +54,7 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
   const cardBorder = allReady
     ? 'border-emerald-400 shadow-emerald-500/20'
     : urgency === 'urgent'
-    ? 'border-red-400 shadow-red-500/20 animate-pulse'
+    ? 'border-red-400 shadow-red-500/20'
     : urgency === 'warning'
     ? 'border-amber-400 shadow-amber-500/20'
     : 'border-sky-400/50 shadow-sky-500/10';
@@ -76,7 +76,7 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
     : 'bg-sky-500/10';
 
   return (
-    <div className={`rounded-xl border-2 ${cardBorder} ${cardBg} shadow-lg overflow-hidden transition-all duration-300`}>
+    <div className={`rounded-xl border-2 ${cardBorder} ${cardBg} shadow-lg overflow-hidden`}>
       {/* Card Header */}
       <div className={`${headerBg} px-4 py-3 flex items-center justify-between`}>
         <div className="flex items-center gap-3">
@@ -138,7 +138,7 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
           return (
             <div
               key={item.id}
-              className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
+              className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer ${
                 isReady
                   ? 'bg-emerald-500/10 border border-emerald-500/25'
                   : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'
@@ -194,7 +194,7 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
           </Button>
           {allReady && (
             <Button
-              className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold shadow-lg shadow-emerald-500/25 transition-all duration-200"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
               onClick={() => onComplete(order.id)}
               disabled={loading}
               size="sm"
@@ -236,7 +236,7 @@ export default function KitchenDisplay() {
   useEffect(() => {
     const interval = setInterval(() => {
       setOrders(prev => [...prev]);
-    }, 15000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 

@@ -23,6 +23,7 @@ import {
   quickPayOrder, updateOrderItemQuantity, removeOrderItem
 } from '@/services/orderService';
 import { processSplitPayment } from '@/services/paymentService';
+import { printKOT, printInvoice } from '@/services/printerService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
 import { supabase } from '@/integrations/supabase/client';
@@ -435,6 +436,18 @@ export default function POS() {
         }
       }
       
+      // Silent KOT print (fire-and-forget)
+      try {
+        const kotItems = cart.map(c => ({
+          name: c.menuItem.name,
+          quantity: c.quantity,
+          notes: c.notes,
+          portionName: c.portionName || c.selectedPortion?.name,
+          isServing: c.isServing,
+        }));
+        printKOT(selectedTable?.table_number || null, kotItems);
+      } catch (e) { console.warn('KOT print skipped:', e); }
+      
       setCart([]);
       setExistingOrder(null);
       setSelectedTable(null);
@@ -632,6 +645,44 @@ export default function POS() {
       setReceiptOrder(localReceipt);
       setShowReceiptDialog(true);
       toast({ title: 'Payment Successful!' });
+      
+      // Silent invoice print (fire-and-forget)
+      try {
+        const branch = branches.find(b => b.id === selectedBranch);
+        const invoiceItems = [
+          ...(existingOrder?.order_items || []).map((oi: any) => ({
+            name: oi.menu_item?.name || 'Item',
+            quantity: oi.quantity,
+            unitPrice: Number(oi.unit_price),
+            totalPrice: Number(oi.total_price),
+            portionName: oi.portion_name,
+            isServing: oi.is_serving,
+          })),
+          ...cart.map(c => ({
+            name: c.menuItem.name,
+            quantity: c.quantity,
+            unitPrice: c.menuItem.price,
+            totalPrice: c.menuItem.price * c.quantity,
+            portionName: c.portionName || c.selectedPortion?.name,
+            isServing: c.isServing,
+          })),
+        ];
+        printInvoice({
+          orderNumber: realOrderNumber,
+          tableName: selectedTable?.table_number || null,
+          waiterName: profile?.full_name,
+          branchName: branch?.name,
+          branchAddress: branch?.address,
+          branchPhone: branch?.phone,
+          items: invoiceItems,
+          subtotal: subtotal + existingTotal,
+          discount,
+          total: paymentTotal,
+          paymentMethod,
+          isFOC,
+          focName: focDancerName || null,
+        });
+      } catch (e) { console.warn('Invoice print skipped:', e); }
       
       // For takeaway: After payment is done, notify kitchen if needed
       if (isTakeaway && needsKitchen) {

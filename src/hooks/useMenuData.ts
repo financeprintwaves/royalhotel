@@ -3,6 +3,7 @@ import { getCategories, getMenuItems } from '@/services/menuService';
 import { getTables } from '@/services/tableService';
 import { getAllBranches } from '@/services/staffService';
 import { localCache, CACHE_KEYS, CACHE_DURATION } from '@/services/cacheService';
+import { cacheMenuItems, getCachedMenuItems, cacheCategories, getCachedCategories } from '@/services/localDb';
 import type { Category, MenuItem, RestaurantTable, Branch } from '@/types/pos';
 
 // Hook for categories with local caching and branch filtering
@@ -10,27 +11,22 @@ export function useCategories(branchId?: string) {
   return useQuery({
     queryKey: ['categories', branchId],
     queryFn: async (): Promise<Category[]> => {
-      const cacheKey = branchId 
-        ? `${CACHE_KEYS.CATEGORIES}_${branchId}` 
-        : CACHE_KEYS.CATEGORIES;
-      
-      // Check local cache first
-      const cached = localCache.get<Category[]>(cacheKey);
-      if (cached) {
-        console.log('Categories loaded from cache');
-        return cached;
+      // Try Dexie first (instant)
+      const dexieCached = await getCachedCategories(branchId);
+      if (dexieCached && dexieCached.length > 0) {
+        // Background refresh from server
+        getCategories(branchId).then(data => {
+          cacheCategories(data, branchId);
+        }).catch(() => {});
+        return dexieCached;
       }
-      
-      // Fetch from database with optional branchId filter
+
       const data = await getCategories(branchId);
-      
-      // Store in local cache
-      localCache.set(cacheKey, data, CACHE_DURATION.CATEGORIES);
-      
+      cacheCategories(data, branchId);
       return data;
     },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    staleTime: 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
@@ -41,29 +37,22 @@ export function useMenuItems(categoryId?: string, branchId?: string) {
   return useQuery({
     queryKey: ['menu_items', categoryId, branchId],
     queryFn: async (): Promise<MenuItem[]> => {
-      const cacheKey = branchId
-        ? `${CACHE_KEYS.MENU_ITEMS}_${branchId}${categoryId ? `_${categoryId}` : ''}`
-        : categoryId 
-          ? `${CACHE_KEYS.MENU_ITEMS}_${categoryId}` 
-          : CACHE_KEYS.MENU_ITEMS;
-      
-      // Check local cache first
-      const cached = localCache.get<MenuItem[]>(cacheKey);
-      if (cached) {
-        console.log('Menu items loaded from cache');
-        return cached;
+      // Try Dexie first (instant)
+      const dexieCached = await getCachedMenuItems(categoryId, branchId);
+      if (dexieCached && dexieCached.length > 0) {
+        // Background refresh from server
+        getMenuItems(categoryId, branchId).then(data => {
+          cacheMenuItems(data, branchId);
+        }).catch(() => {});
+        return dexieCached;
       }
-      
-      // Fetch from database with optional branchId filter
+
       const data = await getMenuItems(categoryId, branchId);
-      
-      // Store in local cache
-      localCache.set(cacheKey, data, CACHE_DURATION.MENU_ITEMS);
-      
+      cacheMenuItems(data, branchId);
       return data;
     },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    staleTime: 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });

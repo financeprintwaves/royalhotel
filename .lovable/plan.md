@@ -1,68 +1,92 @@
 
 
-## Fix Cart Buttons, Clear Orders, and Add Dexie Local Database
+## Make All Pages Responsive for Tablet and Mobile
 
-### 1. Bug Fix: Cart +/- and Delete Buttons Not Working for Portion Items
+### Problem
+The POS system currently uses fixed-width sidebars and desktop-only layouts that break on tablets (768px) and phones (<640px). Key issues:
+- POS page: fixed `w-80` cart sidebar + `w-32` category sidebar don't collapse
+- POS header: navigation buttons overflow on small screens
+- NewOrder page: fixed `w-48` + `w-80` sidebars break on mobile
+- Dashboard header: buttons overflow on mobile
+- Reports page: tab bar overflows on small screens
 
-**Root Cause Found**: In `POS.tsx` lines 1363, 1372, and 1380, the `updateCartQuantity()` and `removeFromCart()` calls do NOT pass `item.selectedPortion`. The matching logic inside these functions checks `!c.selectedPortion` when no portion is passed, so portion-based items never match and the buttons silently do nothing.
-
-**Fix**: Pass `item.selectedPortion` to all three button handlers:
-```typescript
-// Line 1363 - Minus button
-onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}
-
-// Line 1372 - Plus button  
-onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}
-
-// Line 1380 - Delete button
-onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}
-```
-
-**File**: `src/pages/POS.tsx` (3 line edits)
+### Approach
+Keep all existing functionality identical. Only adjust CSS classes and add a mobile cart toggle for the POS page.
 
 ---
 
-### 2. Clear All Previous Orders
+### 1. POS Page (`src/pages/POS.tsx`)
 
-Use the database insert tool to delete all existing order data for a fresh start:
-- Delete `order_items` (child rows first)
-- Delete `payments` 
-- Delete `order_status_log`
-- Delete `orders`
-- Reset `order_sequences` counters to 0
-- Reset all occupied tables back to "available"
+**Header**: Wrap nav buttons in a horizontally scrollable container on mobile; hide button labels on small screens (icons only).
 
-This will be done via SQL DELETE statements through the data tool.
+**Menu View**: 
+- Category sidebar: `w-32` becomes `w-16 md:w-32` with truncated text on mobile
+- Menu grid: `grid-cols-2` stays, works well on all sizes
+- Cart sidebar: Hidden on mobile by default. Add a floating cart button (with item count badge) that toggles a full-screen cart overlay on mobile. On tablet/desktop, keep the `w-80` sidebar.
 
----
+**Floor View**: Already uses FloorCanvas which should scale. Branch selector row: stack vertically on mobile.
 
-### 3. Add Dexie (IndexedDB) for Local-First Speed
-
-**Install**: `dexie` package
-
-**New file**: `src/services/localDb.ts`
-- Define a Dexie database with tables: `menuItems`, `categories`, `cartDrafts`, `pendingOrders`
-- `menuItems` and `categories` are cached locally from the server on first load, then served from IndexedDB on subsequent loads (instant)
-- `cartDrafts` stores the current cart state so it survives page refreshes
-- `pendingOrders` stores orders that failed to send (offline resilience)
-
-**Update**: `src/hooks/useMenuData.ts`
-- On query success, write menu items and categories to Dexie
-- On query start, check Dexie first and return cached data as `initialData` to React Query (instant render, then background refresh)
-
-**Update**: `src/pages/POS.tsx`
-- Save cart to Dexie on every cart change (auto-persist)
-- Restore cart from Dexie on mount (survives refresh)
+**Orders/Kitchen views inside POS**: Already use responsive grid classes (`md:grid-cols-2 lg:grid-cols-3`), no changes needed.
 
 ---
 
-### Files Summary
+### 2. NewOrder Page (`src/pages/NewOrder.tsx`)
 
-| Action | File | Purpose |
-|--------|------|---------|
-| EDIT | `src/pages/POS.tsx` | Fix 3 button handlers + cart persistence |
-| NEW | `src/services/localDb.ts` | Dexie IndexedDB database definition |
-| EDIT | `src/hooks/useMenuData.ts` | Prefill React Query from Dexie cache |
-| DATA | orders/order_items/payments | Clear all previous order data |
-| INSTALL | `dexie` | IndexedDB wrapper library |
+**Header**: Step badges wrap on mobile using `flex-wrap`.
+
+**Menu step layout**: Change from 3-column flex to stacked on mobile:
+- Categories: horizontal scrollable bar on mobile instead of sidebar
+- Cart: bottom sheet/drawer on mobile instead of right sidebar
+- On tablet+, keep current sidebar layout
+
+---
+
+### 3. Dashboard Page (`src/pages/Dashboard.tsx`)
+
+**Header**: Stack user info and action buttons vertically on mobile using `flex-col sm:flex-row`.
+
+**Quick Actions**: Already uses `flex-wrap`, works well. Button sizes adjusted to `size="default"` on mobile for better touch targets.
+
+**Stats cards**: Already responsive with `md:grid-cols-2 lg:grid-cols-4`.
+
+---
+
+### 4. Orders Page (`src/pages/Orders.tsx`)
+
+Minor tweaks: ensure search/filter row wraps on mobile, and order card action buttons use `flex-wrap` (already present).
+
+---
+
+### 5. Kitchen Display (`src/pages/KitchenDisplay.tsx`)
+
+Already uses responsive grid. Add `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` for better tablet layout.
+
+---
+
+### 6. Reports Page (`src/pages/Reports.tsx`)
+
+Tab list: make horizontally scrollable on mobile with `overflow-x-auto`.
+
+---
+
+### Technical Details
+
+**Mobile Cart Toggle (POS)**: Add a `showMobileCart` state boolean. Use `useIsMobile()` hook (already exists in `src/hooks/use-mobile.tsx`). When mobile:
+- Hide the aside cart sidebar
+- Show a floating button at bottom-right with cart count
+- Clicking it opens a full-height sheet/drawer with the cart contents
+
+**No new dependencies needed** -- uses existing `Sheet` component from shadcn for mobile cart drawer.
+
+**Files to edit:**
+| File | Changes |
+|------|---------|
+| `src/pages/POS.tsx` | Mobile cart drawer, responsive header, responsive category sidebar |
+| `src/pages/NewOrder.tsx` | Responsive menu layout with horizontal categories on mobile |
+| `src/pages/Dashboard.tsx` | Responsive header stacking |
+| `src/pages/Orders.tsx` | Minor flex-wrap fixes |
+| `src/pages/KitchenDisplay.tsx` | Grid breakpoint adjustment |
+| `src/pages/Reports.tsx` | Scrollable tab bar |
+
+All existing functionality remains unchanged -- only CSS classes and one mobile cart toggle are added.
 

@@ -458,6 +458,64 @@ export function buildSalesSummary(
   };
 }
 
+// ===== PAYMENT TRANSACTIONS =====
+
+export interface PaymentTransaction {
+  order_id: string;
+  order_number: string;
+  date: string;
+  cash_amount: number;
+  card_amount: number;
+  mobile_amount: number;
+  total: number;
+}
+
+export async function getPaymentTransactions(params: DateRangeParams, branchId?: string): Promise<PaymentTransaction[]> {
+  let query = supabase
+    .from('payments')
+    .select('order_id, payment_method, amount, created_at, branch_id, order:orders!inner(order_number, order_status)')
+    .eq('payment_status', 'paid')
+    .gte('created_at', params.startDate.toISOString())
+    .lte('created_at', params.endDate.toISOString());
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  // Group by order_id
+  const orderMap: Record<string, PaymentTransaction> = {};
+
+  (data || []).forEach(payment => {
+    const orderId = payment.order_id;
+    const orderNumber = (payment.order as any)?.order_number || orderId.slice(0, 8);
+    const date = payment.created_at?.split('T')[0] || '';
+
+    if (!orderMap[orderId]) {
+      orderMap[orderId] = {
+        order_id: orderId,
+        order_number: orderNumber,
+        date,
+        cash_amount: 0,
+        card_amount: 0,
+        mobile_amount: 0,
+        total: 0,
+      };
+    }
+
+    const amount = Number(payment.amount) || 0;
+    const method = payment.payment_method as string;
+    if (method === 'cash') orderMap[orderId].cash_amount += amount;
+    else if (method === 'card') orderMap[orderId].card_amount += amount;
+    else if (method === 'mobile') orderMap[orderId].mobile_amount += amount;
+    orderMap[orderId].total += amount;
+  });
+
+  return Object.values(orderMap).sort((a, b) => b.date.localeCompare(a.date));
+}
+
 // ===== DISCOUNT REPORT =====
 
 export interface DiscountDetail {
@@ -648,7 +706,8 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     orderTypeSales,
     itemSalesDetails,
     discountReport,
-    focReport
+    focReport,
+    paymentTransactions
   ] = await Promise.all([
     getDailySales(params, branchId),
     getHourlySales(params, branchId),
@@ -660,6 +719,7 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     getItemSalesDetails(params, branchId),
     getDiscountReport(params, branchId),
     getFOCReport(params, branchId),
+    getPaymentTransactions(params, branchId),
   ]);
 
   // Build summary from already-fetched data (was previously doing 5 extra queries!)
@@ -683,6 +743,7 @@ export async function getReportingSummary(params: DateRangeParams, branchId?: st
     salesSummary,
     discountReport,
     focReport,
+    paymentTransactions,
     totalRevenue,
     totalOrders,
     avgOrderValue,

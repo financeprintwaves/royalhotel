@@ -130,15 +130,17 @@ export default function Reports() {
             
             {/* Report Type Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="sales">Sales</TabsTrigger>
-                <TabsTrigger value="payments">Payments</TabsTrigger>
-                <TabsTrigger value="items">Items</TabsTrigger>
-                <TabsTrigger value="discounts">Discounts</TabsTrigger>
-                <TabsTrigger value="foc">FOC</TabsTrigger>
-                <TabsTrigger value="summary">Summary</TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto scrollbar-hide">
+                <TabsList className="inline-flex w-auto min-w-max">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="sales">Sales</TabsTrigger>
+                  <TabsTrigger value="payments">Payments</TabsTrigger>
+                  <TabsTrigger value="items">Items</TabsTrigger>
+                  <TabsTrigger value="discounts">Discounts</TabsTrigger>
+                  <TabsTrigger value="foc">FOC</TabsTrigger>
+                  <TabsTrigger value="summary">Summary</TabsTrigger>
+                </TabsList>
+              </div>
             </Tabs>
           </div>
 

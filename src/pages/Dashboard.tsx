@@ -96,24 +96,26 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card px-6 py-4">
-        <div className="flex items-center justify-between">
+      <header className="border-b bg-card px-4 sm:px-6 py-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <UtensilsCrossed className="h-8 w-8 text-primary" />
             <div>
-              <h1 className="text-xl font-bold">Restaurant POS</h1>
+              <h1 className="text-lg sm:text-xl font-bold">Restaurant POS</h1>
               <p className="text-sm text-muted-foreground">Welcome, {profile?.full_name || user?.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex gap-2">
-              {roles.map(role => (<Badge key={role} variant="secondary" className="capitalize">{role}</Badge>))}
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <div className="flex gap-1 sm:gap-2">
+              {roles.map(role => (<Badge key={role} variant="secondary" className="capitalize text-xs">{role}</Badge>))}
             </div>
             <Button variant="outline" size="sm" onClick={handleSwitchUser}>
-              <RefreshCw className="h-4 w-4 mr-2" />Switch User
+              <RefreshCw className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Switch User</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />Sign Out
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Sign Out</span>
             </Button>
           </div>
         </div>

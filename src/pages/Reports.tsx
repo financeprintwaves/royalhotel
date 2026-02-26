@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { subDays, startOfDay, endOfDay } from 'date-fns';
+import { subDays, startOfDay, endOfDay, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { 
   ArrowLeft, BarChart3, TrendingUp, CreditCard, DollarSign, ShoppingCart, 
-  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText, Percent, Gift
+  Clock, Users, PieChart as PieChartIcon, UtensilsCrossed, Package, FileText, Percent, Gift, Filter
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -29,6 +32,7 @@ import {
   type DiscountDetail,
   type FOCReport,
   type FOCDetail,
+  type PaymentTransaction,
 } from '@/services/reportingService';
 import DateRangePicker, { type DateRange } from '@/components/DateRangePicker';
 import ExportButtons from '@/components/ExportButtons';
@@ -49,6 +53,8 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [paymentDateFilter, setPaymentDateFilter] = useState('');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
   const [dateRange, setDateRange] = useState<DateRange>({
     from: startOfDay(subDays(new Date(), 6)),
     to: endOfDay(new Date())
@@ -65,6 +71,7 @@ export default function Reports() {
     salesSummary: SalesSummary;
     discountReport: DiscountReport;
     focReport: FOCReport;
+    paymentTransactions: PaymentTransaction[];
     totalRevenue: number;
     totalOrders: number;
     avgOrderValue: number;
@@ -102,6 +109,19 @@ export default function Reports() {
     if (hour === 12) return '12 PM';
     return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
   }
+
+  const filteredPaymentTransactions = useMemo(() => {
+    if (!data?.paymentTransactions) return [];
+    return data.paymentTransactions.filter(t => {
+      if (paymentDateFilter && t.date !== paymentDateFilter) return false;
+      if (paymentMethodFilter !== 'all') {
+        if (paymentMethodFilter === 'cash' && t.cash_amount === 0) return false;
+        if (paymentMethodFilter === 'card' && t.card_amount === 0) return false;
+        if (paymentMethodFilter === 'mobile' && t.mobile_amount === 0) return false;
+      }
+      return true;
+    });
+  }, [data?.paymentTransactions, paymentDateFilter, paymentMethodFilter]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -449,87 +469,188 @@ export default function Reports() {
 
             {/* Payments Tab */}
             {activeTab === 'payments' && (
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Payment Methods */}
+              <div className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Payment Methods */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Payment Methods Breakdown
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.paymentBreakdown.length > 0 ? (
+                        <div className="space-y-4">
+                          {data.paymentBreakdown.map((payment) => {
+                            const total = data.paymentBreakdown.reduce((sum, p) => sum + p.amount, 0);
+                            const percentage = total > 0 ? (payment.amount / total) * 100 : 0;
+                            
+                            return (
+                              <div key={payment.method} className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="capitalize font-medium">{payment.method}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {payment.count} transactions
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 bg-muted rounded-full h-2">
+                                    <div 
+                                      className="h-2 rounded-full bg-primary" 
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                  <span className="font-bold min-w-[80px] text-right">
+                                    {payment.amount.toFixed(3)} OMR
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                          No payment data available
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Payment Pie Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Payment Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.paymentBreakdown.length > 0 ? (
+                        <div className="h-[300px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={data.paymentBreakdown}
+                                dataKey="amount"
+                                nameKey="method"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={100}
+                                label={({ method, percent }) => 
+                                  `${method} (${(percent * 100).toFixed(0)}%)`
+                                }
+                              >
+                                {data.paymentBreakdown.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: number) => [`${value.toFixed(3)} OMR`, 'Amount']} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                          No payment data available
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Payment Transactions Table */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Payment Methods Breakdown
+                      <FileText className="h-4 w-4" />
+                      Payment Transactions
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    {data.paymentBreakdown.length > 0 ? (
-                      <div className="space-y-4">
-                        {data.paymentBreakdown.map((payment) => {
-                          const total = data.paymentBreakdown.reduce((sum, p) => sum + p.amount, 0);
-                          const percentage = total > 0 ? (payment.amount / total) * 100 : 0;
-                          
-                          return (
-                            <div key={payment.method} className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="capitalize font-medium">{payment.method}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  {payment.count} transactions
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1 bg-muted rounded-full h-2">
-                                  <div 
-                                    className="h-2 rounded-full bg-primary" 
-                                    style={{ width: `${percentage}%` }}
-                                  />
-                                </div>
-                                <span className="font-bold min-w-[80px] text-right">
-                                  {payment.amount.toFixed(3)} OMR
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                  <CardContent className="space-y-4">
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Filters:</span>
                       </div>
-                    ) : (
-                      <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                        No payment data available
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      <Input
+                        type="date"
+                        value={paymentDateFilter}
+                        onChange={(e) => setPaymentDateFilter(e.target.value)}
+                        className="w-auto"
+                        placeholder="Filter by date"
+                      />
+                      <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Methods</SelectItem>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="card">Card</SelectItem>
+                          <SelectItem value="mobile">Mobile</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(paymentDateFilter || paymentMethodFilter !== 'all') && (
+                        <Button variant="ghost" size="sm" onClick={() => { setPaymentDateFilter(''); setPaymentMethodFilter('all'); }}>
+                          Clear
+                        </Button>
+                      )}
+                      <span className="text-sm text-muted-foreground ml-auto">
+                        {filteredPaymentTransactions.length} transactions
+                      </span>
+                    </div>
 
-                {/* Payment Pie Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Payment Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {data.paymentBreakdown.length > 0 ? (
-                      <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={data.paymentBreakdown}
-                              dataKey="amount"
-                              nameKey="method"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={100}
-                              label={({ method, percent }) => 
-                                `${method} (${(percent * 100).toFixed(0)}%)`
-                              }
-                            >
-                              {data.paymentBreakdown.map((_, index) => (
-                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value: number) => [`${value.toFixed(3)} OMR`, 'Amount']} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                        No payment data available
-                      </div>
-                    )}
+                    {/* Table */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Order #</TableHead>
+                            <TableHead className="text-right">Cash</TableHead>
+                            <TableHead className="text-right">Card</TableHead>
+                            <TableHead className="text-right">Mobile</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredPaymentTransactions.map((txn) => (
+                            <TableRow key={txn.order_id}>
+                              <TableCell className="whitespace-nowrap">{txn.date}</TableCell>
+                              <TableCell className="font-medium">{txn.order_number}</TableCell>
+                              <TableCell className="text-right">{txn.cash_amount > 0 ? `${txn.cash_amount.toFixed(3)}` : '-'}</TableCell>
+                              <TableCell className="text-right">{txn.card_amount > 0 ? `${txn.card_amount.toFixed(3)}` : '-'}</TableCell>
+                              <TableCell className="text-right">{txn.mobile_amount > 0 ? `${txn.mobile_amount.toFixed(3)}` : '-'}</TableCell>
+                              <TableCell className="text-right font-bold">{txn.total.toFixed(3)} OMR</TableCell>
+                            </TableRow>
+                          ))}
+                          {filteredPaymentTransactions.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                No payment transactions found
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                        {filteredPaymentTransactions.length > 0 && (
+                          <TableFooter>
+                            <TableRow>
+                              <TableCell colSpan={2} className="font-bold">Total</TableCell>
+                              <TableCell className="text-right font-bold">
+                                {filteredPaymentTransactions.reduce((s, t) => s + t.cash_amount, 0).toFixed(3)}
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                {filteredPaymentTransactions.reduce((s, t) => s + t.card_amount, 0).toFixed(3)}
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                {filteredPaymentTransactions.reduce((s, t) => s + t.mobile_amount, 0).toFixed(3)}
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                {filteredPaymentTransactions.reduce((s, t) => s + t.total, 0).toFixed(3)} OMR
+                              </TableCell>
+                            </TableRow>
+                          </TableFooter>
+                        )}
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

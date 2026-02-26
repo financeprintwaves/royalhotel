@@ -415,7 +415,7 @@ export default function KitchenDisplay() {
             <h1 className="text-lg font-bold tracking-tight">Kitchen Display</h1>
           </div>
 
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
             {/* Sound Toggle */}
             <Button
               variant="ghost"
@@ -436,18 +436,18 @@ export default function KitchenDisplay() {
             </div>
 
             {/* Stats Bar */}
-            <div className="flex gap-2">
-              <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg">
-                <span className="text-2xl font-bold text-white">{orders.length}</span>
-                <span className="text-xs text-slate-400">orders</span>
+            <div className="flex gap-1 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-white/5 border border-white/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg">
+                <span className="text-lg sm:text-2xl font-bold text-white">{orders.length}</span>
+                <span className="text-xs text-slate-400 hidden sm:inline">orders</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
-                <span className="text-2xl font-bold text-amber-400">{pendingItems}</span>
-                <span className="text-xs text-amber-400/70">pending</span>
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg">
+                <span className="text-lg sm:text-2xl font-bold text-amber-400">{pendingItems}</span>
+                <span className="text-xs text-amber-400/70 hidden sm:inline">pending</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg">
-                <span className="text-2xl font-bold text-emerald-400">{readyItems}</span>
-                <span className="text-xs text-emerald-400/70">ready</span>
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg">
+                <span className="text-lg sm:text-2xl font-bold text-emerald-400">{readyItems}</span>
+                <span className="text-xs text-emerald-400/70 hidden sm:inline">ready</span>
               </div>
             </div>
           </div>
@@ -468,7 +468,7 @@ export default function KitchenDisplay() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             {renderSection(
               'Dine-In',
               <UtensilsCrossed className="h-5 w-5 text-sky-400" />,

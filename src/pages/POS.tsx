@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
@@ -122,6 +124,8 @@ export default function POS() {
   // Serving selection dialog state
   const [showServingDialog, setShowServingDialog] = useState(false);
   const [selectedServingItem, setSelectedServingItem] = useState<MenuItem | null>(null);
+  const [showMobileCart, setShowMobileCart] = useState(false);
+  const isMobile = useIsMobile();
 
   // Set default branch when branches load - use user's branch for non-admins
   useEffect(() => {
@@ -863,53 +867,39 @@ export default function POS() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-4 py-2 flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/20">
-            <ArrowLeft className="h-4 w-4 mr-2" />Back
+        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/20 shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Back</span>
           </Button>
-          <h1 className="font-bold text-lg text-white">🍸 POS Terminal</h1>
-          <div className="flex gap-2 ml-4">
-            <Button 
-              variant={view === 'floor' ? 'default' : 'outline'} 
-              size="sm"
-              onClick={() => setView('floor')}
-            >
-              <LayoutGrid className="h-4 w-4 mr-1" />
-              Floor
-            </Button>
-            <Button 
-              variant={view === 'menu' ? 'default' : 'outline'} 
-              size="sm"
-              onClick={() => setView('menu')}
-            >
-              <ShoppingCart className="h-4 w-4 mr-1" />
-              Menu
-            </Button>
-            <Button 
-              variant={view === 'orders' ? 'default' : 'outline'} 
-              size="sm"
-              onClick={() => setView('orders')}
-            >
-              <ClipboardList className="h-4 w-4 mr-1" />
-              Orders
-            </Button>
-            <Button 
-              variant={view === 'kitchen' ? 'default' : 'outline'} 
-              size="sm"
-              onClick={() => setView('kitchen')}
-            >
-              <ChefHat className="h-4 w-4 mr-1" />
-              Kitchen
-            </Button>
+          <h1 className="font-bold text-sm sm:text-lg text-white shrink-0">🍸 POS</h1>
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
+            {([
+              { key: 'floor' as ViewType, icon: LayoutGrid, label: 'Floor' },
+              { key: 'menu' as ViewType, icon: ShoppingCart, label: 'Menu' },
+              { key: 'orders' as ViewType, icon: ClipboardList, label: 'Orders' },
+              { key: 'kitchen' as ViewType, icon: ChefHat, label: 'Kitchen' },
+            ]).map(({ key, icon: Icon, label }) => (
+              <Button 
+                key={key}
+                variant={view === key ? 'default' : 'outline'} 
+                size="sm"
+                className="shrink-0"
+                onClick={() => setView(key)}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden md:inline ml-1">{label}</span>
+              </Button>
+            ))}
           </div>
           {selectedTable && (
-            <Badge variant="secondary" className="ml-2">
+            <Badge variant="secondary" className="ml-1 sm:ml-2 shrink-0">
               {selectedTable.table_number}
             </Badge>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0">
             <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`} />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
               {isConnected ? 'Live' : 'Connecting...'}
             </span>
           </div>
@@ -919,8 +909,8 @@ export default function POS() {
         {view === 'floor' && (
           <main className="flex-1 flex flex-col overflow-hidden">
             {/* Branch Selector Header */}
-            <div className="flex items-center justify-between p-4 border-b bg-card">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 sm:p-4 border-b bg-card">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                 {/* Branch Selector - Admin Only */}
                 {canSwitchBranch ? (
                   <Select value={selectedBranch} onValueChange={setSelectedBranch}>
@@ -986,22 +976,22 @@ export default function POS() {
         {/* Menu View */}
         {view === 'menu' && (
           <div className="flex-1 flex overflow-hidden">
-            <aside className="w-32 border-r bg-muted/30 p-2 overflow-auto">
+            <aside className="w-16 md:w-32 border-r bg-muted/30 p-1 md:p-2 overflow-auto shrink-0">
               <Button
                 variant={selectedCategory === null ? 'default' : 'ghost'}
-                className="w-full justify-start text-xs mb-1 h-8"
+                className="w-full justify-start text-xs mb-1 h-8 px-1 md:px-3"
                 onClick={() => setSelectedCategory(null)}
               >
-                ALL MENU
+                <span className="truncate">ALL</span><span className="hidden md:inline ml-1">MENU</span>
               </Button>
               {categories.map(cat => (
                 <Button
                   key={cat.id}
                   variant={selectedCategory === cat.id ? 'default' : 'ghost'}
-                  className="w-full justify-start text-xs mb-1 h-8"
+                  className="w-full justify-start text-xs mb-1 h-8 px-1 md:px-3"
                   onClick={() => setSelectedCategory(cat.id)}
                 >
-                  {cat.name.toUpperCase()}
+                  <span className="truncate">{cat.name.toUpperCase()}</span>
                 </Button>
               ))}
             </aside>
@@ -1250,7 +1240,7 @@ export default function POS() {
       </div>
 
       {/* Right Sidebar - Current Order (only show for floor/menu views) */}
-      {(view === 'floor' || view === 'menu') && (
+      {(view === 'floor' || view === 'menu') && !isMobile && (
         <aside className="w-80 border-l bg-card flex flex-col">
           <div className="p-4 border-b">
             <div className="flex items-center gap-2 text-lg font-semibold">
@@ -1845,6 +1835,122 @@ export default function POS() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile Cart Floating Button */}
+      {isMobile && (view === 'floor' || view === 'menu') && (
+        <button
+          className="fixed bottom-4 right-4 z-50 bg-primary text-primary-foreground rounded-full w-14 h-14 flex items-center justify-center shadow-lg"
+          onClick={() => setShowMobileCart(true)}
+        >
+          <ShoppingCart className="h-6 w-6" />
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {cart.length}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Mobile Cart Sheet */}
+      <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
+        <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0">
+          <SheetHeader className="p-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Current Order {selectedTable && `- ${selectedTable.table_number}`}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="px-4 py-2 border-b">
+            <Input
+              placeholder="Customer name (optional)"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          <div className="px-4 py-2 border-b">
+            <div className="grid grid-cols-3 gap-1">
+              {(['dine-in', 'take-out', 'delivery'] as OrderType[]).map(type => (
+                <Button
+                  key={type}
+                  variant={orderType === type ? 'default' : 'outline'}
+                  size="sm"
+                  className="text-xs capitalize"
+                  onClick={() => setOrderType(type)}
+                >
+                  {type}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1 p-4">
+            {cart.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">TICKET IS EMPTY</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {cart.map((item, idx) => (
+                  <div key={`mobile-${item.menuItem.id}-${idx}`} className="flex items-center gap-2 bg-muted/50 rounded p-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.menuItem.price.toFixed(3)} OMR × {item.quantity}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}>
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-5 text-center text-sm">{item.quantity}</span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="border-t p-4 space-y-2">
+            <div className="flex justify-between font-bold text-lg">
+              <span>Total</span>
+              <span>{grandTotal.toFixed(3)} OMR</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {isFOC ? (
+                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={cart.length === 0 || !focDancerName.trim() || loading}>
+                  🎁 CONFIRM FOC
+                </Button>
+              ) : orderType === 'take-out' ? (
+                <>
+                  <Button variant="secondary" size="lg" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
+                    <ChefHat className="h-4 w-4 mr-1" />KITCHEN
+                  </Button>
+                  <Button size="lg" onClick={() => { setShowMobileCart(false); handleTakeawayPayment(); }} disabled={cart.length === 0 || loading}>
+                    <CreditCard className="h-4 w-4 mr-1" />PAY
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="secondary" size="lg" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
+                    <Check className="h-4 w-4 mr-1" />CONFIRM
+                  </Button>
+                  <Button size="lg" onClick={() => { setShowMobileCart(false); handlePayNow(); }} disabled={(cart.length === 0 && !existingOrder) || loading}>
+                    <CreditCard className="h-4 w-4 mr-1" />PAY
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Receipt Dialog */}
       {receiptOrder && (

@@ -226,16 +226,17 @@ export default function NewOrder() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b bg-card px-4 py-3 flex items-center gap-4">
+      <header className="border-b bg-card px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4 flex-wrap">
         <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />Back
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline ml-1">Back</span>
         </Button>
-        <h1 className="font-bold text-lg">New Order</h1>
+        <h1 className="font-bold text-base sm:text-lg">New Order</h1>
         {selectedTable && <Badge variant="outline">{selectedTable.table_number}</Badge>}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-1 sm:gap-2 flex-wrap">
           {['table', 'menu', 'cart', 'payment'].map((s, i) => (
-            <Badge key={s} variant={step === s ? 'default' : 'secondary'} className="capitalize">
-              {i + 1}. {s}
+            <Badge key={s} variant={step === s ? 'default' : 'secondary'} className="capitalize text-xs">
+              {i + 1}. <span className="hidden sm:inline">{s}</span><span className="sm:hidden">{s[0].toUpperCase()}</span>
             </Badge>
           ))}
         </div>
@@ -278,16 +279,16 @@ export default function NewOrder() {
 
       {/* Step 2: Menu Selection */}
       {step === 'menu' && (
-        <div className="flex-1 flex">
-          {/* Categories Sidebar */}
-          <aside className="w-48 border-r bg-muted/30 p-4">
-            <h3 className="font-semibold mb-3">Categories</h3>
-            <div className="space-y-2">
+        <div className="flex-1 flex flex-col md:flex-row">
+          {/* Categories - horizontal on mobile, sidebar on tablet+ */}
+          <aside className="md:w-48 border-b md:border-b-0 md:border-r bg-muted/30 p-2 md:p-4 shrink-0">
+            <h3 className="font-semibold mb-2 md:mb-3 hidden md:block">Categories</h3>
+            <div className="flex md:flex-col gap-1 md:gap-2 overflow-x-auto md:overflow-x-visible scrollbar-hide">
               {categories.map(cat => (
                 <Button
                   key={cat.id}
                   variant={selectedCategory === cat.id ? 'default' : 'ghost'}
-                  className="w-full justify-start"
+                  className="md:w-full justify-start shrink-0 text-sm"
                   onClick={() => setSelectedCategory(cat.id)}
                 >
                   {cat.name}
@@ -319,7 +320,7 @@ export default function NewOrder() {
           </main>
 
           {/* Cart Sidebar */}
-          <aside className="w-80 border-l bg-card flex flex-col">
+          <aside className="hidden md:flex w-80 border-l bg-card flex-col">
             <div className="p-4 border-b">
               <h3 className="font-semibold">Cart ({cart.length})</h3>
             </div>
@@ -360,6 +361,17 @@ export default function NewOrder() {
               </Button>
             </div>
           </aside>
+
+          {/* Mobile cart bar at bottom */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t p-3 flex items-center justify-between z-40">
+            <div>
+              <span className="font-bold">{total.toFixed(3)} OMR</span>
+              <span className="text-sm text-muted-foreground ml-2">({cart.length} items)</span>
+            </div>
+            <Button onClick={handleCreateOrder} disabled={cart.length === 0 || loading}>
+              Create Order
+            </Button>
+          </div>
         </div>
       )}
 

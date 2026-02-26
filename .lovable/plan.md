@@ -1,92 +1,57 @@
 
 
-## Make All Pages Responsive for Tablet and Mobile
+## Add Payment Transactions Table to Reports/Payments Tab
 
-### Problem
-The POS system currently uses fixed-width sidebars and desktop-only layouts that break on tablets (768px) and phones (<640px). Key issues:
-- POS page: fixed `w-80` cart sidebar + `w-32` category sidebar don't collapse
-- POS header: navigation buttons overflow on small screens
-- NewOrder page: fixed `w-48` + `w-80` sidebars break on mobile
-- Dashboard header: buttons overflow on mobile
-- Reports page: tab bar overflows on small screens
+### What You'll Get
+A detailed table below the existing payment charts showing every transaction with columns: Date, Order Number, Cash, Card, Mobile, and Total. It will include filters to narrow down by specific date and payment method.
 
-### Approach
-Keep all existing functionality identical. Only adjust CSS classes and add a mobile cart toggle for the POS page.
+### Changes
 
----
+#### 1. New Service Function (`src/services/reportingService.ts`)
 
-### 1. POS Page (`src/pages/POS.tsx`)
+Add `getPaymentTransactions()` that queries the `payments` table joined with `orders` to get:
+- Date (from payment created_at)
+- Order number (from orders.order_number)
+- Payment method and amount
 
-**Header**: Wrap nav buttons in a horizontally scrollable container on mobile; hide button labels on small screens (icons only).
+Returns an array of objects with order_number, date, cash/card/mobile amounts, and total -- aggregated per order so split payments show amounts in the correct columns.
 
-**Menu View**: 
-- Category sidebar: `w-32` becomes `w-16 md:w-32` with truncated text on mobile
-- Menu grid: `grid-cols-2` stays, works well on all sizes
-- Cart sidebar: Hidden on mobile by default. Add a floating cart button (with item count badge) that toggles a full-screen cart overlay on mobile. On tablet/desktop, keep the `w-80` sidebar.
+Add this to `getReportingSummary()` so it's fetched in parallel with other data.
 
-**Floor View**: Already uses FloorCanvas which should scale. Branch selector row: stack vertically on mobile.
+#### 2. Updated Reports Page (`src/pages/Reports.tsx`)
 
-**Orders/Kitchen views inside POS**: Already use responsive grid classes (`md:grid-cols-2 lg:grid-cols-3`), no changes needed.
+Below the existing two chart cards in the Payments tab, add:
 
----
+- **Filter row**: A date picker (single date filter) and a payment method dropdown (All / Cash / Card / Mobile) to filter the table
+- **Transactions table** with columns: Date, Order #, Cash, Card, Mobile, Total
+- **Footer row** with column totals
+- Responsive: horizontally scrollable on mobile
 
-### 2. NewOrder Page (`src/pages/NewOrder.tsx`)
-
-**Header**: Step badges wrap on mobile using `flex-wrap`.
-
-**Menu step layout**: Change from 3-column flex to stacked on mobile:
-- Categories: horizontal scrollable bar on mobile instead of sidebar
-- Cart: bottom sheet/drawer on mobile instead of right sidebar
-- On tablet+, keep current sidebar layout
-
----
-
-### 3. Dashboard Page (`src/pages/Dashboard.tsx`)
-
-**Header**: Stack user info and action buttons vertically on mobile using `flex-col sm:flex-row`.
-
-**Quick Actions**: Already uses `flex-wrap`, works well. Button sizes adjusted to `size="default"` on mobile for better touch targets.
-
-**Stats cards**: Already responsive with `md:grid-cols-2 lg:grid-cols-4`.
-
----
-
-### 4. Orders Page (`src/pages/Orders.tsx`)
-
-Minor tweaks: ensure search/filter row wraps on mobile, and order card action buttons use `flex-wrap` (already present).
-
----
-
-### 5. Kitchen Display (`src/pages/KitchenDisplay.tsx`)
-
-Already uses responsive grid. Add `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` for better tablet layout.
-
----
-
-### 6. Reports Page (`src/pages/Reports.tsx`)
-
-Tab list: make horizontally scrollable on mobile with `overflow-x-auto`.
-
----
+The filters are client-side -- they filter the already-fetched payment transactions data (no extra API calls).
 
 ### Technical Details
 
-**Mobile Cart Toggle (POS)**: Add a `showMobileCart` state boolean. Use `useIsMobile()` hook (already exists in `src/hooks/use-mobile.tsx`). When mobile:
-- Hide the aside cart sidebar
-- Show a floating button at bottom-right with cart count
-- Clicking it opens a full-height sheet/drawer with the cart contents
+**New interface** in `reportingService.ts`:
+```
+PaymentTransaction {
+  order_id, order_number, date,
+  cash_amount, card_amount, mobile_amount, total
+}
+```
 
-**No new dependencies needed** -- uses existing `Sheet` component from shadcn for mobile cart drawer.
+**New function** `getPaymentTransactions(params, branchId)`:
+- Queries `payments` joined with `orders` for paid orders in date range
+- Groups by order to split cash/card/mobile into separate columns
+- Sorted by date descending
 
-**Files to edit:**
-| File | Changes |
-|------|---------|
-| `src/pages/POS.tsx` | Mobile cart drawer, responsive header, responsive category sidebar |
-| `src/pages/NewOrder.tsx` | Responsive menu layout with horizontal categories on mobile |
-| `src/pages/Dashboard.tsx` | Responsive header stacking |
-| `src/pages/Orders.tsx` | Minor flex-wrap fixes |
-| `src/pages/KitchenDisplay.tsx` | Grid breakpoint adjustment |
-| `src/pages/Reports.tsx` | Scrollable tab bar |
+**UI filters** use existing components:
+- `DateRangePicker` or simple date input for date filter
+- `Select` dropdown for payment method filter
+- Both filter the transactions array in state
 
-All existing functionality remains unchanged -- only CSS classes and one mobile cart toggle are added.
+### Files to Edit
+| File | Change |
+|------|--------|
+| `src/services/reportingService.ts` | Add `PaymentTransaction` type + `getPaymentTransactions()` function, add to `getReportingSummary` |
+| `src/pages/Reports.tsx` | Add filterable transactions table below payment charts |
 

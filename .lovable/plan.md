@@ -1,57 +1,25 @@
 
 
-## Add Payment Transactions Table to Reports/Payments Tab
+## Fix FOC Flow Not Working on Mobile/Tablet
 
-### What You'll Get
-A detailed table below the existing payment charts showing every transaction with columns: Date, Order Number, Cash, Card, Mobile, and Total. It will include filters to narrow down by specific date and payment method.
+### Problem
+The mobile cart sheet (used on screens smaller than 768px) is missing two critical UI elements that exist in the desktop cart sidebar:
+1. The FOC toggle button (ON/OFF)
+2. The FOC person name input field
 
-### Changes
+Without these, users on mobile/tablet cannot activate FOC or enter the required person name. The "CONFIRM FOC" button exists in the mobile sheet but is permanently disabled because `focDancerName` is always empty.
 
-#### 1. New Service Function (`src/services/reportingService.ts`)
+### Fix
 
-Add `getPaymentTransactions()` that queries the `payments` table joined with `orders` to get:
-- Date (from payment created_at)
-- Order number (from orders.order_number)
-- Payment method and amount
+**File: `src/pages/POS.tsx`**
 
-Returns an array of objects with order_number, date, cash/card/mobile amounts, and total -- aggregated per order so split payments show amounts in the correct columns.
+Add the FOC toggle and person name input to the mobile cart sheet, in the footer section (between the Total display and the action buttons). This mirrors exactly what the desktop sidebar already has:
 
-Add this to `getReportingSummary()` so it's fetched in parallel with other data.
+- FOC toggle button (ON/OFF) with green highlight when active
+- Person name input field (shown only when FOC is ON)
+- FOC discount display line (shown only when FOC is ON)
+- Hide the discount input when FOC is ON (same as desktop)
 
-#### 2. Updated Reports Page (`src/pages/Reports.tsx`)
+The changes go inside the mobile cart sheet's `border-t p-4` footer div, right after the Total line and before the action buttons grid.
 
-Below the existing two chart cards in the Payments tab, add:
-
-- **Filter row**: A date picker (single date filter) and a payment method dropdown (All / Cash / Card / Mobile) to filter the table
-- **Transactions table** with columns: Date, Order #, Cash, Card, Mobile, Total
-- **Footer row** with column totals
-- Responsive: horizontally scrollable on mobile
-
-The filters are client-side -- they filter the already-fetched payment transactions data (no extra API calls).
-
-### Technical Details
-
-**New interface** in `reportingService.ts`:
-```
-PaymentTransaction {
-  order_id, order_number, date,
-  cash_amount, card_amount, mobile_amount, total
-}
-```
-
-**New function** `getPaymentTransactions(params, branchId)`:
-- Queries `payments` joined with `orders` for paid orders in date range
-- Groups by order to split cash/card/mobile into separate columns
-- Sorted by date descending
-
-**UI filters** use existing components:
-- `DateRangePicker` or simple date input for date filter
-- `Select` dropdown for payment method filter
-- Both filter the transactions array in state
-
-### Files to Edit
-| File | Change |
-|------|--------|
-| `src/services/reportingService.ts` | Add `PaymentTransaction` type + `getPaymentTransactions()` function, add to `getReportingSummary` |
-| `src/pages/Reports.tsx` | Add filterable transactions table below payment charts |
-
+No new files, no backend changes -- just adding the missing UI controls to the mobile cart sheet so the FOC flow works identically to desktop.

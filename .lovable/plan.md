@@ -1,25 +1,34 @@
 
 
-## Fix FOC Flow Not Working on Mobile/Tablet
+## Fix FOC Confirm Button Not Clickable
 
 ### Problem
-The mobile cart sheet (used on screens smaller than 768px) is missing two critical UI elements that exist in the desktop cart sidebar:
-1. The FOC toggle button (ON/OFF)
-2. The FOC person name input field
+When you select a table that already has an active order, the existing order's items are loaded separately from the cart. The "CONFIRM FOC" button checks if the cart has items (`cart.length === 0`), but since the existing order's items aren't in the cart, the button stays disabled even after entering a person name.
 
-Without these, users on mobile/tablet cannot activate FOC or enter the required person name. The "CONFIRM FOC" button exists in the mobile sheet but is permanently disabled because `focDancerName` is always empty.
+This affects both new tables (where you haven't added items yet) and tables with existing orders.
 
 ### Fix
 
 **File: `src/pages/POS.tsx`**
 
-Add the FOC toggle and person name input to the mobile cart sheet, in the footer section (between the Total display and the action buttons). This mirrors exactly what the desktop sidebar already has:
+1. **Update the disabled condition** on the CONFIRM FOC button (desktop and mobile) to also consider existing order items:
+   - Change from: `cart.length === 0 || !focDancerName.trim() || loading`
+   - Change to: `(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading`
 
-- FOC toggle button (ON/OFF) with green highlight when active
-- Person name input field (shown only when FOC is ON)
-- FOC discount display line (shown only when FOC is ON)
-- Hide the discount input when FOC is ON (same as desktop)
+2. **Update `handleFOCConfirm` function** to handle two scenarios:
+   - **Existing order on table**: Apply FOC directly to the existing order (update it with FOC fields + quick pay with 0 amount) instead of creating a new order
+   - **New order (cart only)**: Keep the current behavior of creating a new order from cart items
 
-The changes go inside the mobile cart sheet's `border-t p-4` footer div, right after the Total line and before the action buttons grid.
+This ensures FOC works whether you're applying it to a table's existing order or to a freshly built cart.
 
-No new files, no backend changes -- just adding the missing UI controls to the mobile cart sheet so the FOC flow works identically to desktop.
+### Technical Details
+
+In `handleFOCConfirm`:
+- If `existingOrder` exists, use its `id` directly, add any new cart items to it via batch, then mark as FOC and quick-pay
+- If no existing order, create a new order from cart (current behavior)
+- Update the early return check from `cart.length === 0` to `cart.length === 0 && !existingOrder`
+
+The disabled condition update applies to 3 places:
+1. Desktop cart sidebar button (line ~1488)
+2. Mobile cart sheet button (line ~1979)
+3. The early return guard in `handleFOCConfirm` (line ~492)

@@ -1919,6 +1919,57 @@ export default function POS() {
           </ScrollArea>
 
           <div className="border-t p-4 space-y-2">
+            {!isFOC && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">Discount</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="0.000"
+                  value={discount || ''}
+                  onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-28 h-7 text-sm text-right"
+                />
+              </div>
+            )}
+            {!isFOC && discount > 0 && (
+              <div className="flex justify-between text-sm text-green-500">
+                <span>Discount Applied</span>
+                <span>-{discount.toFixed(3)} OMR</span>
+              </div>
+            )}
+
+            {/* FOC Toggle */}
+            <div className="flex items-center justify-between gap-2 py-1">
+              <span className="text-muted-foreground text-sm">🎁 FOC (Free)</span>
+              <Button
+                variant={isFOC ? 'default' : 'outline'}
+                size="sm"
+                className={`h-7 text-xs ${isFOC ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                onClick={() => {
+                  setIsFOC(!isFOC);
+                  if (!isFOC) setDiscount(0);
+                }}
+              >
+                {isFOC ? 'FOC ON' : 'FOC OFF'}
+              </Button>
+            </div>
+            {isFOC && (
+              <Input
+                placeholder="Person Name (required)"
+                value={focDancerName}
+                onChange={(e) => setFocDancerName(e.target.value)}
+                className="h-7 text-sm"
+              />
+            )}
+            {isFOC && (
+              <div className="flex justify-between text-sm text-green-600 font-medium">
+                <span>FOC - Full Discount</span>
+                <span>-{(existingTotal + subtotal).toFixed(3)} OMR</span>
+              </div>
+            )}
+
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
               <span>{grandTotal.toFixed(3)} OMR</span>

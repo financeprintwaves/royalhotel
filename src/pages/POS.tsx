@@ -489,7 +489,7 @@ export default function POS() {
 
   // FOC (Free of Cost) handler
   async function handleFOCConfirm() {
-    if (cart.length === 0) {
+    if (cart.length === 0 && !existingOrder) {
       toast({ variant: 'destructive', title: 'Cart is empty', description: 'Add items before confirming FOC' });
       return;
     }
@@ -500,17 +500,35 @@ export default function POS() {
 
     setLoading(true);
     try {
-      const batchItems = cart.map(item => ({
-        menuItem: item.menuItem,
-        quantity: item.quantity,
-        notes: item.notes,
-        isServing: item.isServing,
-        portionName: item.portionName || item.selectedPortion?.name,
-      }));
+      let orderId: string;
 
-      const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
-      const orderId = newOrder.id;
-      await addOrderItemsBatch(orderId, batchItems);
+      if (existingOrder) {
+        // Apply FOC to existing order on the table
+        orderId = existingOrder.id;
+        // Add any new cart items
+        if (cart.length > 0) {
+          const batchItems = cart.map(item => ({
+            menuItem: item.menuItem,
+            quantity: item.quantity,
+            notes: item.notes,
+            isServing: item.isServing,
+            portionName: item.portionName || item.selectedPortion?.name,
+          }));
+          await addOrderItemsBatch(orderId, batchItems);
+        }
+      } else {
+        // Create new order from cart
+        const batchItems = cart.map(item => ({
+          menuItem: item.menuItem,
+          quantity: item.quantity,
+          notes: item.notes,
+          isServing: item.isServing,
+          portionName: item.portionName || item.selectedPortion?.name,
+        }));
+        const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
+        orderId = newOrder.id;
+        await addOrderItemsBatch(orderId, batchItems);
+      }
 
       // Mark as FOC with full discount
       const focSubtotal = existingTotal + subtotal;
@@ -1485,7 +1503,7 @@ export default function POS() {
                   size="lg"
                   className="col-span-2 flex items-center gap-2 bg-green-600 hover:bg-green-700"
                   onClick={handleFOCConfirm}
-                  disabled={cart.length === 0 || !focDancerName.trim() || loading}
+                  disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}
                 >
                   🎁 CONFIRM FOC
                 </Button>
@@ -1976,7 +1994,7 @@ export default function POS() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               {isFOC ? (
-                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={cart.length === 0 || !focDancerName.trim() || loading}>
+                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}>
                   🎁 CONFIRM FOC
                 </Button>
               ) : orderType === 'take-out' ? (

@@ -208,7 +208,7 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Header */}
       <header className="border-b bg-card px-6 py-4">
         <div className="flex items-center justify-between">

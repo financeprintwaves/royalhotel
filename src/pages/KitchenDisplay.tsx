@@ -400,7 +400,7 @@ export default function KitchenDisplay() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-x-hidden">
       {/* Professional Header */}
       <header className="border-b border-white/10 bg-black/40 backdrop-blur-sm px-4 py-3">
         <div className="flex items-center gap-4">

@@ -881,11 +881,11 @@ export default function POS() {
   const completedOrders = allOrders.filter(o => ['PAID', 'CLOSED'].includes(o.order_status));
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-x-hidden">
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4 max-md:py-3">
+        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4 max-md:py-3 sticky top-0 z-40">
           <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/20 shrink-0">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline ml-1">Back</span>
@@ -994,19 +994,44 @@ export default function POS() {
         {/* Menu View */}
         {view === 'menu' && (
           <div className="flex-1 flex overflow-hidden">
-            <aside className="w-16 md:w-32 border-r bg-muted/30 p-1 md:p-2 overflow-auto shrink-0">
+            {/* Mobile: horizontal scrollable category chips */}
+            <div className="md:hidden flex overflow-x-auto scrollbar-hide gap-2 p-2 border-b bg-card">
               <Button
-                variant={selectedCategory === null ? 'default' : 'ghost'}
-                className="w-full justify-start text-xs mb-1 h-8 px-1 md:px-3"
+                variant={selectedCategory === null ? 'default' : 'outline'}
+                className="shrink-0 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9"
                 onClick={() => setSelectedCategory(null)}
               >
-                <span className="truncate">ALL</span><span className="hidden md:inline ml-1">MENU</span>
+                All
+              </Button>
+              {categories.map(cat => {
+                const colorClass = CATEGORY_COLORS[cat.name] || 'bg-primary hover:bg-primary/90 text-primary-foreground';
+                return (
+                  <Button
+                    key={cat.id}
+                    variant={selectedCategory === cat.id ? 'default' : 'outline'}
+                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9 ${selectedCategory === cat.id ? colorClass : ''}`}
+                    onClick={() => setSelectedCategory(cat.id)}
+                  >
+                    {cat.name}
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Desktop: vertical sidebar */}
+            <aside className="hidden md:block w-32 border-r bg-muted/30 p-2 overflow-auto shrink-0">
+              <Button
+                variant={selectedCategory === null ? 'default' : 'ghost'}
+                className="w-full justify-start text-xs mb-1 h-8 px-3"
+                onClick={() => setSelectedCategory(null)}
+              >
+                <span className="truncate">ALL MENU</span>
               </Button>
               {categories.map(cat => (
                 <Button
                   key={cat.id}
                   variant={selectedCategory === cat.id ? 'default' : 'ghost'}
-                  className="w-full justify-start text-xs mb-1 h-8 px-1 md:px-3"
+                  className="w-full justify-start text-xs mb-1 h-8 px-3"
                   onClick={() => setSelectedCategory(cat.id)}
                 >
                   <span className="truncate">{cat.name.toUpperCase()}</span>
@@ -1019,7 +1044,7 @@ export default function POS() {
                 {filteredItems.map(item => (
                   <Card
                     key={item.id}
-                    className={`cursor-pointer hover:shadow-lg transition-all ${!item.is_available ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer hover:shadow-lg active:scale-95 transition-transform duration-150 max-md:rounded-2xl ${!item.is_available ? 'opacity-50' : ''}`}
                     onClick={() => handleMenuItemClick(item)}
                   >
                     <CardContent className="p-3">

@@ -290,7 +290,7 @@ export default function StaffManagement() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <header className="border-b bg-card px-4 py-3 flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
           <ArrowLeft className="h-4 w-4 mr-2" />Back

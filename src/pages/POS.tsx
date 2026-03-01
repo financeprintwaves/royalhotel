@@ -885,7 +885,7 @@ export default function POS() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4">
+        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4 max-md:py-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/20 shrink-0">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline ml-1">Back</span>
@@ -893,16 +893,16 @@ export default function POS() {
           <h1 className="font-bold text-sm sm:text-lg text-white shrink-0">🍸 POS</h1>
           <div className="flex gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             {([
-              { key: 'floor' as ViewType, icon: LayoutGrid, label: 'Floor' },
-              { key: 'menu' as ViewType, icon: ShoppingCart, label: 'Menu' },
-              { key: 'orders' as ViewType, icon: ClipboardList, label: 'Orders' },
-              { key: 'kitchen' as ViewType, icon: ChefHat, label: 'Kitchen' },
-            ]).map(({ key, icon: Icon, label }) => (
+              { key: 'floor' as ViewType, icon: LayoutGrid, label: 'Floor', mobileColor: 'bg-emerald-500' },
+              { key: 'menu' as ViewType, icon: ShoppingCart, label: 'Menu', mobileColor: 'bg-amber-500' },
+              { key: 'orders' as ViewType, icon: ClipboardList, label: 'Orders', mobileColor: 'bg-sky-500' },
+              { key: 'kitchen' as ViewType, icon: ChefHat, label: 'Kitchen', mobileColor: 'bg-rose-500' },
+            ]).map(({ key, icon: Icon, label, mobileColor }) => (
               <Button 
                 key={key}
                 variant={view === key ? 'default' : 'outline'} 
                 size="sm"
-                className="shrink-0"
+                className={`shrink-0 ${isMobile ? (view === key ? `${mobileColor} text-white border-0 shadow-lg` : 'bg-white/20 text-white border-white/30 hover:bg-white/30') : ''}`}
                 onClick={() => setView(key)}
               >
                 <Icon className="h-4 w-4" />
@@ -911,13 +911,13 @@ export default function POS() {
             ))}
           </div>
           {selectedTable && (
-            <Badge variant="secondary" className="ml-1 sm:ml-2 shrink-0">
+            <Badge variant="secondary" className="ml-1 sm:ml-2 shrink-0 max-md:bg-white/20 max-md:text-white max-md:border-0">
               {selectedTable.table_number}
             </Badge>
           )}
           <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0">
-            <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-muted-foreground'}`} />
-            <span className="text-xs text-muted-foreground hidden sm:inline">
+            <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-400' : 'text-white/50'}`} />
+            <span className="text-xs text-white/70 hidden sm:inline">
               {isConnected ? 'Live' : 'Connecting...'}
             </span>
           </div>
@@ -1854,15 +1854,15 @@ export default function POS() {
         </DialogContent>
       </Dialog>
 
-      {/* Mobile Cart Floating Button */}
+      {/* Mobile Cart Floating Button - Larger & bolder on mobile */}
       {isMobile && (view === 'floor' || view === 'menu') && (
         <button
-          className="fixed bottom-4 right-4 z-50 bg-primary text-primary-foreground rounded-full w-14 h-14 flex items-center justify-center shadow-lg"
+          className="fixed bottom-5 right-5 z-50 bg-primary text-primary-foreground rounded-full w-16 h-16 flex items-center justify-center shadow-xl mobile-card-shadow"
           onClick={() => setShowMobileCart(true)}
         >
-          <ShoppingCart className="h-6 w-6" />
+          <ShoppingCart className="h-7 w-7" />
           {cart.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-badge-pulse">
               {cart.length}
             </span>
           )}
@@ -1871,9 +1871,9 @@ export default function POS() {
 
       {/* Mobile Cart Sheet */}
       <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
-        <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0">
-          <SheetHeader className="p-4 border-b">
-            <SheetTitle className="flex items-center gap-2">
+        <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0 rounded-t-3xl">
+          <SheetHeader className="p-4 border-b mobile-gradient-header">
+            <SheetTitle className="flex items-center gap-2 text-white">
               <ShoppingCart className="h-5 w-5" />
               Current Order {selectedTable && `- ${selectedTable.table_number}`}
             </SheetTitle>
@@ -1992,27 +1992,27 @@ export default function POS() {
               <span>Total</span>
               <span>{grandTotal.toFixed(3)} OMR</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {isFOC ? (
-                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}>
+                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700 h-14 text-base rounded-xl font-bold" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}>
                   🎁 CONFIRM FOC
                 </Button>
               ) : orderType === 'take-out' ? (
                 <>
-                  <Button variant="secondary" size="lg" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
-                    <ChefHat className="h-4 w-4 mr-1" />KITCHEN
+                  <Button variant="secondary" size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-orange text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
+                    <ChefHat className="h-5 w-5 mr-1" />KITCHEN
                   </Button>
-                  <Button size="lg" onClick={() => { setShowMobileCart(false); handleTakeawayPayment(); }} disabled={cart.length === 0 || loading}>
-                    <CreditCard className="h-4 w-4 mr-1" />PAY
+                  <Button size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-green text-white border-0" onClick={() => { setShowMobileCart(false); handleTakeawayPayment(); }} disabled={cart.length === 0 || loading}>
+                    <CreditCard className="h-5 w-5 mr-1" />PAY
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="secondary" size="lg" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
-                    <Check className="h-4 w-4 mr-1" />CONFIRM
+                  <Button variant="secondary" size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-blue text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
+                    <Check className="h-5 w-5 mr-1" />CONFIRM
                   </Button>
-                  <Button size="lg" onClick={() => { setShowMobileCart(false); handlePayNow(); }} disabled={(cart.length === 0 && !existingOrder) || loading}>
-                    <CreditCard className="h-4 w-4 mr-1" />PAY
+                  <Button size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-green text-white border-0" onClick={() => { setShowMobileCart(false); handlePayNow(); }} disabled={(cart.length === 0 && !existingOrder) || loading}>
+                    <CreditCard className="h-5 w-5 mr-1" />PAY
                   </Button>
                 </>
               )}

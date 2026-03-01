@@ -112,7 +112,7 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-  }
+}
 }
 
 @layer base {
@@ -122,6 +122,52 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ===== Bold & Colorful Mobile/Tablet Theme ===== */
+@layer utilities {
+  /* Gradient backgrounds for mobile */
+  .mobile-gradient-header {
+    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(199 89% 48%), hsl(262 83% 58%));
+  }
+  .mobile-gradient-purple {
+    background: linear-gradient(135deg, hsl(262 83% 55%), hsl(280 80% 50%));
+  }
+  .mobile-gradient-blue {
+    background: linear-gradient(135deg, hsl(199 89% 48%), hsl(217 91% 60%));
+  }
+  .mobile-gradient-green {
+    background: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 84% 39%));
+  }
+  .mobile-gradient-orange {
+    background: linear-gradient(135deg, hsl(25 95% 53%), hsl(38 92% 50%));
+  }
+  .mobile-gradient-rose {
+    background: linear-gradient(135deg, hsl(340 82% 45%), hsl(0 84% 60%));
+  }
+  .mobile-gradient-teal {
+    background: linear-gradient(135deg, hsl(160 84% 39%), hsl(199 89% 48%));
+  }
+  .mobile-gradient-amber {
+    background: linear-gradient(135deg, hsl(38 92% 50%), hsl(47 96% 53%));
+  }
+  .mobile-gradient-indigo {
+    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(217 91% 60%));
+  }
+  
+  /* Bold card shadow for mobile */
+  .mobile-card-shadow {
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.15), 0 4px 10px -5px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Pulsing badge animation */
+  @keyframes badge-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+  .animate-badge-pulse {
+    animation: badge-pulse 1.5s ease-in-out infinite;
   }
 }
 

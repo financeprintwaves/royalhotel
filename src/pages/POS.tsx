@@ -267,7 +267,16 @@ export default function POS() {
   }
 
   async function handleSelectTable(table: RestaurantTable) {
+    // Clear previous table's cart and order when switching tables
+    setCart([]);
+    setExistingOrder(null);
+    setDiscount(0);
+    setCustomerName('');
+    setIsFOC(false);
+    setFocDancerName('');
+    
     setSelectedTable(table);
+    setOrderType('dine-in');
     setView('menu');
     
     const existing = await checkExistingOrder(table.id);

@@ -1,41 +1,33 @@
 
 
-## POS Menu: Polished 2-Column Grid + Category Dropdown
+## Tables Page -- Match Reference Screenshot Layout
 
-### Changes
+### Single File Change: `src/pages/Tables.tsx`
 
-#### 1. Replace mobile category chips with a Select dropdown (src/pages/POS.tsx)
+Restructure the card internals to exactly match the reference screenshot layout:
 
-Replace the horizontal scrollable chip strip (`md:hidden` block, lines 1002-1023) with a `Select` dropdown component:
+```text
++---------------------------+
+| Table Number     [Action] |
+| X seats                   |
+| [Status Badge]            |
++---------------------------+
+```
 
-- Use the existing `Select`/`SelectContent`/`SelectItem` components already imported
-- "All Categories" as default/placeholder
-- Each category as a `SelectItem`
-- Styled with `h-12 rounded-xl text-base font-semibold` for large touch target
-- Wrapped in a `p-2 border-b bg-card` container, same as current strip
-- Desktop sidebar remains unchanged
+### Card Layout Changes (lines 72-104)
 
-#### 2. Polish the 2-column product grid cards (src/pages/POS.tsx)
+Replace the current `flex-row` layout with a vertical card structure:
 
-Refine the existing cards (lines 1048-1087) for a cleaner, more premium look:
+- **Top row**: Table number (bold, left) + Action button (right) using `flex justify-between items-start`
+- **Middle**: "X seats" text (small, muted)
+- **Bottom**: Status badge (left-aligned, colored)
+- Remove the `md:block md:text-center` responsive split -- use the same layout on all screens
+- Card padding: `p-3` consistent across breakpoints
+- Keep the existing `border-2 rounded-xl` with `STATUS_STYLES` color coding
 
-- Remove the large `aspect-square` image (takes too much vertical space in 2-col) -- replace with a compact `w-14 h-14` image/icon on the left, making each card a **horizontal mini-card** layout (`flex-row`)
-- Card structure: `flex flex-row items-center gap-2 p-2`
-  - Left: 56px square image placeholder (rounded-lg)
-  - Center: Name (line-clamp-1, text-xs) + Price (bold, text-sm)
-  - Right: Small `+` button (w-8 h-8)
-- This keeps cards compact and fits cleanly in 2 columns on 360px screens
-- Grid stays `grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2`
+### Grid
+- Keep `grid-cols-2` for mobile/tablet (already correct)
+- Keep `lg:grid-cols-4 xl:grid-cols-5` for desktop
 
-#### 3. Files modified
-
-| File | Change |
-|------|--------|
-| `src/pages/POS.tsx` | Replace mobile category chips with Select dropdown; redesign product cards to compact horizontal layout |
-
-### Result
-- Category filtering via a clean dropdown instead of scrollable chips
-- Compact 2-column product cards that fit perfectly on 360px mobile
-- No horizontal overflow
-- Desktop layout unchanged
+### No other files changed
 

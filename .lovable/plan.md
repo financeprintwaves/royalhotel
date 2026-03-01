@@ -1,63 +1,59 @@
 
+### Fix scope
+Resolve the mobile POS category strip so users can scroll through all categories while keeping scrollbars invisible.  
+This will be a targeted fix in the POS menu view (and a small safety pass on related overflow containers), without changing business logic or desktop behavior.
 
-## Fix: Hidden Scrollbar + Menu View Layout on Mobile
+### Root cause (from current code)
+In `src/pages/POS.tsx`, the category row is visually set to `overflow-x-auto`, but surrounding flex containers use `overflow-hidden` and are missing critical flex constraints (`min-w-0` / `min-h-0`), which can block or break scroll behavior on small screens and some mobile browsers.  
+Also, the category strip lacks mobile momentum/touch-optimized horizontal scrolling settings.
 
-### Problems Identified
+### Implementation plan
 
-1. **Scrollbar visible**: The slim scrollbar styling is still showing. Need to fully hide scrollbars while keeping scroll functionality.
+1. **Harden the mobile category chip scroller in POS**
+   - Update the category strip container (currently around line ~998) to ensure true horizontal scrolling:
+     - Keep `overflow-x-auto`
+     - Add `overflow-y-hidden`
+     - Add `w-full min-w-0`
+     - Add touch scrolling helpers:
+       - `touch-pan-x`
+       - `[-webkit-overflow-scrolling:touch]`
+     - Keep scrollbar hidden with existing `scrollbar-hide`
+   - Ensure every chip remains non-shrinking:
+     - Use `flex-none` (or keep `shrink-0`) + `whitespace-nowrap`
 
-2. **POS Menu view broken on mobile**: The menu view container (`line 996`) uses `flex` (horizontal direction) and places the mobile category chips, desktop sidebar, and product grid as horizontal siblings. On mobile, the chips appear squished beside the main content instead of stacking vertically above it. This makes the menu items invisible or inaccessible.
+2. **Fix flex overflow constraints around menu layout**
+   - Add `min-h-0` / `min-w-0` to the menu view wrapper stack so nested scroll areas can actually scroll:
+     - Outer menu wrapper (`flex-1 flex flex-col overflow-hidden`) → add `min-h-0 min-w-0`
+     - Inner content row (`flex-1 flex overflow-hidden`) → add `min-h-0 min-w-0`
+     - Product pane (`main`) → use `min-h-0 min-w-0 overflow-y-auto`
+   - This prevents hidden clipping from swallowing touch scroll and keeps desktop sidebar behavior unchanged.
 
-3. **MenuManagement page**: The `ScrollArea` inside the dialog (`max-h-[70vh]`) may not scroll properly on some mobile browsers. The main content area also lacks proper mobile scroll handling.
+3. **Preserve “scroll works, scrollbar hidden” behavior globally**
+   - Keep global hidden scrollbar behavior in `src/index.css` (no visible bars)
+   - Do **not** disable overflow scrolling itself
+   - Retain `.scrollbar-hide` utility for horizontal strips (category row, nav rows)
 
----
+4. **Optional stability pass (if needed after step 1–2)**
+   - If category scrolling still feels blocked on specific devices, add `overscroll-x-contain` to the strip.
+   - If menu dialog scrolling is still problematic, switch the form container from `ScrollArea max-h[...]` pattern to a straightforward native `div` with `max-h-[70vh] overflow-y-auto` (mobile-safe fallback).
 
-### Fix 1: Hide all scrollbars globally (`src/index.css`)
+### Files to update
+- `src/pages/POS.tsx` (primary fix)
+- `src/index.css` (only if a tiny helper utility is needed; otherwise unchanged)
 
-- Change the global scrollbar styles to be fully hidden (width: 0, display: none) while preserving `overflow-y: auto` scroll behavior.
-- Keep the `.scrollbar-hide` utility as-is for explicit use.
-- Apply hidden scrollbar to `html`, `body`, `#root` globally so no scrollbar is ever visible.
+### Expected outcome
+- Users can swipe horizontally through all menu categories on mobile.
+- Scrollbars remain invisible.
+- Product grid remains vertically scrollable.
+- No horizontal page overflow is introduced.
+- Desktop layout and functionality remain unchanged.
 
-### Fix 2: POS Menu View layout (`src/pages/POS.tsx`)
-
-Change the menu view from a single horizontal `flex` to a vertical column layout on mobile:
-
-- Wrap the menu view in `flex flex-col md:flex-row` instead of just `flex`
-- The mobile category chips (`md:hidden`) stay as a horizontal scroll strip at the top
-- The desktop sidebar (`hidden md:block`) and product grid sit below in a horizontal flex on desktop
-- The product `main` area gets `overflow-y-auto` so it scrolls vertically on mobile
-
-Specifically:
-```
-Before (line 996):
-<div className="flex-1 flex overflow-hidden">
-  <div className="md:hidden flex ...">chips</div>  // horizontal child
-  <aside className="hidden md:block ...">sidebar</aside>
-  <main>grid</main>
-</div>
-
-After:
-<div className="flex-1 flex flex-col overflow-hidden">
-  <div className="md:hidden flex ...">chips</div>  // stacks on top
-  <div className="flex-1 flex overflow-hidden">
-    <aside className="hidden md:block ...">sidebar</aside>
-    <main className="flex-1 overflow-y-auto p-4">grid</main>
-  </div>
-</div>
-```
-
-### Fix 3: MenuManagement dialog scroll (`src/pages/MenuManagement.tsx`)
-
-- Ensure the `DialogContent` uses `overflow-y-auto` properly
-- No major structural change needed; the `ScrollArea` with `max-h-[70vh]` should work. Will verify and add `overflow-y-auto` fallback if needed.
-
----
-
-### Files Modified
-
-| File | Change |
-|------|--------|
-| `src/index.css` | Hide all scrollbars globally (width: 0 / display: none) |
-| `src/pages/POS.tsx` | Fix menu view to use `flex-col` on mobile so chips stack above product grid |
-| `src/pages/MenuManagement.tsx` | Ensure dialog content scrolls properly on mobile |
-
+### Verification checklist
+- On 360px, 390px, 414px widths:
+  - Category chips are fully swipeable left/right.
+  - No visible scrollbar appears.
+  - Product list still scrolls vertically.
+- On tablet (768–1024):
+  - Layout remains aligned and usable.
+- On desktop:
+  - Existing menu sidebar behavior is unchanged.

@@ -25,8 +25,7 @@ interface BranchInfo {
 }
 
 const STATUS_COLORS: Record<PrintMethod, { dot: string; label: string }> = {
-  qz: { dot: 'bg-green-500', label: 'QZ Tray connected' },
-  daemon: { dot: 'bg-yellow-500', label: 'Local printer ready' },
+  daemon: { dot: 'bg-green-500', label: 'Local printer ready' },
   none: { dot: 'bg-muted-foreground/40', label: 'No silent printer' },
 };
 

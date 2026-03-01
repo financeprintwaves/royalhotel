@@ -9,7 +9,6 @@ import { ArrowLeft, Printer, Save, TestTube } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { connectPrinter } from '@/services/printerService';
 
 export default function PrinterSettings() {
   const { profile, roles } = useAuth();
@@ -68,15 +67,6 @@ export default function PrinterSettings() {
   async function handleTestPrint() {
     setTesting(true);
     try {
-      const connected = await connectPrinter();
-      if (!connected) {
-        toast({ variant: 'destructive', title: 'Connection Failed', description: 'QZ Tray is not running. Please start it and try again.' });
-        return;
-      }
-
-      const qzMod = await import('qz-tray');
-      const qz = qzMod.default || qzMod;
-      const config = qz.configs.create(printerName.trim() || 'POS_PRINTER');
       const html = `
 <div style="width:280px;font-family:'Courier New',monospace;font-size:13px;padding:8px;text-align:center">
   <div style="font-weight:bold;font-size:15px">*** TEST PRINT ***</div>
@@ -87,10 +77,21 @@ export default function PrinterSettings() {
   <div style="border-top:1px dashed #000;margin:6px 0"></div>
   <div style="font-size:11px">${new Date().toLocaleString('en-GB')}</div>
 </div>`;
-      await qz.print(config, [{ type: 'html', format: 'plain', data: html }]);
+
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('http://localhost:3001/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html, printerName: printerName.trim() || 'POS_PRINTER' }),
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+
+      if (!res.ok) throw new Error(`Daemon responded ${res.status}`);
       toast({ title: 'Test Sent', description: 'Test page sent to printer' });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Test Failed', description: err.message });
+      toast({ variant: 'destructive', title: 'Test Failed', description: 'Local print daemon is not running. Please start it and try again.' });
     } finally {
       setTesting(false);
     }

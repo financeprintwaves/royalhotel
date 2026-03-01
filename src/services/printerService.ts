@@ -97,7 +97,7 @@ export async function connectPrinter(): Promise<boolean> {
 }
 
 /** Fire-and-forget print. Returns true if sent, false if skipped. */
-async function silentPrint(html: string, overridePrinterName?: string): Promise<boolean> {
+export async function silentPrint(html: string, overridePrinterName?: string): Promise<boolean> {
   try {
     const settings = await fetchPrinterSettings();
     if (!settings.isEnabled && !overridePrinterName) {

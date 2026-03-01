@@ -438,7 +438,7 @@ export default function MenuManagement() {
                     <Plus className="h-4 w-4 mr-2" />Add Item
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg max-h-[90vh]">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
                   </DialogHeader>

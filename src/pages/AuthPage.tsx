@@ -51,8 +51,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4 max-md:mobile-gradient-indigo max-md:from-transparent max-md:via-transparent max-md:to-transparent">
+      <Card className="w-full max-w-md shadow-xl max-md:rounded-2xl max-md:mobile-card-shadow max-md:border-0">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Utensils className="h-8 w-8 text-primary" />

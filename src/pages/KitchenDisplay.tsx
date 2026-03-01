@@ -138,7 +138,7 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
           return (
             <div
               key={item.id}
-              className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer ${
+              className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer ${
                 isReady
                   ? 'bg-emerald-500/10 border border-emerald-500/25'
                   : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'
@@ -160,7 +160,7 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
                   }`}>
                     {item.quantity}
                   </span>
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-sm md:text-base font-medium ${
                     isReady ? 'line-through text-slate-500' : 'text-white'
                   }`}>
                     {item.menu_item?.name || 'Item'}
@@ -468,7 +468,7 @@ export default function KitchenDisplay() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {renderSection(
               'Dine-In',
               <UtensilsCrossed className="h-5 w-5 text-sky-400" />,

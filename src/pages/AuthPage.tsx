@@ -51,8 +51,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4 overflow-x-hidden max-md:mobile-gradient-indigo max-md:from-transparent max-md:via-transparent max-md:to-transparent">
-      <Card className="w-full max-w-md max-w-full shadow-xl max-md:rounded-2xl max-md:mobile-card-shadow max-md:border-0">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4 overflow-x-hidden max-md:mobile-gradient-restaurant max-md:from-transparent max-md:via-transparent max-md:to-transparent">
+      <Card className="w-full max-w-md shadow-xl max-md:rounded-2xl max-md:mobile-card-shadow max-md:border-0">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Utensils className="h-8 w-8 text-primary" />
@@ -89,8 +89,8 @@ export default function AuthPage() {
           <TabsContent value="signin">
             <form onSubmit={handleSignIn}>
               <CardContent className="space-y-4">
-                <div className="space-y-2"><Label htmlFor="signin-email">Email</Label><Input id="signin-email" name="email" type="email" required disabled={isLoading} /></div>
-                <div className="space-y-2"><Label htmlFor="signin-password">Password</Label><Input id="signin-password" name="password" type="password" required disabled={isLoading} /></div>
+                <div className="space-y-2"><Label htmlFor="signin-email">Email</Label><Input id="signin-email" name="email" type="email" required disabled={isLoading} className="h-12 text-base" /></div>
+                <div className="space-y-2"><Label htmlFor="signin-password">Password</Label><Input id="signin-password" name="password" type="password" required disabled={isLoading} className="h-12 text-base" /></div>
               </CardContent>
               <CardFooter><Button type="submit" className="w-full" disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sign In</Button></CardFooter>
             </form>
@@ -100,9 +100,9 @@ export default function AuthPage() {
           <TabsContent value="signup">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">
-                <div className="space-y-2"><Label htmlFor="signup-name">Full Name</Label><Input id="signup-name" name="fullName" type="text" required disabled={isLoading} /></div>
-                <div className="space-y-2"><Label htmlFor="signup-email">Email</Label><Input id="signup-email" name="email" type="email" required disabled={isLoading} /></div>
-                <div className="space-y-2"><Label htmlFor="signup-password">Password</Label><Input id="signup-password" name="password" type="password" required minLength={6} disabled={isLoading} /></div>
+                <div className="space-y-2"><Label htmlFor="signup-name">Full Name</Label><Input id="signup-name" name="fullName" type="text" required disabled={isLoading} className="h-12 text-base" /></div>
+                <div className="space-y-2"><Label htmlFor="signup-email">Email</Label><Input id="signup-email" name="email" type="email" required disabled={isLoading} className="h-12 text-base" /></div>
+                <div className="space-y-2"><Label htmlFor="signup-password">Password</Label><Input id="signup-password" name="password" type="password" required minLength={6} disabled={isLoading} className="h-12 text-base" /></div>
               </CardContent>
               <CardFooter><Button type="submit" className="w-full" disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account</Button></CardFooter>
             </form>

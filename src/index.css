@@ -177,6 +177,9 @@ All colors MUST be HSL.
   .mobile-gradient-indigo {
     background: linear-gradient(135deg, hsl(262 83% 58%), hsl(217 91% 60%));
   }
+  .mobile-gradient-restaurant {
+    background: linear-gradient(135deg, hsl(25 95% 53%), hsl(38 92% 50%), hsl(0 84% 55%));
+  }
   
   /* Bold card shadow for mobile */
   .mobile-card-shadow {

@@ -17,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
   Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
-  Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer
+  Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer,
+  UtensilsCrossed, ImageIcon
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
@@ -885,12 +886,15 @@ export default function POS() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4 max-md:py-3 sticky top-0 z-40">
+        <header className="border-b bg-gradient-to-r from-orange-600 via-amber-600 to-red-500 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-4 max-md:py-3 sticky top-0 z-40">
           <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-white hover:bg-white/20 shrink-0">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline ml-1">Back</span>
           </Button>
-          <h1 className="font-bold text-sm sm:text-lg text-white shrink-0">🍸 POS</h1>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <UtensilsCrossed className="h-5 w-5 text-white" />
+            <h1 className="font-bold text-sm sm:text-lg text-white">POS</h1>
+          </div>
           <div className="flex gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             {([
               { key: 'floor' as ViewType, icon: LayoutGrid, label: 'Floor', mobileColor: 'bg-emerald-500' },
@@ -998,7 +1002,7 @@ export default function POS() {
             <div className="md:hidden flex overflow-x-auto overflow-y-hidden scrollbar-hide gap-2 p-2 border-b bg-card w-full min-w-0 touch-pan-x [-webkit-overflow-scrolling:touch]">
               <Button
                 variant={selectedCategory === null ? 'default' : 'outline'}
-                className="flex-none rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9"
+                className={`flex-none rounded-full px-5 py-2 text-sm font-medium whitespace-nowrap h-10 ${selectedCategory === null ? 'mobile-gradient-restaurant text-white border-0 shadow-md' : ''}`}
                 onClick={() => setSelectedCategory(null)}
               >
                 All
@@ -1009,7 +1013,7 @@ export default function POS() {
                   <Button
                     key={cat.id}
                     variant={selectedCategory === cat.id ? 'default' : 'outline'}
-                    className={`flex-none rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9 ${selectedCategory === cat.id ? colorClass : ''}`}
+                    className={`flex-none rounded-full px-5 py-2 text-sm font-medium whitespace-nowrap h-10 ${selectedCategory === cat.id ? colorClass + ' shadow-md' : ''}`}
                     onClick={() => setSelectedCategory(cat.id)}
                   >
                     {cat.name}
@@ -1040,31 +1044,46 @@ export default function POS() {
               ))}
             </aside>
 
-            <main className="flex-1 p-4 overflow-y-auto min-h-0 min-w-0">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <main className="flex-1 p-3 sm:p-4 overflow-y-auto min-h-0 min-w-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
                 {filteredItems.map(item => (
                   <Card
                     key={item.id}
-                    className={`cursor-pointer hover:shadow-lg active:scale-95 transition-transform duration-150 max-md:rounded-2xl ${!item.is_available ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer hover:shadow-lg active:scale-[0.97] transition-all duration-150 rounded-2xl border ${!item.is_available ? 'opacity-50' : ''}`}
                     onClick={() => handleMenuItemClick(item)}
                   >
-                    <CardContent className="p-3">
-                      <h4 className="font-semibold text-sm truncate">{item.name}</h4>
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-primary text-sm">{item.price.toFixed(3)} OMR</span>
+                    <CardContent className="p-3 flex flex-row items-center gap-3">
+                      {/* Product Image */}
+                      <div className="w-20 h-20 md:w-[72px] md:h-[72px] rounded-xl bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-xl" />
+                        ) : (
+                          <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                        )}
+                      </div>
+                      {/* Product Details */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                        <h4 className="font-semibold text-sm leading-tight truncate">{item.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-primary text-base">{item.price.toFixed(3)} <span className="text-xs font-normal text-muted-foreground">OMR</span></span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {item.billing_type === 'by_serving' && item.serving_price && (
-                            <span className="text-xs text-muted-foreground">
-                              Shot: {item.serving_price.toFixed(3)}
-                            </span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Shot: {item.serving_price.toFixed(3)}</Badge>
+                          )}
+                          {!item.is_available && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Out</Badge>
+                          )}
+                          {item.billing_type === 'service' && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Service</Badge>
                           )}
                         </div>
-                        {!item.is_available && (
-                          <Badge variant="destructive" className="text-xs">Out</Badge>
-                        )}
-                        {item.billing_type === 'service' && (
-                          <Badge variant="outline" className="text-xs">Service</Badge>
-                        )}
+                      </div>
+                      {/* Add Button */}
+                      <div className="shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors">
+                          <Plus className="h-5 w-5" />
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1881,7 +1900,31 @@ export default function POS() {
         </DialogContent>
       </Dialog>
 
-      {/* Mobile Cart Floating Button - Larger & bolder on mobile */}
+      {/* Mobile Bottom Action Bar */}
+      {isMobile && view === 'menu' && cart.length > 0 && (
+        <div className="fixed bottom-20 left-3 right-3 z-40 flex gap-2">
+          <Button
+            size="lg"
+            className="flex-1 h-12 rounded-xl font-bold mobile-gradient-orange text-white border-0 shadow-lg"
+            onClick={() => { handleSendToKitchen(); }}
+            disabled={cart.length === 0 || loading}
+          >
+            <ChefHat className="h-5 w-5 mr-1" />
+            KOT
+          </Button>
+          <Button
+            size="lg"
+            className="flex-1 h-12 rounded-xl font-bold mobile-gradient-green text-white border-0 shadow-lg"
+            onClick={() => { handlePayNow(); }}
+            disabled={(cart.length === 0 && !existingOrder) || loading}
+          >
+            <CreditCard className="h-5 w-5 mr-1" />
+            PAY {grandTotal.toFixed(3)}
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile Cart Floating Button */}
       {isMobile && (view === 'floor' || view === 'menu') && (
         <button
           className="fixed bottom-5 right-5 z-50 bg-primary text-primary-foreground rounded-full w-16 h-16 flex items-center justify-center shadow-xl mobile-card-shadow"
@@ -1899,7 +1942,7 @@ export default function POS() {
       {/* Mobile Cart Sheet */}
       <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
         <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0 rounded-t-3xl">
-          <SheetHeader className="p-4 border-b mobile-gradient-header">
+          <SheetHeader className="p-4 border-b mobile-gradient-restaurant">
             <SheetTitle className="flex items-center gap-2 text-white">
               <ShoppingCart className="h-5 w-5" />
               Current Order {selectedTable && `- ${selectedTable.table_number}`}

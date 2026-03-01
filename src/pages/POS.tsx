@@ -27,11 +27,13 @@ import {
 } from '@/services/orderService';
 import { processSplitPayment } from '@/services/paymentService';
 import { printKOT, printInvoice } from '@/services/printerService';
+import { silentPrintHTML } from '@/services/printService';
 import { sendToAfsTerminal } from '@/services/afsTerminalService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
 import { supabase } from '@/integrations/supabase/client';
-import { saveCartDraft, loadCartDraft, clearCartDraft } from '@/services/localDb';
+import { saveCartDraft, loadCartDraft, clearCartDraft, cacheOrders, getCachedOrders } from '@/services/localDb';
+import { renderReceiptHTML } from '@/utils/receiptRenderer';
 import { FloorCanvas } from '@/components/FloorCanvas';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import PortionSelectionDialog from '@/components/PortionSelectionDialog';
@@ -163,12 +165,20 @@ export default function POS() {
     }
   }, [cart, selectedBranch]);
 
-  // Orders view functions
+  // Orders view functions - load from cache first, then server
   const loadAllOrders = useCallback(async () => {
     try {
+      // Load from cache instantly
+      const cached = await getCachedOrders();
+      if (cached && cached.length > 0) {
+        setAllOrders(cached as Order[]);
+      }
+      // Then fetch fresh from server
       const data = await getOrders();
       setAllOrders(data);
       setIsConnected(true);
+      // Update cache in background
+      cacheOrders(data);
     } catch (error) {
       console.error('Failed to load orders:', error);
       setIsConnected(false);
@@ -899,6 +909,24 @@ export default function POS() {
     setShowReceiptDialog(true);
   }
 
+  async function handleQuickPrint(order: Order) {
+    const branch = branches.find(b => b.id === order.branch_id) || branches[0];
+    const html = renderReceiptHTML(order, {
+      name: branch?.name,
+      address: branch?.address || undefined,
+      phone: branch?.phone || undefined,
+      logo_url: (branch as any)?.logo_url || undefined,
+    });
+    const sent = await silentPrintHTML(html);
+    if (sent) {
+      toast({ title: 'Receipt printed' });
+    } else {
+      // Fallback to receipt dialog
+      setReceiptOrder(order);
+      setShowReceiptDialog(true);
+    }
+  }
+
   // Kitchen view handlers
   async function handleMarkServed(orderId: string) {
     setLoading(true);
@@ -1181,6 +1209,9 @@ export default function POS() {
                           <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
                             <Eye className="h-3 w-3 mr-1" />View
                           </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleQuickPrint(order)}>
+                            <Printer className="h-3 w-3 mr-1" />Print
+                          </Button>
                           
                           {/* Status action buttons */}
                           {order.order_status === 'CREATED' && (
@@ -1256,7 +1287,7 @@ export default function POS() {
                           <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
                             <Eye className="h-3 w-3 mr-1" />View
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
+                          <Button size="sm" variant="outline" onClick={() => handleQuickPrint(order)}>
                             <Printer className="h-3 w-3 mr-1" />Print
                           </Button>
                           {isAdmin() && (

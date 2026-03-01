@@ -105,7 +105,7 @@ export default function PrinterSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <header className="border-b bg-card px-6 py-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>

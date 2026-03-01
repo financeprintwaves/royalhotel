@@ -18,7 +18,7 @@ import {
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
   Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
   Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer,
-  UtensilsCrossed, ImageIcon
+  UtensilsCrossed, ImageIcon, Search
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
@@ -110,6 +110,7 @@ export default function POS() {
   const [mobileTransactionRef, setMobileTransactionRef] = useState('');
   const [view, setView] = useState<ViewType>('floor');
   const [customerName, setCustomerName] = useState('');
+  const [menuSearch, setMenuSearch] = useState('');
   
   // Orders view state
   const [allOrders, setAllOrders] = useState<Order[]>([]);
@@ -874,9 +875,13 @@ export default function POS() {
     }
   }
 
-  const filteredItems = selectedCategory
-    ? menuItems.filter(i => i.category_id === selectedCategory)
-    : menuItems;
+
+
+  const filteredItems = menuItems.filter(i => {
+    const matchesCategory = selectedCategory ? i.category_id === selectedCategory : true;
+    const matchesSearch = menuSearch.trim() === '' || i.name.toLowerCase().includes(menuSearch.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const activeOrders = allOrders.filter(o => !['PAID', 'CLOSED'].includes(o.order_status));
   const completedOrders = allOrders.filter(o => ['PAID', 'CLOSED'].includes(o.order_status));
@@ -998,19 +1003,38 @@ export default function POS() {
         {/* Menu View */}
         {view === 'menu' && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
-            {/* Mobile: category dropdown */}
-            <div className="md:hidden p-2 border-b bg-card">
-              <Select value={selectedCategory || 'all'} onValueChange={(val) => setSelectedCategory(val === 'all' ? null : val)}>
-                <SelectTrigger className="h-12 rounded-xl text-base font-semibold">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Search + Mobile Category Dropdown */}
+            <div className="p-2 border-b bg-card flex flex-col gap-2">
+              {/* Search bar - all screens */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search menu items..."
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
+                  className="w-full h-10 md:h-9 pl-9 pr-8 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {menuSearch && (
+                  <button onClick={() => setMenuSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {/* Mobile: category dropdown */}
+              <div className="md:hidden">
+                <Select value={selectedCategory || 'all'} onValueChange={(val) => setSelectedCategory(val === 'all' ? null : val)}>
+                  <SelectTrigger className="h-11 rounded-xl text-base font-semibold">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">

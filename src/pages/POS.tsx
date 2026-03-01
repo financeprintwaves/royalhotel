@@ -1044,17 +1044,17 @@ export default function POS() {
               ))}
             </aside>
 
-            <main className="flex-1 p-3 sm:p-4 overflow-y-auto min-h-0 min-w-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
+             <main className="flex-1 p-2 sm:p-3 md:p-4 overflow-y-auto min-h-0 min-w-0">
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
                 {filteredItems.map(item => (
                   <Card
                     key={item.id}
                     className={`cursor-pointer hover:shadow-lg active:scale-[0.97] transition-all duration-150 rounded-2xl border ${!item.is_available ? 'opacity-50' : ''}`}
                     onClick={() => handleMenuItemClick(item)}
                   >
-                    <CardContent className="p-3 flex flex-row items-center gap-3">
+                    <CardContent className="p-2 sm:p-3 flex flex-col items-center gap-1.5 sm:gap-2">
                       {/* Product Image */}
-                      <div className="w-20 h-20 md:w-[72px] md:h-[72px] rounded-xl bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                      <div className="w-full aspect-square rounded-xl bg-muted flex items-center justify-center overflow-hidden">
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-xl" />
                         ) : (
@@ -1062,27 +1062,24 @@ export default function POS() {
                         )}
                       </div>
                       {/* Product Details */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                        <h4 className="font-semibold text-sm leading-tight truncate">{item.name}</h4>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-primary text-base">{item.price.toFixed(3)} <span className="text-xs font-normal text-muted-foreground">OMR</span></span>
+                      <div className="w-full flex flex-col gap-0.5 min-w-0">
+                        <h4 className="font-semibold text-xs sm:text-sm leading-tight line-clamp-2">{item.name}</h4>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-primary text-sm sm:text-base">{item.price.toFixed(3)} <span className="text-[10px] font-normal text-muted-foreground">OMR</span></span>
+                          <div className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                            <Plus className="h-4 w-4" />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="flex items-center gap-1 flex-wrap">
                           {item.billing_type === 'by_serving' && item.serving_price && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Shot: {item.serving_price.toFixed(3)}</Badge>
+                            <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 py-0">Shot: {item.serving_price.toFixed(3)}</Badge>
                           )}
                           {!item.is_available && (
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Out</Badge>
+                            <Badge variant="destructive" className="text-[9px] sm:text-[10px] px-1 py-0">Out</Badge>
                           )}
                           {item.billing_type === 'service' && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Service</Badge>
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 py-0">Service</Badge>
                           )}
-                        </div>
-                      </div>
-                      {/* Add Button */}
-                      <div className="shrink-0">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors">
-                          <Plus className="h-5 w-5" />
                         </div>
                       </div>
                     </CardContent>

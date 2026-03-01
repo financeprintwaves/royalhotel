@@ -1,57 +1,84 @@
 
 
-## Improve Silent Printing -- Unified Print Pipeline
+## AFS Card Terminal Integration
 
-### Problem
-The app has two separate print systems that don't talk to each other:
-1. **QZ Tray** (`printerService.ts`) -- used by POS and Kitchen for KOT/invoices
-2. **Local HTTP daemon** (`printService.ts`) -- used by ReceiptDialog for auto-print
-3. **Browser print dialog** (`react-to-print`) -- used as manual fallback in ReceiptDialog
+### What This Does
+When a cashier clicks "Card" to pay, the bill amount will automatically be sent to your AFS Nexgo card machine so the customer can swipe/tap their card -- no need to manually type the amount on the terminal.
 
-This means if QZ Tray is running but the HTTP daemon isn't (or vice versa), printing silently fails. The manual "Print" button always opens the browser dialog.
+### How It Works
 
-### Solution: Unified Print Pipeline with Cascading Fallback
+Since the POS runs in a web browser, it cannot talk directly to the AFS terminal at `172.28.28.26:21105`. The solution uses the same **local daemon** pattern already in place for silent printing -- a small local service running on the POS computer that proxies the payment request to the AFS terminal.
 
-Create a single `silentPrintHTML` function that tries multiple methods in order, only falling back to the browser dialog when the user explicitly clicks "Print".
+```text
+Browser (POS)                Local Daemon              AFS Terminal
+    |                        (localhost:3001)         (172.28.28.26:21105)
+    |-- POST /pay-card ----->|                          |
+    |   {amount: 5.500}      |-- HTTPS POST ---------->|
+    |                        |   apex.smartpos.gateway  |
+    |                        |<-- response -------------|
+    |<-- {success, ref} -----|                          |
+```
 
 ### Changes
 
-#### 1. Unify print service (`src/services/printService.ts`)
+#### 1. New file: `src/services/afsTerminalService.ts`
+- `sendToAfsTerminal(amount)` -- sends payment amount to the local daemon's `/pay-card` endpoint
+- Returns the transaction reference from AFS on success
+- 30-second timeout (card swipe may take time)
+- Clean error handling with user-friendly messages
 
-Rewrite to export a single `silentPrintHTML(html)` function with cascading fallback:
+#### 2. Update: `src/pages/POS.tsx` (Card payment flow)
+- When payment method is "card", call `sendToAfsTerminal(amount)` **before** calling `quickPayOrder`
+- Show a loading state ("Waiting for card...") while the terminal processes
+- On success: auto-fill the transaction reference from AFS response, then complete payment
+- On failure: show error toast, let cashier retry or switch to manual entry
 
-1. **Try QZ Tray first** -- calls `connectPrinter()` + `qz.print()` from printerService
-2. **Try local HTTP daemon** -- POST to `localhost:3001/print`
-3. **Return false** if both fail (no browser dialog triggered automatically)
+#### 3. Update: `src/pages/Orders.tsx` and `src/pages/NewOrder.tsx`
+- Same card payment integration for consistency across all payment entry points
 
-Also export a `getPrintStatus()` function that returns which method is available (for UI indicators).
+#### 4. Local Daemon Documentation
+- Add instructions in a `docs/afs-terminal-setup.md` file explaining:
+  - The local daemon needs a `/pay-card` endpoint that forwards to AFS
+  - Expected request/response format
+  - AFS gateway URL and service path configuration
 
-#### 2. Update `ReceiptDialog.tsx`
+### Technical Details
 
-- **Auto-print**: Use the new unified `silentPrintHTML()` instead of only trying the HTTP daemon
-- **Manual "Print" button**: Try `silentPrintHTML()` first; only fall back to `react-to-print` (browser dialog) if silent print fails
-- Add a small status indicator showing printer connection state (green dot = QZ connected, yellow = HTTP daemon only, grey = no silent print available)
+**AFS Terminal Service:**
+```typescript
+// POST to local daemon which proxies to AFS
+export async function sendToAfsTerminal(amount: number): Promise<{success: boolean; reference?: string}> {
+  const res = await fetch('http://localhost:3001/pay-card', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, currency: 'OMR' }),
+  });
+  return res.json();
+}
+```
 
-#### 3. Update `printerService.ts`
+**POS Card Payment Flow Update:**
+```typescript
+// When card is selected:
+if (paymentMethod === 'card') {
+  setCardProcessing(true);
+  const result = await sendToAfsTerminal(paymentTotal);
+  if (!result.success) {
+    toast({ variant: 'destructive', title: 'Card terminal error' });
+    return;
+  }
+  transactionRef = result.reference;
+}
+await quickPayOrder(orderId, paymentTotal, 'card');
+```
 
-- Export the `silentPrint` function (currently private) so the unified service can use it
-- No other changes needed -- KOT and Invoice printing continue working as before
+### Files to Create/Modify
 
-#### 4. No changes to POS.tsx or KitchenDisplay.tsx
-
-These already use `printKOT`/`printInvoice` from `printerService.ts` which will continue working identically.
-
-### Files Modified
-
-| File | Change |
+| File | Action |
 |------|--------|
-| `src/services/printService.ts` | Rewrite: unified `silentPrintHTML()` with QZ Tray -> HTTP daemon fallback cascade |
-| `src/services/printerService.ts` | Export `silentPrint` function (was private) |
-| `src/components/ReceiptDialog.tsx` | Use unified `silentPrintHTML()` for both auto-print and manual button; add printer status indicator |
-
-### Result
-- One-click silent printing that works whether QZ Tray OR local daemon is running
-- Manual "Print" button tries silent first, only shows browser dialog as absolute last resort
-- Visual feedback showing printer connection status
-- No breaking changes to existing KOT/Invoice printing
+| `src/services/afsTerminalService.ts` | Create -- AFS terminal communication service |
+| `src/pages/POS.tsx` | Modify -- integrate AFS call on card payment |
+| `src/pages/Orders.tsx` | Modify -- integrate AFS call on card payment |
+| `src/pages/NewOrder.tsx` | Modify -- integrate AFS call on card payment |
+| `docs/afs-terminal-setup.md` | Create -- setup guide for local daemon AFS proxy |
 

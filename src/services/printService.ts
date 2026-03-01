@@ -1,8 +1,5 @@
-// Unified Print Pipeline
-// Cascading fallback: QZ Tray → Local HTTP Daemon → return false
+// Unified Print Pipeline — Local HTTP Daemon only
 // Browser print dialog is ONLY triggered by manual button in ReceiptDialog as last resort.
-
-import { connectPrinter, silentPrint as qzSilentPrint } from './printerService';
 
 // ─── Local HTTP Daemon ─────────────────────────────────────
 
@@ -29,17 +26,10 @@ async function printViaLocalDaemon(html: string, timeoutMs = 3000): Promise<bool
 
 // ─── Printer Status ────────────────────────────────────────
 
-export type PrintMethod = 'qz' | 'daemon' | 'none';
+export type PrintMethod = 'daemon' | 'none';
 
-/** Check which silent print method is currently available. */
+/** Check whether the local print daemon is reachable. */
 export async function getPrintStatus(): Promise<PrintMethod> {
-  // Check QZ Tray first
-  try {
-    const qzConnected = await connectPrinter();
-    if (qzConnected) return 'qz';
-  } catch { /* ignore */ }
-
-  // Check local daemon with a quick health ping
   try {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 1500);
@@ -54,23 +44,11 @@ export async function getPrintStatus(): Promise<PrintMethod> {
 // ─── Unified Silent Print ──────────────────────────────────
 
 /**
- * Try to print HTML silently using the best available method.
- * Returns true if print was sent successfully, false if no method worked.
+ * Try to print HTML silently via the local daemon.
+ * Returns true if print was sent successfully, false otherwise.
  * Does NOT open a browser print dialog — that's left to the caller.
  */
 export async function silentPrintHTML(html: string): Promise<boolean> {
-  // 1. Try QZ Tray (preferred — direct USB/network printer via websocket)
-  try {
-    const sent = await qzSilentPrint(html);
-    if (sent) {
-      console.log('[print] Sent via QZ Tray');
-      return true;
-    }
-  } catch (err) {
-    console.info('[print] QZ Tray unavailable:', err);
-  }
-
-  // 2. Try local HTTP daemon
   try {
     const sent = await printViaLocalDaemon(html);
     if (sent) {
@@ -81,10 +59,8 @@ export async function silentPrintHTML(html: string): Promise<boolean> {
     console.info('[print] Local daemon unavailable:', err);
   }
 
-  // 3. No silent method available
   console.info('[print] No silent print method available');
   return false;
 }
 
-// Keep backward-compatible default export
 export default silentPrintHTML;

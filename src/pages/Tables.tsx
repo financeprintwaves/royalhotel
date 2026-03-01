@@ -66,33 +66,36 @@ export default function Tables() {
         </div>
       </header>
 
-      <main className="p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <main className="p-2 sm:p-4 md:p-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
           {tables.map(table => (
-            <Card key={table.id} className={`border-2 ${STATUS_STYLES[table.status as TableStatus]}`}>
-              <CardContent className="p-4 text-center space-y-3">
-                <div className="text-2xl font-bold">{table.table_number}</div>
-                <div className="text-sm opacity-75">{table.capacity} seats</div>
-                <Badge className="capitalize">{table.status}</Badge>
-                
-                <div className="flex flex-wrap gap-1 justify-center pt-2">
+            <Card key={table.id} className={`border-2 rounded-xl ${STATUS_STYLES[table.status as TableStatus]}`}>
+              <CardContent className="p-2 sm:p-3 md:p-4 flex flex-row items-center gap-2 sm:gap-3 md:block md:text-center md:space-y-3">
+                {/* Left: table info */}
+                <div className="flex flex-col items-start md:items-center min-w-0 flex-1">
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{table.table_number}</div>
+                  <div className="text-xs sm:text-sm opacity-75">{table.capacity} seats</div>
+                  <Badge className="capitalize text-[10px] sm:text-xs mt-1">{table.status}</Badge>
+                </div>
+                {/* Right: action */}
+                <div className="shrink-0 md:flex md:justify-center md:pt-2">
                   {table.status === 'available' && (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link to="/new-order">New Order</Link>
+                    <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
+                      <Link to="/new-order">Order</Link>
                     </Button>
                   )}
                   {table.status === 'occupied' && (
-                    <Button size="sm" variant="outline" onClick={() => handleStatusChange(table, 'cleaning')} disabled={loading}>
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleStatusChange(table, 'cleaning')} disabled={loading}>
                       Clear
                     </Button>
                   )}
                   {table.status === 'cleaning' && (
-                    <Button size="sm" variant="outline" onClick={() => handleStatusChange(table, 'available')} disabled={loading}>
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleStatusChange(table, 'available')} disabled={loading}>
                       Ready
                     </Button>
                   )}
                   {table.status === 'reserved' && (
-                    <Button size="sm" variant="outline" onClick={() => handleStatusChange(table, 'occupied')} disabled={loading}>
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleStatusChange(table, 'occupied')} disabled={loading}>
                       Seat
                     </Button>
                   )}

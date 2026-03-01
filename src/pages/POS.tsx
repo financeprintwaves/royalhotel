@@ -993,12 +993,12 @@ export default function POS() {
 
         {/* Menu View */}
         {view === 'menu' && (
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
             {/* Mobile: horizontal scrollable category chips */}
-            <div className="md:hidden flex overflow-x-auto scrollbar-hide gap-2 p-2 border-b bg-card">
+            <div className="md:hidden flex overflow-x-auto overflow-y-hidden scrollbar-hide gap-2 p-2 border-b bg-card w-full min-w-0 touch-pan-x [-webkit-overflow-scrolling:touch]">
               <Button
                 variant={selectedCategory === null ? 'default' : 'outline'}
-                className="shrink-0 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9"
+                className="flex-none rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9"
                 onClick={() => setSelectedCategory(null)}
               >
                 All
@@ -1009,7 +1009,7 @@ export default function POS() {
                   <Button
                     key={cat.id}
                     variant={selectedCategory === cat.id ? 'default' : 'outline'}
-                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9 ${selectedCategory === cat.id ? colorClass : ''}`}
+                    className={`flex-none rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap h-9 ${selectedCategory === cat.id ? colorClass : ''}`}
                     onClick={() => setSelectedCategory(cat.id)}
                   >
                     {cat.name}
@@ -1018,7 +1018,7 @@ export default function POS() {
               })}
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
             {/* Desktop: vertical sidebar */}
             <aside className="hidden md:block w-32 border-r bg-muted/30 p-2 overflow-auto shrink-0">
               <Button
@@ -1040,7 +1040,7 @@ export default function POS() {
               ))}
             </aside>
 
-            <main className="flex-1 p-4 overflow-auto">
+            <main className="flex-1 p-4 overflow-y-auto min-h-0 min-w-0">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {filteredItems.map(item => (
                   <Card

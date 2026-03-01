@@ -1,84 +1,92 @@
 
 
-## AFS Card Terminal Integration
+## Add Print Button to Every Order + Local Order Cache for Speed
 
-### What This Does
-When a cashier clicks "Card" to pay, the bill amount will automatically be sent to your AFS Nexgo card machine so the customer can swipe/tap their card -- no need to manually type the amount on the terminal.
-
-### How It Works
-
-Since the POS runs in a web browser, it cannot talk directly to the AFS terminal at `172.28.28.26:21105`. The solution uses the same **local daemon** pattern already in place for silent printing -- a small local service running on the POS computer that proxies the payment request to the AFS terminal.
-
-```text
-Browser (POS)                Local Daemon              AFS Terminal
-    |                        (localhost:3001)         (172.28.28.26:21105)
-    |-- POST /pay-card ----->|                          |
-    |   {amount: 5.500}      |-- HTTPS POST ---------->|
-    |                        |   apex.smartpos.gateway  |
-    |                        |<-- response -------------|
-    |<-- {success, ref} -----|                          |
-```
+### What You'll Get
+- A **Print** button on every order card (active and completed) across both POS and Orders pages
+- Clicking Print will instantly attempt silent printing (QZ Tray or daemon) -- no dialog, no delay
+- All orders cached locally in IndexedDB so viewing and printing is instant even on slow connections
+- Receipt dialog opens faster by using locally cached order data instead of fetching from the server
 
 ### Changes
 
-#### 1. New file: `src/services/afsTerminalService.ts`
-- `sendToAfsTerminal(amount)` -- sends payment amount to the local daemon's `/pay-card` endpoint
-- Returns the transaction reference from AFS on success
-- 30-second timeout (card swipe may take time)
-- Clean error handling with user-friendly messages
+#### 1. Add direct Print button to order cards (POS.tsx)
 
-#### 2. Update: `src/pages/POS.tsx` (Card payment flow)
-- When payment method is "card", call `sendToAfsTerminal(amount)` **before** calling `quickPayOrder`
-- Show a loading state ("Waiting for card...") while the terminal processes
-- On success: auto-fill the transaction reference from AFS response, then complete payment
-- On failure: show error toast, let cashier retry or switch to manual entry
+**Active orders** (lines ~1179-1183): Add a Print button next to the existing View button that triggers silent print directly without opening the receipt dialog.
 
-#### 3. Update: `src/pages/Orders.tsx` and `src/pages/NewOrder.tsx`
-- Same card payment integration for consistency across all payment entry points
+**Completed orders** (lines ~1255-1261): The Print button already exists but currently just opens the receipt dialog (same as View). Change it to trigger instant silent print instead.
 
-#### 4. Local Daemon Documentation
-- Add instructions in a `docs/afs-terminal-setup.md` file explaining:
-  - The local daemon needs a `/pay-card` endpoint that forwards to AFS
-  - Expected request/response format
-  - AFS gateway URL and service path configuration
+#### 2. Add direct Print button to order cards (Orders.tsx)
+
+**Active orders** (lines ~331-360): Add a Printer icon button on every order card (not just BILL_REQUESTED status) that triggers instant silent printing.
+
+**Completed orders** (lines ~370-408): Already has a Receipt button -- add a separate Print button that fires silent print directly.
+
+#### 3. Create instant print function
+
+Add a `handleQuickPrint(order)` function in both POS.tsx and Orders.tsx that:
+- Renders the Receipt component off-screen using the order data already in memory
+- Calls `silentPrintHTML(html)` directly -- no dialog, no loading spinner
+- Falls back to opening the receipt dialog only if silent print is unavailable
+- Shows a brief toast on success ("Receipt printed") or failure ("Open receipt to print manually")
+
+#### 4. Cache orders locally in IndexedDB (localDb.ts)
+
+Add order caching to the existing IndexedDB wrapper:
+- New object store: `orders` (keyPath: `id`, indexes: `branch_id`, `order_status`)
+- `cacheOrders(orders)` -- saves fetched orders locally
+- `getCachedOrders()` -- returns cached orders instantly on page load
+- Cache expires after 30 minutes (orders change frequently)
+
+#### 5. Use cached orders for instant loading (POS.tsx + Orders.tsx)
+
+- On mount, immediately load orders from IndexedDB cache (instant, no network)
+- Then fetch fresh orders from the server in the background
+- When server data arrives, update both the UI and the cache
+- Result: orders appear instantly on screen, then silently refresh
+
+#### 6. Pre-render receipt HTML for speed
+
+Add a utility function `renderReceiptHTML(order, branchInfo)` that generates receipt HTML from order data without needing a mounted React component. This allows the quick-print button to generate and send HTML to the printer in under 50ms.
 
 ### Technical Details
 
-**AFS Terminal Service:**
+**New IndexedDB store in localDb.ts:**
 ```typescript
-// POST to local daemon which proxies to AFS
-export async function sendToAfsTerminal(amount: number): Promise<{success: boolean; reference?: string}> {
-  const res = await fetch('http://localhost:3001/pay-card', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount, currency: 'OMR' }),
-  });
-  return res.json();
+// DB_VERSION bumped to 2
+// New store: 'orders' with indexes on branch_id and order_status
+// Cache TTL: 30 minutes
+
+export async function cacheOrders(orders: Order[]): Promise<void>
+export async function getCachedOrders(branchId?: string): Promise<Order[] | null>
+```
+
+**Quick print function pattern (used in both pages):**
+```typescript
+async function handleQuickPrint(order: Order) {
+  const html = renderReceiptHTML(order, branchInfo);
+  const sent = await silentPrintHTML(html);
+  if (sent) {
+    toast({ title: 'Receipt printed' });
+  } else {
+    // Fall back to receipt dialog
+    setReceiptOrder(order);
+    setShowReceiptDialog(true);
+  }
 }
 ```
 
-**POS Card Payment Flow Update:**
-```typescript
-// When card is selected:
-if (paymentMethod === 'card') {
-  setCardProcessing(true);
-  const result = await sendToAfsTerminal(paymentTotal);
-  if (!result.success) {
-    toast({ variant: 'destructive', title: 'Card terminal error' });
-    return;
-  }
-  transactionRef = result.reference;
-}
-await quickPayOrder(orderId, paymentTotal, 'card');
+**Order card button layout (all statuses):**
+```
+[View] [Print] [Kitchen/Served/Bill/Pay] [Cancel]
 ```
 
 ### Files to Create/Modify
 
 | File | Action |
 |------|--------|
-| `src/services/afsTerminalService.ts` | Create -- AFS terminal communication service |
-| `src/pages/POS.tsx` | Modify -- integrate AFS call on card payment |
-| `src/pages/Orders.tsx` | Modify -- integrate AFS call on card payment |
-| `src/pages/NewOrder.tsx` | Modify -- integrate AFS call on card payment |
-| `docs/afs-terminal-setup.md` | Create -- setup guide for local daemon AFS proxy |
+| `src/services/localDb.ts` | Add orders cache store (bump DB version to 2) |
+| `src/utils/receiptRenderer.ts` | Create -- generates receipt HTML string from order data |
+| `src/pages/POS.tsx` | Add quick-print button to all order cards, load from cache first |
+| `src/pages/Orders.tsx` | Add quick-print button to all order cards, load from cache first |
 

@@ -993,7 +993,7 @@ export default function POS() {
 
         {/* Menu View */}
         {view === 'menu' && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {/* Mobile: horizontal scrollable category chips */}
             <div className="md:hidden flex overflow-x-auto scrollbar-hide gap-2 p-2 border-b bg-card">
               <Button
@@ -1018,6 +1018,7 @@ export default function POS() {
               })}
             </div>
 
+            <div className="flex-1 flex overflow-hidden">
             {/* Desktop: vertical sidebar */}
             <aside className="hidden md:block w-32 border-r bg-muted/30 p-2 overflow-auto shrink-0">
               <Button
@@ -1070,6 +1071,7 @@ export default function POS() {
                 ))}
               </div>
             </main>
+            </div>
           </div>
         )}
 

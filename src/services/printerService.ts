@@ -1,6 +1,22 @@
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
+// Dynamically import qz-tray (it attaches to window)
+let qz: any = null;
+let connectionPromise: Promise<void> | null = null;
+
+async function loadQZ() {
+  if (qz) return qz;
+  try {
+    const mod = await import('qz-tray');
+    qz = mod.default || mod;
+    return qz;
+  } catch (err) {
+    console.warn('QZ Tray module not available:', err);
+    return null;
+  }
+}
+
 // ─── Dynamic Printer Name from DB ──────────────────────────
 
 let cachedPrinterName: string | null = null;
@@ -16,6 +32,7 @@ async function fetchPrinterSettings(): Promise<{ printerName: string; isEnabled:
   }
 
   try {
+    // Get current user's branch
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { printerName: 'POS_PRINTER', isEnabled: true };
 
@@ -50,41 +67,54 @@ export function clearPrinterCache() {
   cacheExpiry = 0;
 }
 
-// ─── Local Daemon Print ────────────────────────────────────
+/** Connect to QZ Tray websocket. Caches connection. */
+export async function connectPrinter(): Promise<boolean> {
+  const qzModule = await loadQZ();
+  if (!qzModule) return false;
 
-async function printViaDaemon(html: string, printerName: string, timeoutMs = 3000): Promise<boolean> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  // Already connected
+  if (qzModule.websocket?.isActive()) return true;
+
+  // Avoid duplicate connection attempts
+  if (connectionPromise) {
+    try { await connectionPromise; return true; } catch { return false; }
+  }
+
+  connectionPromise = qzModule.websocket.connect()
+    .then(() => { console.log('QZ Tray connected'); })
+    .catch((err: any) => {
+      console.warn('QZ Tray connection failed:', err);
+      throw err;
+    })
+    .finally(() => { connectionPromise = null; });
+
   try {
-    const res = await fetch('http://localhost:3001/print', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html, printerName }),
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    if (!res.ok) throw new Error(`Daemon responded ${res.status}`);
+    await connectionPromise;
     return true;
   } catch {
-    clearTimeout(id);
     return false;
   }
 }
 
-/** Fire-and-forget print via local daemon. Returns true if sent, false if skipped. */
-export async function silentPrint(html: string, overridePrinterName?: string): Promise<boolean> {
+/** Fire-and-forget print. Returns true if sent, false if skipped. */
+async function silentPrint(html: string, overridePrinterName?: string): Promise<boolean> {
   try {
     const settings = await fetchPrinterSettings();
     if (!settings.isEnabled && !overridePrinterName) {
       console.log('Auto-print disabled in settings');
       return false;
     }
-    const printerName = overridePrinterName || settings.printerName;
-    const sent = await printViaDaemon(html, printerName);
-    if (!sent) {
-      toast.warning('Printer not reachable – is the print daemon running?');
+
+    const connected = await connectPrinter();
+    if (!connected) {
+      toast.warning('Printer not connected – QZ Tray is not running');
+      return false;
     }
-    return sent;
+    const printerName = overridePrinterName || settings.printerName;
+    const config = qz.configs.create(printerName);
+    const data = [{ type: 'html', format: 'plain', data: html }];
+    await qz.print(config, data);
+    return true;
   } catch (err: any) {
     console.error('Silent print failed:', err);
     toast.warning('Print failed: ' + (err?.message || 'Unknown error'));

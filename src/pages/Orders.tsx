@@ -9,15 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User, Ban, Eye } from 'lucide-react';
+import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User, Ban } from 'lucide-react';
 import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders, cancelOrder } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
-import { sendToAfsTerminal } from '@/services/afsTerminalService';
-import { silentPrintHTML } from '@/services/printService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
-import { useBranches } from '@/hooks/useMenuData';
-import { cacheOrders, getCachedOrders } from '@/services/localDb';
-import { renderReceiptHTML } from '@/utils/receiptRenderer';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
 import { playOrderNotification } from '@/lib/notificationSound';
@@ -37,7 +32,6 @@ export default function Orders() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const { data: branches = [] } = useBranches();
   const [loading, setLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -55,14 +49,9 @@ export default function Orders() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const cached = await getCachedOrders();
-      if (cached && cached.length > 0) {
-        setOrders(cached as Order[]);
-      }
       const data = await getOrders();
       setOrders(data);
       setIsConnected(true);
-      cacheOrders(data);
     } catch (error) {
       console.error('Failed to load orders:', error);
       setIsConnected(false);
@@ -159,48 +148,11 @@ export default function Orders() {
     setShowReceiptDialog(true);
   }
 
-  async function handleQuickPrint(order: Order) {
-    const branch = branches.find(b => b.id === order.branch_id) || branches[0];
-    const html = renderReceiptHTML(order, {
-      name: branch?.name,
-      address: branch?.address || undefined,
-      phone: branch?.phone || undefined,
-      logo_url: (branch as any)?.logo_url || undefined,
-    });
-    const sent = await silentPrintHTML(html);
-    if (sent) {
-      toast({ title: 'Receipt printed' });
-    } else {
-      setReceiptOrder(order);
-      setShowReceiptDialog(true);
-    }
-  }
-
-  const [cardProcessing, setCardProcessing] = useState(false);
-
   async function handleProcessPayment() {
     if (!selectedOrder) return;
     setLoading(true);
     try {
-      let ref = paymentMethod !== 'cash' ? transactionRef : undefined;
-      
-      // AFS card terminal integration
-      if (paymentMethod === 'card') {
-        setCardProcessing(true);
-        try {
-          const afsResult = await sendToAfsTerminal(Number(selectedOrder.total_amount));
-          if (!afsResult.success) {
-            toast({ variant: 'destructive', title: 'Card Terminal Error', description: afsResult.error || 'Card payment failed.' });
-            setCardProcessing(false);
-            setLoading(false);
-            return;
-          }
-          ref = afsResult.reference || ref;
-        } finally {
-          setCardProcessing(false);
-        }
-      }
-      
+      const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
       await finalizePayment(selectedOrder.id, Number(selectedOrder.total_amount), paymentMethod, ref);
       setShowPaymentDialog(false);
       
@@ -356,12 +308,6 @@ export default function Orders() {
                       <span className="font-bold text-lg">{Number(order.total_amount).toFixed(3)} OMR</span>
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      <Button size="sm" variant="outline" onClick={() => openReceiptDialog(order)}>
-                        <Eye className="h-3 w-3 mr-1" />View
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleQuickPrint(order)}>
-                        <Printer className="h-3 w-3 mr-1" />Print
-                      </Button>
                       {order.order_status === 'CREATED' && (
                         <Button size="sm" onClick={() => handleStatusUpdate(order, 'kitchen')} disabled={loading}>
                           <Send className="h-3 w-3 mr-1" />Kitchen
@@ -378,9 +324,14 @@ export default function Orders() {
                         </Button>
                       )}
                       {order.order_status === 'BILL_REQUESTED' && (
-                        <Button size="sm" onClick={() => openPaymentDialog(order)} disabled={loading}>
-                          <CreditCard className="h-3 w-3 mr-1" />Pay
-                        </Button>
+                        <>
+                          <Button size="sm" onClick={() => openPaymentDialog(order)} disabled={loading}>
+                            <CreditCard className="h-3 w-3 mr-1" />Pay
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openReceiptDialog(order)}>
+                            <Printer className="h-3 w-3 mr-1" />Preview
+                          </Button>
+                        </>
                       )}
                       <Button size="sm" variant="destructive" onClick={() => handleCancelOrder(order)} disabled={loading}>
                         <Ban className="h-3 w-3 mr-1" />Cancel
@@ -428,14 +379,9 @@ export default function Orders() {
                     <div className="font-bold text-lg">
                       {Number(order.total_amount).toFixed(3)} OMR
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>
-                        <Eye className="h-3 w-3 mr-1" />View
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleQuickPrint(order)}>
-                        <Printer className="h-3 w-3 mr-1" />Print
-                      </Button>
-                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>
+                      <Printer className="h-3 w-3 mr-1" />Receipt
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
@@ -473,8 +419,8 @@ export default function Orders() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
-            <Button onClick={handleProcessPayment} disabled={loading || cardProcessing}>
-              {cardProcessing ? 'Waiting for card...' : 'Confirm Payment'}
+            <Button onClick={handleProcessPayment} disabled={loading || (paymentMethod !== 'cash' && !transactionRef)}>
+              Confirm Payment
             </Button>
           </DialogFooter>
         </DialogContent>

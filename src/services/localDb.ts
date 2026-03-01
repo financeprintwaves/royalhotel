@@ -2,26 +2,24 @@ import type { Category, MenuItem, CartItem } from '@/types/pos';
 
 // Simple IndexedDB wrapper (no external dependency)
 const DB_NAME = 'pos_local_db';
-const DB_VERSION = 2;
+const DB_VERSION = 1;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (event) => {
+    req.onupgradeneeded = () => {
       const db = req.result;
-      const oldVersion = event.oldVersion;
-      if (oldVersion < 1) {
-        const menuStore = db.createObjectStore('menuItems', { keyPath: 'id' });
-        menuStore.createIndex('branch_id', 'branch_id');
-        menuStore.createIndex('category_id', 'category_id');
-        const catStore = db.createObjectStore('categories', { keyPath: 'id' });
-        catStore.createIndex('branch_id', 'branch_id');
-        db.createObjectStore('cartDrafts', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('menuItems')) {
+        const store = db.createObjectStore('menuItems', { keyPath: 'id' });
+        store.createIndex('branch_id', 'branch_id');
+        store.createIndex('category_id', 'category_id');
       }
-      if (oldVersion < 2) {
-        const orderStore = db.createObjectStore('orders', { keyPath: 'id' });
-        orderStore.createIndex('branch_id', 'branch_id');
-        orderStore.createIndex('order_status', 'order_status');
+      if (!db.objectStoreNames.contains('categories')) {
+        const store = db.createObjectStore('categories', { keyPath: 'id' });
+        store.createIndex('branch_id', 'branch_id');
+      }
+      if (!db.objectStoreNames.contains('cartDrafts')) {
+        db.createObjectStore('cartDrafts', { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -201,43 +199,4 @@ export async function clearCartDraft(): Promise<void> {
   try {
     await deleteOne('cartDrafts', CART_DRAFT_ID);
   } catch {}
-}
-
-// ─── Orders cache ──────────────────────────────────────────
-type CachedOrder = any & { _cachedAt: number };
-
-const ORDER_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-export async function cacheOrders(orders: any[]): Promise<void> {
-  try {
-    const now = Date.now();
-    const entries: CachedOrder[] = orders.map(o => ({ ...o, _cachedAt: now }));
-    // Clear all then re-populate
-    const db = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('orders', 'readwrite');
-      tx.objectStore('orders').clear();
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-    await putAll('orders', entries);
-  } catch (e) {
-    console.warn('Failed to cache orders:', e);
-  }
-}
-
-export async function getCachedOrders(branchId?: string): Promise<any[] | null> {
-  try {
-    let items: CachedOrder[];
-    if (branchId) {
-      items = await getAll<CachedOrder>('orders', 'branch_id', branchId);
-    } else {
-      items = await getAll<CachedOrder>('orders');
-    }
-    if (items.length === 0) return null;
-    if (Date.now() - items[0]._cachedAt > ORDER_CACHE_TTL) return null;
-    return items;
-  } catch {
-    return null;
-  }
 }

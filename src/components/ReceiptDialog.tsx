@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Printer, Loader2 } from 'lucide-react';
 import Receipt from './Receipt';
 import { getOrderPayments } from '@/services/paymentService';
-import { silentPrintHTML, getPrintStatus, type PrintMethod } from '@/services/printService';
+import printToLocalPrinter from '@/services/printService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Order, Payment } from '@/types/pos';
@@ -24,11 +24,6 @@ interface BranchInfo {
   logo_url?: string;
 }
 
-const STATUS_COLORS: Record<PrintMethod, { dot: string; label: string }> = {
-  daemon: { dot: 'bg-green-500', label: 'Local printer ready' },
-  none: { dot: 'bg-muted-foreground/40', label: 'No silent printer' },
-};
-
 export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = false }: ReceiptDialogProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -36,107 +31,132 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
   const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
   const [waiterName, setWaiterName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [printMethod, setPrintMethod] = useState<PrintMethod>('none');
   const { profile } = useAuth();
 
-  // Browser print dialog fallback via react-to-print
-  const handleBrowserPrint = useReactToPrint({
+  // Use react-to-print for fast, reliable printing
+  const handlePrint = useReactToPrint({
     contentRef: receiptRef,
     documentTitle: `Receipt-${order?.order_number || order?.id?.slice(-8)}`,
     pageStyle: `
-      @page { size: 80mm auto; margin: 0; }
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
       @media print {
-        body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body {
+          margin: 0;
+          padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
       }
     `,
   });
-
-  // Check printer status when dialog opens
-  useEffect(() => {
-    if (open) {
-      getPrintStatus().then(setPrintMethod);
-    }
-  }, [open]);
 
   useEffect(() => {
     if (order && open) {
       setIsLoading(true);
       setHasPrinted(false);
-
+      
+      // Fetch all optional data in parallel - don't block receipt display
       Promise.all([
+        // Fetch payments for this order
         getOrderPayments(order.id)
           .then(data => setPayments(data || []))
-          .catch(err => { console.error('Failed to load payments:', err); setPayments([]); }),
-
+          .catch(err => {
+            console.error('Failed to load payments:', err);
+            setPayments([]);
+          }),
+        
+        // Fetch waiter name and branch info in parallel
         Promise.all([
-          order.created_by
-            ? Promise.resolve(supabase.from('profiles').select('full_name').eq('user_id', order.created_by).maybeSingle())
-                .then(({ data, error }) => { if (error) console.error(error); setWaiterName(data?.full_name || ''); })
-                .catch(() => setWaiterName(''))
+          // Get waiter profile
+          order.created_by 
+            ? Promise.resolve(
+                supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('user_id', order.created_by)
+                  .maybeSingle()
+              ).then(({ data, error }) => {
+                  if (error) console.error('Failed to load waiter:', error);
+                  setWaiterName(data?.full_name || '');
+                })
+                .catch(err => {
+                  console.error('Failed to load waiter:', err);
+                  setWaiterName('');
+                })
             : Promise.resolve(),
-
+          
+          // Get branch info
           profile?.branch_id
-            ? Promise.resolve(supabase.from('branches').select('name, address, phone, logo_url').eq('id', profile.branch_id).maybeSingle())
-                .then(({ data, error }) => { if (error) console.error(error); if (data) setBranchInfo(data); })
-                .catch(() => {})
+            ? Promise.resolve(
+                supabase
+                  .from('branches')
+                  .select('name, address, phone, logo_url')
+                  .eq('id', profile.branch_id)
+                  .maybeSingle()
+              ).then(({ data, error }) => {
+                  if (error) console.error('Failed to load branch:', error);
+                  if (data) setBranchInfo(data);
+                })
+                .catch(err => {
+                  console.error('Failed to load branch:', err);
+                })
             : Promise.resolve(),
         ]),
-      ]).finally(() => setIsLoading(false));
+      ]).finally(() => {
+        setIsLoading(false);
+      });
     }
   }, [order, open, profile?.branch_id]);
 
-  // Auto-print using unified pipeline
+  // Auto-print immediately when dialog opens with autoPrint flag - NO DELAY
   useEffect(() => {
     async function autoprint() {
       if (!receiptRef.current) return;
-      await new Promise(resolve => setTimeout(resolve, 100));
-      console.log('Auto-printing receipt for order:', order?.order_number || order?.id);
-      const html = receiptRef.current.outerHTML;
-      const sent = await silentPrintHTML(html);
-      if (sent) {
-        console.log('[print] Auto-print succeeded');
-      } else {
-        console.info('[print] Auto-print: no silent method available, skipping.');
+      
+      try {
+        // Wait for React to fully render and DOM to stabilize
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Log for debugging
+        console.log('Auto-printing receipt for order:', order?.order_number || order?.id);
+        
+        // Send inner HTML to local print daemon (if running)
+        const html = receiptRef.current.outerHTML;
+        const result = await printToLocalPrinter(html);
+        console.log('Print sent to local daemon:', result);
+        setHasPrinted(true);
+      } catch (err) {
+        // No local printer available - skip silently (no browser print dialog)
+        console.info('Local printer not available, skipping auto-print. Use manual Print button if needed.', err);
+        setHasPrinted(true);
       }
-      setHasPrinted(true);
     }
 
     if (open && autoPrint && !hasPrinted && receiptRef.current) {
       autoprint();
     }
-  }, [open, autoPrint, hasPrinted, order?.order_number, order?.id]);
+  }, [open, autoPrint, hasPrinted, handlePrint, order?.order_number, order?.id]);
 
-  // Manual print: try silent first, fall back to browser dialog
-  const onPrintClick = useCallback(async () => {
-    if (!receiptRef.current) return;
-    const html = receiptRef.current.outerHTML;
-    const sent = await silentPrintHTML(html);
-    if (!sent) {
-      // Last resort: browser print dialog
-      handleBrowserPrint();
-    }
-  }, [handleBrowserPrint]);
+  // Manual print button handler - uses same react-to-print
+  const onPrintClick = useCallback(() => {
+    handlePrint();
+  }, [handlePrint]);
 
   if (!order) return null;
-
-  const status = STATUS_COLORS[printMethod];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-fit">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            📄 Receipt Preview
-            <span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-auto" title={status.label}>
-              <span className={`h-2 w-2 rounded-full ${status.dot}`} />
-              {status.label}
-            </span>
-          </DialogTitle>
+          <DialogTitle>📄 Receipt Preview</DialogTitle>
           <DialogDescription>
             Order #{order.order_number || order.id.slice(-8).toUpperCase()}
           </DialogDescription>
         </DialogHeader>
-
+        
         <div className="border rounded-lg overflow-hidden bg-white print-receipt-container relative">
           {isLoading && (
             <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10 rounded-lg">
@@ -148,7 +168,7 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
           )}
           <Receipt
             ref={receiptRef}
-            order={order}
+            order={order} 
             payments={payments}
             branchName={branchInfo?.name || 'Restaurant POS'}
             branchAddress={branchInfo?.address}

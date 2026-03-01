@@ -14,7 +14,6 @@ import { getTables } from '@/services/tableService';
 import { getCategories, getMenuItems } from '@/services/menuService';
 import { createOrder, addOrderItem, sendToKitchen, requestBill, getOrder } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
-import { sendToAfsTerminal } from '@/services/afsTerminalService';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod } from '@/types/pos';
 
@@ -190,31 +189,11 @@ export default function NewOrder() {
     }
   }
 
-  const [cardProcessing, setCardProcessing] = useState(false);
-
   async function handleProcessPayment() {
     if (!order) return;
     setLoading(true);
     try {
-      let ref = paymentMethod !== 'cash' ? transactionRef : undefined;
-      
-      // AFS card terminal integration
-      if (paymentMethod === 'card') {
-        setCardProcessing(true);
-        try {
-          const afsResult = await sendToAfsTerminal(total);
-          if (!afsResult.success) {
-            toast({ variant: 'destructive', title: 'Card Terminal Error', description: afsResult.error || 'Card payment failed.' });
-            setCardProcessing(false);
-            setLoading(false);
-            return;
-          }
-          ref = afsResult.reference || ref;
-        } finally {
-          setCardProcessing(false);
-        }
-      }
-      
+      const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
       await finalizePayment(order.id, total, paymentMethod, ref);
       
       // Refresh order to ensure we have latest data
@@ -488,8 +467,8 @@ export default function NewOrder() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
-            <Button onClick={handleProcessPayment} disabled={loading || cardProcessing}>
-              {cardProcessing ? 'Waiting for card...' : 'Confirm Payment'}
+            <Button onClick={handleProcessPayment} disabled={loading || (paymentMethod !== 'cash' && !transactionRef)}>
+              Confirm Payment
             </Button>
           </DialogFooter>
         </DialogContent>

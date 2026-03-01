@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User, Ban } from 'lucide-react';
 import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders, cancelOrder } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
+import { sendToAfsTerminal } from '@/services/afsTerminalService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
@@ -148,11 +149,31 @@ export default function Orders() {
     setShowReceiptDialog(true);
   }
 
+  const [cardProcessing, setCardProcessing] = useState(false);
+
   async function handleProcessPayment() {
     if (!selectedOrder) return;
     setLoading(true);
     try {
-      const ref = paymentMethod !== 'cash' ? transactionRef : undefined;
+      let ref = paymentMethod !== 'cash' ? transactionRef : undefined;
+      
+      // AFS card terminal integration
+      if (paymentMethod === 'card') {
+        setCardProcessing(true);
+        try {
+          const afsResult = await sendToAfsTerminal(Number(selectedOrder.total_amount));
+          if (!afsResult.success) {
+            toast({ variant: 'destructive', title: 'Card Terminal Error', description: afsResult.error || 'Card payment failed.' });
+            setCardProcessing(false);
+            setLoading(false);
+            return;
+          }
+          ref = afsResult.reference || ref;
+        } finally {
+          setCardProcessing(false);
+        }
+      }
+      
       await finalizePayment(selectedOrder.id, Number(selectedOrder.total_amount), paymentMethod, ref);
       setShowPaymentDialog(false);
       
@@ -419,8 +440,8 @@ export default function Orders() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
-            <Button onClick={handleProcessPayment} disabled={loading || (paymentMethod !== 'cash' && !transactionRef)}>
-              Confirm Payment
+            <Button onClick={handleProcessPayment} disabled={loading || cardProcessing}>
+              {cardProcessing ? 'Waiting for card...' : 'Confirm Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

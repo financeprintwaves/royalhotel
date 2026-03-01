@@ -1,59 +1,121 @@
 
-### Fix scope
-Resolve the mobile POS category strip so users can scroll through all categories while keeping scrollbars invisible.  
-This will be a targeted fix in the POS menu view (and a small safety pass on related overflow containers), without changing business logic or desktop behavior.
 
-### Root cause (from current code)
-In `src/pages/POS.tsx`, the category row is visually set to `overflow-x-auto`, but surrounding flex containers use `overflow-hidden` and are missing critical flex constraints (`min-w-0` / `min-h-0`), which can block or break scroll behavior on small screens and some mobile browsers.  
-Also, the category strip lacks mobile momentum/touch-optimized horizontal scrolling settings.
+## Restaurant POS Redesign: Side-by-Side Cards, Enhanced KOT, Premium UI
 
-### Implementation plan
+### Overview
+Transform the POS into a professional restaurant system with horizontal product cards (image + details side-by-side), enhanced Kitchen Display, and a polished mobile-first interface -- all with zero horizontal overflow.
 
-1. **Harden the mobile category chip scroller in POS**
-   - Update the category strip container (currently around line ~998) to ensure true horizontal scrolling:
-     - Keep `overflow-x-auto`
-     - Add `overflow-y-hidden`
-     - Add `w-full min-w-0`
-     - Add touch scrolling helpers:
-       - `touch-pan-x`
-       - `[-webkit-overflow-scrolling:touch]`
-     - Keep scrollbar hidden with existing `scrollbar-hide`
-   - Ensure every chip remains non-shrinking:
-     - Use `flex-none` (or keep `shrink-0`) + `whitespace-nowrap`
+---
 
-2. **Fix flex overflow constraints around menu layout**
-   - Add `min-h-0` / `min-w-0` to the menu view wrapper stack so nested scroll areas can actually scroll:
-     - Outer menu wrapper (`flex-1 flex flex-col overflow-hidden`) → add `min-h-0 min-w-0`
-     - Inner content row (`flex-1 flex overflow-hidden`) → add `min-h-0 min-w-0`
-     - Product pane (`main`) → use `min-h-0 min-w-0 overflow-y-auto`
-   - This prevents hidden clipping from swallowing touch scroll and keeps desktop sidebar behavior unchanged.
+### 1. POS Product Cards -- Side-by-Side Layout (src/pages/POS.tsx, lines 1043-1073)
 
-3. **Preserve “scroll works, scrollbar hidden” behavior globally**
-   - Keep global hidden scrollbar behavior in `src/index.css` (no visible bars)
-   - Do **not** disable overflow scrolling itself
-   - Retain `.scrollbar-hide` utility for horizontal strips (category row, nav rows)
+Replace the current vertical grid cards with horizontal list cards on mobile and horizontal grid cards on tablet/desktop:
 
-4. **Optional stability pass (if needed after step 1–2)**
-   - If category scrolling still feels blocked on specific devices, add `overscroll-x-contain` to the strip.
-   - If menu dialog scrolling is still problematic, switch the form container from `ScrollArea max-h[...]` pattern to a straightforward native `div` with `max-h-[70vh] overflow-y-auto` (mobile-safe fallback).
+**Mobile (< 768px):** Single-column list of horizontal cards
+- Left: Product image placeholder (80px square, `rounded-xl`, `bg-muted` with icon if no image)
+- Right: Product name (bold), price (large, colored), category badge, and a `+` add button
+- Card: `flex flex-row items-center gap-3 p-3 rounded-2xl`
 
-### Files to update
-- `src/pages/POS.tsx` (primary fix)
-- `src/index.css` (only if a tiny helper utility is needed; otherwise unchanged)
+**Tablet (768-1024px):** 2-column grid of horizontal cards
+**Desktop (1024px+):** 3-4 column grid (keep existing vertical cards for desktop)
 
-### Expected outcome
-- Users can swipe horizontally through all menu categories on mobile.
-- Scrollbars remain invisible.
-- Product grid remains vertically scrollable.
-- No horizontal page overflow is introduced.
-- Desktop layout and functionality remain unchanged.
+```
+Mobile card layout:
++----------+----------------------------+
+|          | Product Name               |
+|  IMAGE   | 1.500 OMR    [+ Add]       |
+|  80x80   | Category badge             |
++----------+----------------------------+
+```
 
-### Verification checklist
-- On 360px, 390px, 414px widths:
-  - Category chips are fully swipeable left/right.
-  - No visible scrollbar appears.
-  - Product list still scrolls vertically.
-- On tablet (768–1024):
-  - Layout remains aligned and usable.
-- On desktop:
-  - Existing menu sidebar behavior is unchanged.
+Change the grid from `grid-cols-2 md:grid-cols-3 lg:grid-cols-4` to:
+- Mobile: `grid-cols-1 gap-2` (horizontal cards)
+- Tablet: `grid-cols-2 gap-3` (horizontal cards)
+- Desktop: `lg:grid-cols-3 xl:grid-cols-4 gap-3` (can stay vertical or horizontal)
+
+Each card will use the `image_url` field from `menu_items` table. If null, show a placeholder icon.
+
+---
+
+### 2. Category Chips Enhancement (src/pages/POS.tsx, lines 997-1019)
+
+- Make chips taller: `h-10 px-5 text-sm` for better touch targets
+- Add an icon or colored dot before category name
+- Active chip: filled gradient background with white text
+- Inactive chip: subtle border with muted text
+- Container: keep existing `overflow-x-auto scrollbar-hide touch-pan-x` (already fixed)
+
+---
+
+### 3. POS Header & Action Bar (src/pages/POS.tsx)
+
+**Header (line 888):**
+- Change gradient to restaurant-themed: `from-orange-600 via-amber-600 to-red-500`
+- Change emoji from bar to restaurant: Replace cocktail icon with fork-knife
+
+**Sticky Bottom Action Bar (NEW - mobile only):**
+- Add a sticky bottom bar on mobile when in `menu` view with quick actions:
+  - "KOT" button (orange gradient)
+  - "Pay" button (green gradient)
+  - Shows cart total
+- This replaces the need to open the cart sheet for quick actions
+
+---
+
+### 4. Kitchen Display Enhancement (src/pages/KitchenDisplay.tsx)
+
+The KDS already has a solid design with dark theme, urgency colors, and per-item checkboxes. Enhancements:
+
+- **Mobile layout**: Change from 2-column to single-column on mobile (`grid-cols-1 md:grid-cols-2`)
+- **Larger text**: Increase item names to `text-base` on mobile for kitchen readability
+- **Header stats**: Make stats row wrap properly on small screens (already partially done with `sm:` prefixes)
+- **Card touch targets**: Increase item row padding to `p-3` for easier checkbox tapping
+- **Section headers**: Add responsive text sizing
+
+---
+
+### 5. Dashboard Restaurant Theme (src/pages/Dashboard.tsx)
+
+- Change header gradient from purple/indigo to restaurant orange/amber: `from-orange-600 via-amber-500 to-red-500`
+- Update icon from `UtensilsCrossed` (already correct) 
+- Tile colors: keep existing colorful gradient tiles (already well-designed)
+
+---
+
+### 6. Auth Page Polish (src/pages/AuthPage.tsx)
+
+- Change mobile gradient from indigo to restaurant theme: `from-orange-600 via-amber-500 to-red-500`
+- Add `h-12 text-base` to all Input components for larger, more readable fields
+- Fix the duplicate `max-w-md max-w-full` class conflict (line 55) -- should be `max-w-md w-full`
+
+---
+
+### 7. Global CSS Updates (src/index.css)
+
+- Add restaurant-themed gradient utility:
+  ```css
+  .mobile-gradient-restaurant {
+    background: linear-gradient(135deg, hsl(25 95% 53%), hsl(38 92% 50%), hsl(0 84% 55%));
+  }
+  ```
+- Ensure all scrollbar hiding remains intact (already done)
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/pages/POS.tsx` | Horizontal product cards, restaurant header gradient, category chip sizing, mobile bottom action bar |
+| `src/pages/KitchenDisplay.tsx` | Mobile single-column, larger text, better touch targets |
+| `src/pages/Dashboard.tsx` | Restaurant theme gradient header |
+| `src/pages/AuthPage.tsx` | Restaurant gradient, larger inputs, fix class conflict |
+| `src/index.css` | Restaurant gradient utility class |
+
+### What Won't Change
+- All business logic, order flow, and payment processing
+- Desktop sidebar cart and layout
+- KDS dark theme and urgency system
+- Realtime subscriptions and data flow
+- No new dependencies
+

@@ -998,28 +998,19 @@ export default function POS() {
         {/* Menu View */}
         {view === 'menu' && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
-            {/* Mobile: horizontal scrollable category chips */}
-            <div className="md:hidden flex overflow-x-auto overflow-y-hidden scrollbar-hide gap-2 p-2 border-b bg-card w-full min-w-0 touch-pan-x [-webkit-overflow-scrolling:touch]">
-              <Button
-                variant={selectedCategory === null ? 'default' : 'outline'}
-                className={`flex-none rounded-full px-5 py-2 text-sm font-medium whitespace-nowrap h-10 ${selectedCategory === null ? 'mobile-gradient-restaurant text-white border-0 shadow-md' : ''}`}
-                onClick={() => setSelectedCategory(null)}
-              >
-                All
-              </Button>
-              {categories.map(cat => {
-                const colorClass = CATEGORY_COLORS[cat.name] || 'bg-primary hover:bg-primary/90 text-primary-foreground';
-                return (
-                  <Button
-                    key={cat.id}
-                    variant={selectedCategory === cat.id ? 'default' : 'outline'}
-                    className={`flex-none rounded-full px-5 py-2 text-sm font-medium whitespace-nowrap h-10 ${selectedCategory === cat.id ? colorClass + ' shadow-md' : ''}`}
-                    onClick={() => setSelectedCategory(cat.id)}
-                  >
-                    {cat.name}
-                  </Button>
-                );
-              })}
+            {/* Mobile: category dropdown */}
+            <div className="md:hidden p-2 border-b bg-card">
+              <Select value={selectedCategory || 'all'} onValueChange={(val) => setSelectedCategory(val === 'all' ? null : val)}>
+                <SelectTrigger className="h-12 rounded-xl text-base font-semibold">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
@@ -1052,35 +1043,26 @@ export default function POS() {
                     className={`cursor-pointer hover:shadow-lg active:scale-[0.97] transition-all duration-150 rounded-2xl border ${!item.is_available ? 'opacity-50' : ''}`}
                     onClick={() => handleMenuItemClick(item)}
                   >
-                    <CardContent className="p-2 sm:p-3 flex flex-col items-center gap-1.5 sm:gap-2">
-                      {/* Product Image */}
-                      <div className="w-full aspect-square rounded-xl bg-muted flex items-center justify-center overflow-hidden">
+                    <CardContent className="p-2 flex flex-row items-center gap-2">
+                      {/* Compact Image */}
+                      <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0">
                         {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-xl" />
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
                         ) : (
-                          <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                          <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
                         )}
                       </div>
-                      {/* Product Details */}
-                      <div className="w-full flex flex-col gap-0.5 min-w-0">
-                        <h4 className="font-semibold text-xs sm:text-sm leading-tight line-clamp-2">{item.name}</h4>
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="font-bold text-primary text-sm sm:text-base">{item.price.toFixed(3)} <span className="text-[10px] font-normal text-muted-foreground">OMR</span></span>
-                          <div className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                            <Plus className="h-4 w-4" />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {item.billing_type === 'by_serving' && item.serving_price && (
-                            <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 py-0">Shot: {item.serving_price.toFixed(3)}</Badge>
-                          )}
-                          {!item.is_available && (
-                            <Badge variant="destructive" className="text-[9px] sm:text-[10px] px-1 py-0">Out</Badge>
-                          )}
-                          {item.billing_type === 'service' && (
-                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 py-0">Service</Badge>
-                          )}
-                        </div>
+                      {/* Name + Price */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <h4 className="font-semibold text-xs leading-tight line-clamp-1">{item.name}</h4>
+                        <span className="font-bold text-primary text-sm">{item.price.toFixed(3)} <span className="text-[10px] font-normal text-muted-foreground">OMR</span></span>
+                        {item.billing_type === 'by_serving' && item.serving_price && (
+                          <span className="text-[9px] text-muted-foreground">Shot: {item.serving_price.toFixed(3)}</span>
+                        )}
+                      </div>
+                      {/* Add Button */}
+                      <div className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                        <Plus className="h-4 w-4" />
                       </div>
                     </CardContent>
                   </Card>

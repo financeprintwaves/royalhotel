@@ -1,41 +1,85 @@
 
 
-## POS Menu: Polished 2-Column Grid + Category Dropdown
+## POS Overhaul: Replace Floor with Tables, Super-Fast Payments, Table Context in Menu
 
-### Changes
+### Overview
+Replace the FloorCanvas view with the Tables page grid, remove AFS card terminal references, make Cash/Card payments instant (mark paid + print in one tap), and show the selected table/takeaway indicator in the menu view with the ability to change tables mid-order.
 
-#### 1. Replace mobile category chips with a Select dropdown (src/pages/POS.tsx)
+---
 
-Replace the horizontal scrollable chip strip (`md:hidden` block, lines 1002-1023) with a `Select` dropdown component:
+### 1. Replace Floor View with Tables Grid (src/pages/POS.tsx)
 
-- Use the existing `Select`/`SelectContent`/`SelectItem` components already imported
-- "All Categories" as default/placeholder
-- Each category as a `SelectItem`
-- Styled with `h-12 rounded-xl text-base font-semibold` for large touch target
-- Wrapped in a `p-2 border-b bg-card` container, same as current strip
-- Desktop sidebar remains unchanged
+**Remove** the entire `view === 'floor'` block (lines 936-1001) including the FloorCanvas component and branch selector header.
 
-#### 2. Polish the 2-column product grid cards (src/pages/POS.tsx)
+**Replace with** a compact 2-column table grid (same style as Tables.tsx) embedded directly in the POS terminal:
+- 2-column grid of table cards with status colors (green/red/yellow/blue)
+- Each card shows: table number, capacity, status badge
+- Clicking an available/occupied table calls `handleSelectTable(table)` to go to menu view
+- **Add a prominent "Takeaway" card** at the top of the grid (styled differently, e.g. orange gradient) that calls `handleTakeout()`
+- Branch selector dropdown (admin only) stays at the top
+- Remove the `FloorCanvas` import since it's no longer used
+- Remove `'floor'` from `ViewType` -- rename to `'tables'` and update all references
 
-Refine the existing cards (lines 1048-1087) for a cleaner, more premium look:
+### 2. Add Takeaway Option to Tables Page (src/pages/Tables.tsx)
 
-- Remove the large `aspect-square` image (takes too much vertical space in 2-col) -- replace with a compact `w-14 h-14` image/icon on the left, making each card a **horizontal mini-card** layout (`flex-row`)
-- Card structure: `flex flex-row items-center gap-2 p-2`
-  - Left: 56px square image placeholder (rounded-lg)
-  - Center: Name (line-clamp-1, text-xs) + Price (bold, text-sm)
-  - Right: Small `+` button (w-8 h-8)
-- This keeps cards compact and fits cleanly in 2 columns on 360px screens
-- Grid stays `grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2`
+- Add a special "Takeaway" card at the top of the grid (before table cards)
+- Styled with orange gradient, shopping bag icon
+- Links to `/pos` with takeaway mode (or `/new-order` to match existing pattern)
 
-#### 3. Files modified
+### 3. Table/Takeaway Indicator in Menu View (src/pages/POS.tsx)
 
-| File | Change |
-|------|--------|
-| `src/pages/POS.tsx` | Replace mobile category chips with Select dropdown; redesign product cards to compact horizontal layout |
+Add a **sticky info bar** at the top of the menu view (above search bar) showing:
+- Current table number (e.g. "T5") or "TW" for takeaway
+- A "Change Table" button that switches back to the tables view
+- Existing order badge if applicable
 
-### Result
-- Category filtering via a clean dropdown instead of scrollable chips
-- Compact 2-column product cards that fit perfectly on 360px mobile
-- No horizontal overflow
-- Desktop layout unchanged
+```
++------------------------------------------+
+| [T5]  Table 5 - Dine In    [Change Table]|
++------------------------------------------+
+| [Search...]                              |
+```
 
+For takeaway:
+```
++------------------------------------------+
+| [TW]  Takeaway              [Change]     |
++------------------------------------------+
+```
+
+### 4. Super-Fast Payment -- One-Tap Cash/Card (src/pages/POS.tsx)
+
+**Remove the payment dialog for single Cash/Card payments.** Instead:
+
+- When "PAY NOW" is clicked, show **3 large buttons directly** (no dialog):
+  - **Cash** -- immediately calls `quickPayOrder(orderId, total, 'cash')`, prints invoice, shows receipt
+  - **Card** -- immediately calls `quickPayOrder(orderId, total, 'card')`, prints invoice, shows receipt
+  - **Mobile** -- immediately calls `quickPayOrder(orderId, total, 'mobile')`, prints invoice, shows receipt
+
+- The payment dialog is **only** shown for **Split Payment** scenarios
+
+- Flow: Tap "PAY" -> Tap "Cash" -> Done (2 taps total, instant)
+
+**Remove AFS-related code**: The memory mentions AFS card terminal integration, but no actual code exists in the codebase. No changes needed -- it was likely removed previously. The payment dialog's card flow will simply mark as paid without waiting for any terminal.
+
+### 5. Performance: Remove Animation Overhead
+
+- Remove `active:scale-[0.97]` and `transition-all duration-150` from menu item cards (per performance-first memory)
+- Remove `animate-badge-pulse` from cart badge
+- Use `transition-none` where applicable
+
+---
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/pages/POS.tsx` | Replace floor view with tables grid, add table context bar in menu, one-tap payment flow, remove FloorCanvas import, add takeaway card |
+| `src/pages/Tables.tsx` | Add takeaway card at top of grid |
+
+### What Won't Change
+- All payment RPCs and business logic
+- Desktop sidebar cart
+- Kitchen display and orders view
+- Split payment flow (keeps dialog)
+- Printing pipeline

@@ -31,7 +31,6 @@ import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
 import { supabase } from '@/integrations/supabase/client';
 import { saveCartDraft, loadCartDraft, clearCartDraft } from '@/services/localDb';
-import { FloorCanvas } from '@/components/FloorCanvas';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import PortionSelectionDialog from '@/components/PortionSelectionDialog';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch, PortionOption } from '@/types/pos';
@@ -51,7 +50,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 type OrderType = 'dine-in' | 'take-out' | 'delivery';
-type ViewType = 'floor' | 'menu' | 'orders' | 'kitchen';
+type ViewType = 'tables' | 'menu' | 'orders' | 'kitchen';
 
 const TABLE_STATUS_COLORS: Record<string, string> = {
   available: 'border-green-500 bg-green-500/10',
@@ -108,7 +107,8 @@ export default function POS() {
   const [splitCardAmount, setSplitCardAmount] = useState('');
   const [splitMobileAmount, setSplitMobileAmount] = useState('');
   const [mobileTransactionRef, setMobileTransactionRef] = useState('');
-  const [view, setView] = useState<ViewType>('floor');
+  const [view, setView] = useState<ViewType>('tables');
+  const [showQuickPay, setShowQuickPay] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
   
@@ -479,8 +479,8 @@ export default function POS() {
       setExistingOrder(null);
       setSelectedTable(null);
       setCustomerName('');
-      setView('floor');
-      refetchTables(); // Use React Query refetch instead of manual load
+      setView('tables');
+      refetchTables();
       
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Failed', description: error.message });
@@ -554,7 +554,7 @@ export default function POS() {
       setDiscount(0);
       setIsFOC(false);
       setFocDancerName('');
-      setView('floor');
+      setView('tables');
       refetchTables();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'FOC Failed', description: error.message });
@@ -569,7 +569,7 @@ export default function POS() {
       toast({ variant: 'destructive', title: 'Cart is empty', description: 'Add items before payment' });
       return;
     }
-    setShowPaymentDialog(true);
+    setShowQuickPay(true);
   }
 
   async function handlePayNow() {
@@ -577,7 +577,153 @@ export default function POS() {
       toast({ variant: 'destructive', title: 'Nothing to pay', description: 'Add items or select a table with an order' });
       return;
     }
-    setShowPaymentDialog(true);
+    setShowQuickPay(true);
+  }
+
+  // One-tap quick payment (Cash/Card/Mobile) - no dialog
+  async function handleQuickPay(method: PaymentMethod) {
+    setShowQuickPay(false);
+    setPaymentMethod(method);
+    // Reuse existing handleProcessPayment logic
+    setLoading(true);
+    try {
+      let orderId: string;
+      let paymentTotal = grandTotal;
+      
+      const batchItems = cart.map(item => ({
+        menuItem: item.menuItem,
+        quantity: item.quantity,
+        notes: item.notes,
+        isServing: item.isServing,
+        portionName: item.portionName || item.selectedPortion?.name,
+      }));
+      
+      if (existingOrder) {
+        orderId = existingOrder.id;
+        if (cart.length > 0) {
+          await addOrderItemsBatch(orderId, batchItems);
+        }
+        paymentTotal = grandTotal;
+      } else {
+        const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
+        orderId = newOrder.id;
+        await addOrderItemsBatch(orderId, batchItems);
+        if (discount > 0) {
+          await applyDiscount(orderId, discount);
+        }
+        paymentTotal = grandTotal;
+      }
+      
+      await quickPayOrder(orderId, paymentTotal, method);
+      
+      let realOrderNumber: string | null = null;
+      try {
+        const { data: orderRow } = await supabase
+          .from('orders')
+          .select('order_number')
+          .eq('id', orderId)
+          .maybeSingle();
+        realOrderNumber = orderRow?.order_number || null;
+      } catch (e) { console.warn('Could not fetch order number:', e); }
+      
+      // Build receipt from local state
+      const localReceipt = {
+        id: orderId,
+        order_number: realOrderNumber,
+        branch_id: selectedBranch,
+        table_id: selectedTable?.id || null,
+        table: selectedTable ? { id: selectedTable.id, table_number: selectedTable.table_number, capacity: selectedTable.capacity } : null,
+        order_status: 'PAID' as const,
+        payment_status: 'paid' as const,
+        subtotal: subtotal + existingTotal,
+        discount_amount: discount,
+        tax_amount: 0,
+        total_amount: paymentTotal,
+        customer_name: customerName || null,
+        is_foc: isFOC,
+        foc_dancer_name: focDancerName || null,
+        notes: null,
+        created_by: profile?.user_id || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        locked_at: null,
+        order_items: [
+          ...(existingOrder?.order_items || []),
+          ...cart.map(c => ({
+            id: crypto.randomUUID(),
+            order_id: orderId,
+            menu_item_id: c.menuItem.id,
+            quantity: c.quantity,
+            unit_price: c.menuItem.price,
+            total_price: c.menuItem.price * c.quantity,
+            notes: c.notes || null,
+            is_serving: c.isServing || false,
+            portion_name: c.portionName || c.selectedPortion?.name || null,
+            created_at: new Date().toISOString(),
+            menu_item: { id: c.menuItem.id, name: c.menuItem.name, price: c.menuItem.price, image_url: c.menuItem.image_url || null },
+          })),
+        ],
+        waiter: profile ? { full_name: profile.full_name } : null,
+      } as unknown as Order;
+      
+      setReceiptOrder(localReceipt);
+      setShowReceiptDialog(true);
+      toast({ title: '✅ Payment Successful!' });
+      
+      // Silent invoice print
+      try {
+        const branch = branches.find(b => b.id === selectedBranch);
+        const invoiceItems = [
+          ...(existingOrder?.order_items || []).map((oi: any) => ({
+            name: oi.menu_item?.name || 'Item',
+            quantity: oi.quantity,
+            unitPrice: Number(oi.unit_price),
+            totalPrice: Number(oi.total_price),
+            portionName: oi.portion_name,
+            isServing: oi.is_serving,
+          })),
+          ...cart.map(c => ({
+            name: c.menuItem.name,
+            quantity: c.quantity,
+            unitPrice: c.menuItem.price,
+            totalPrice: c.menuItem.price * c.quantity,
+            portionName: c.portionName || c.selectedPortion?.name,
+            isServing: c.isServing,
+          })),
+        ];
+        printInvoice({
+          orderNumber: realOrderNumber,
+          tableName: selectedTable?.table_number || null,
+          waiterName: profile?.full_name,
+          branchName: branch?.name,
+          branchAddress: branch?.address,
+          branchPhone: branch?.phone,
+          items: invoiceItems,
+          subtotal: subtotal + existingTotal,
+          discount,
+          total: paymentTotal,
+          paymentMethod: method,
+          isFOC,
+          focName: focDancerName || null,
+        });
+      } catch (e) { console.warn('Invoice print skipped:', e); }
+      
+      setCart([]);
+      setExistingOrder(null);
+      setSelectedTable(null);
+      setCustomerName('');
+      setDiscount(0);
+      setIsFOC(false);
+      setFocDancerName('');
+      setView('tables');
+      setTransactionRef('');
+      refetchTables();
+      
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleProcessPayment() {
@@ -744,7 +890,7 @@ export default function POS() {
       setDiscount(0);
       setIsFOC(false);
       setFocDancerName('');
-      setView('floor');
+      setView('tables');
       setTransactionRef('');
       refetchTables();
       
@@ -902,7 +1048,7 @@ export default function POS() {
           </div>
           <div className="flex gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             {([
-              { key: 'floor' as ViewType, icon: LayoutGrid, label: 'Floor', mobileColor: 'bg-emerald-500' },
+              { key: 'tables' as ViewType, icon: LayoutGrid, label: 'Tables', mobileColor: 'bg-emerald-500' },
               { key: 'menu' as ViewType, icon: ShoppingCart, label: 'Menu', mobileColor: 'bg-amber-500' },
               { key: 'orders' as ViewType, icon: ClipboardList, label: 'Orders', mobileColor: 'bg-sky-500' },
               { key: 'kitchen' as ViewType, icon: ChefHat, label: 'Kitchen', mobileColor: 'bg-rose-500' },
@@ -932,13 +1078,12 @@ export default function POS() {
           </div>
         </header>
 
-        {/* Floor View */}
-        {view === 'floor' && (
-          <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Tables View */}
+        {view === 'tables' && (
+          <main className="flex-1 flex flex-col overflow-auto">
             {/* Branch Selector Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 sm:p-4 border-b bg-card">
               <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                {/* Branch Selector - Admin Only */}
                 {canSwitchBranch ? (
                   <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                     <SelectTrigger className="w-48">
@@ -958,51 +1103,83 @@ export default function POS() {
                     📍 {branches.find(b => b.id === selectedBranch)?.name || 'My Branch'}
                   </Badge>
                 )}
-                
-                {/* Takeaway Button */}
-                <Button 
-                  variant="outline" 
-                  onClick={handleTakeout}
-                  className="flex items-center gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  🛍️ Takeaway
-                </Button>
               </div>
-              
-              {/* Refresh Button */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => {
-                  refreshTables();
-                  refetchTables();
-                  toast({ title: '🔄 Floor refreshed!' });
-                }}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
             </div>
             
-            {/* Floor Canvas */}
-            <FloorCanvas
-              tables={tables}
-              orders={allOrders}
-              onTableSelect={handleSelectTable}
-              selectedTableId={selectedTable?.id}
-              isManagerOrAdmin={isManagerOrAdminUser}
-              onTablesChange={() => {
-                refreshTables();
-                refetchTables();
-              }}
-              selectedBranchId={selectedBranch}
-            />
+            {/* Tables Grid */}
+            <div className="p-2 sm:p-4">
+              {/* Takeaway Card */}
+              <div className="mb-3">
+                <Card 
+                  className="cursor-pointer border-2 border-orange-500 bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30"
+                  onClick={handleTakeout}
+                >
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center text-white text-xl">🛍️</div>
+                    <div>
+                      <div className="font-bold text-base">Takeaway</div>
+                      <div className="text-xs text-muted-foreground">Quick takeaway order</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
+                {tables.map(table => (
+                  <Card 
+                    key={table.id} 
+                    className={`cursor-pointer border-2 rounded-xl ${TABLE_STATUS_COLORS[table.status as string] || ''}`}
+                    onClick={() => handleSelectTable(table)}
+                  >
+                    <CardContent className="p-2 sm:p-3 flex flex-col items-center text-center gap-1">
+                      <div className="text-lg sm:text-xl font-bold">{table.table_number}</div>
+                      <div className="text-xs text-muted-foreground">{table.capacity} seats</div>
+                      <Badge className="capitalize text-[10px] sm:text-xs">{table.status}</Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {tables.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <LayoutGrid className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No tables found</p>
+                </div>
+              )}
+            </div>
           </main>
         )}
 
         {/* Menu View */}
         {view === 'menu' && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
+            {/* Table/Takeaway Context Bar */}
+            <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-sm font-bold px-3 py-1">
+                  {selectedTable ? selectedTable.table_number : 'TW'}
+                </Badge>
+                <span className="text-sm font-medium">
+                  {selectedTable ? `${selectedTable.table_number} - Dine In` : 'Takeaway'}
+                </span>
+                {existingOrder && (
+                  <Badge variant="outline" className="text-xs">Active Order</Badge>
+                )}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-xs h-7"
+                onClick={() => {
+                  setView('tables');
+                  setSelectedTable(null);
+                  setExistingOrder(null);
+                  setOrderType('dine-in');
+                }}
+              >
+                Change Table
+              </Button>
+            </div>
+
             {/* Search + Mobile Category Dropdown */}
             <div className="p-2 border-b bg-card flex flex-col gap-2">
               {/* Search bar - all screens */}
@@ -1064,7 +1241,7 @@ export default function POS() {
                 {filteredItems.map(item => (
                   <Card
                     key={item.id}
-                    className={`cursor-pointer hover:shadow-lg active:scale-[0.97] transition-all duration-150 rounded-2xl border ${!item.is_available ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer hover:shadow-lg rounded-2xl border ${!item.is_available ? 'opacity-50' : ''}`}
                     onClick={() => handleMenuItemClick(item)}
                   >
                     <CardContent className="p-2 flex flex-row items-center gap-2">
@@ -1307,7 +1484,7 @@ export default function POS() {
       </div>
 
       {/* Right Sidebar - Current Order (only show for floor/menu views) */}
-      {(view === 'floor' || view === 'menu') && !isMobile && (
+      {(view === 'tables' || view === 'menu') && !isMobile && (
         <aside className="w-80 border-l bg-card flex flex-col">
           <div className="p-4 border-b">
             <div className="flex items-center gap-2 text-lg font-semibold">
@@ -1545,62 +1722,79 @@ export default function POS() {
               </div>
             </div>
 
-            <div className="p-4 grid grid-cols-2 gap-2">
+            <div className="p-4 space-y-2">
               {isFOC ? (
-                /* FOC: Confirm FOC flow */
                 <Button 
                   size="lg"
-                  className="col-span-2 flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                  className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700"
                   onClick={handleFOCConfirm}
                   disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}
                 >
                   🎁 CONFIRM FOC
                 </Button>
-              ) : orderType === 'take-out' ? (
-                /* Takeaway: Send to Kitchen OR Pay & Collect */
-                <>
-                  <Button 
-                    variant="secondary"
-                    size="lg"
-                    className="flex items-center gap-2"
-                    onClick={handleSendToKitchen}
-                    disabled={cart.length === 0 || loading}
-                  >
-                    <ChefHat className="h-4 w-4" />
-                    SEND TO KITCHEN
-                  </Button>
-                  <Button 
-                    size="lg"
-                    className="flex items-center gap-2 bg-primary"
-                    onClick={handleTakeawayPayment}
-                    disabled={cart.length === 0 || loading}
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    PAY & COLLECT
-                  </Button>
-                </>
               ) : (
-              /* Dine-in/Delivery: Auto-send to kitchen + Pay option */
                 <>
-                  <Button 
-                    variant="secondary" 
-                    size="lg"
-                    className="flex items-center gap-2"
-                    onClick={handleSendToKitchen}
-                    disabled={cart.length === 0 || loading}
-                  >
-                    <Check className="h-4 w-4" />
-                    CONFIRM ORDER
-                  </Button>
-                  <Button 
-                    size="lg"
-                    className="flex items-center gap-2 bg-primary"
-                    onClick={handlePayNow}
-                    disabled={(cart.length === 0 && !existingOrder) || loading}
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    PAY NOW
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      variant="secondary" 
+                      size="lg"
+                      className="flex items-center gap-2"
+                      onClick={handleSendToKitchen}
+                      disabled={cart.length === 0 || loading}
+                    >
+                      <ChefHat className="h-4 w-4" />
+                      KOT
+                    </Button>
+                    <Button 
+                      size="lg"
+                      className="flex items-center gap-2 bg-primary"
+                      onClick={handlePayNow}
+                      disabled={(cart.length === 0 && !existingOrder) || loading}
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      PAY
+                    </Button>
+                  </div>
+                  {/* Quick Pay Buttons - shown after tapping PAY */}
+                  {showQuickPay && (
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      <Button
+                        size="lg"
+                        className="flex-col gap-1 h-16 bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleQuickPay('cash')}
+                        disabled={loading}
+                      >
+                        <Banknote className="h-5 w-5" />
+                        <span className="text-xs">Cash</span>
+                      </Button>
+                      <Button
+                        size="lg"
+                        className="flex-col gap-1 h-16 bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => handleQuickPay('card')}
+                        disabled={loading}
+                      >
+                        <CreditCard className="h-5 w-5" />
+                        <span className="text-xs">Card</span>
+                      </Button>
+                      <Button
+                        size="lg"
+                        className="flex-col gap-1 h-16 bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={() => handleQuickPay('mobile')}
+                        disabled={loading}
+                      >
+                        <Smartphone className="h-5 w-5" />
+                        <span className="text-xs">Mobile</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="col-span-3 text-xs"
+                        onClick={() => { setShowQuickPay(false); setShowPaymentDialog(true); }}
+                      >
+                        Split Payment
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1706,94 +1900,79 @@ export default function POS() {
           })()}
 
           <div className="space-y-4">
-            {/* Payment Method Toggle */}
-            <div className="flex items-center gap-2 mb-2">
-              <Button
-                variant={!isSplitPayment ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setIsSplitPayment(false)}
-              >
-                Single Payment
-              </Button>
-              <Button
-                variant={isSplitPayment ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setIsSplitPayment(true)}
-              >
-                Split Payment
-              </Button>
-            </div>
-
-            {!isSplitPayment ? (
-              <>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { method: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash' },
-                    { method: 'card' as PaymentMethod, icon: CreditCard, label: 'Card' },
-                    { method: 'mobile' as PaymentMethod, icon: Smartphone, label: 'Mobile' },
-                  ].map(({ method, icon: Icon, label }) => (
-                    <Button
-                      key={method}
-                      variant={paymentMethod === method ? 'default' : 'outline'}
-                      className="h-20 flex-col gap-2"
-                      onClick={() => setPaymentMethod(method)}
-                    >
-                      <Icon className="h-6 w-6" />
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Banknote className="h-5 w-5 text-green-600" />
-                  <div className="flex-1">
-                    <Label className="text-sm">Cash Amount (OMR)</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="0.000"
-                      value={splitCashAmount}
-                      onChange={e => setSplitCashAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-5 w-5 text-blue-600" />
-                  <div className="flex-1">
-                    <Label className="text-sm">Card Amount (OMR)</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="0.000"
-                      value={splitCardAmount}
-                      onChange={e => setSplitCardAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Smartphone className="h-5 w-5 text-purple-600" />
-                  <div className="flex-1">
-                    <Label className="text-sm">Mobile Amount (OMR)</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="0.000"
-                      value={splitMobileAmount}
-                      onChange={e => setSplitMobileAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <Separator />
-                <div className="text-sm font-medium">
-                  Total: {(Number(splitCashAmount || 0) + Number(splitCardAmount || 0) + Number(splitMobileAmount || 0)).toFixed(3)} OMR
-                </div>
+            {/* For orders from the orders view, show quick pay buttons */}
+            {selectedOrderForPayment && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[
+                  { method: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash', color: 'bg-green-600 hover:bg-green-700 text-white' },
+                  { method: 'card' as PaymentMethod, icon: CreditCard, label: 'Card', color: 'bg-blue-600 hover:bg-blue-700 text-white' },
+                  { method: 'mobile' as PaymentMethod, icon: Smartphone, label: 'Mobile', color: 'bg-purple-600 hover:bg-purple-700 text-white' },
+                ].map(({ method, icon: Icon, label, color }) => (
+                  <Button
+                    key={method}
+                    className={`h-16 flex-col gap-1 ${color}`}
+                    onClick={async () => {
+                      setPaymentMethod(method);
+                      setLoading(true);
+                      try {
+                        const paymentTotal = Number(selectedOrderForPayment.total_amount || 0);
+                        await quickPayOrder(selectedOrderForPayment.id, paymentTotal, method);
+                        let realOrderNumber = selectedOrderForPayment.order_number;
+                        try {
+                          const { data: orderRow } = await supabase.from('orders').select('order_number').eq('id', selectedOrderForPayment.id).maybeSingle();
+                          if (orderRow?.order_number) realOrderNumber = orderRow.order_number;
+                        } catch (e) {}
+                        setShowPaymentDialog(false);
+                        setSelectedOrderForPayment(null);
+                        const localReceipt = { ...selectedOrderForPayment, order_number: realOrderNumber, order_status: 'PAID' as const, payment_status: 'paid' as const } as unknown as Order;
+                        setReceiptOrder(localReceipt);
+                        setShowReceiptDialog(true);
+                        toast({ title: '✅ Payment Successful!' });
+                        loadAllOrders();
+                      } catch (error: any) {
+                        toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-xs font-bold">{label}</span>
+                  </Button>
+                ))}
               </div>
             )}
+
+            <Separator />
+            <div className="text-sm font-semibold text-muted-foreground">Split Payment</div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Banknote className="h-5 w-5 text-green-600" />
+                <div className="flex-1">
+                  <Label className="text-sm">Cash Amount (OMR)</Label>
+                  <Input type="number" step="0.001" min="0" placeholder="0.000" value={splitCashAmount} onChange={e => setSplitCashAmount(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-blue-600" />
+                <div className="flex-1">
+                  <Label className="text-sm">Card Amount (OMR)</Label>
+                  <Input type="number" step="0.001" min="0" placeholder="0.000" value={splitCardAmount} onChange={e => setSplitCardAmount(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Smartphone className="h-5 w-5 text-purple-600" />
+                <div className="flex-1">
+                  <Label className="text-sm">Mobile Amount (OMR)</Label>
+                  <Input type="number" step="0.001" min="0" placeholder="0.000" value={splitMobileAmount} onChange={e => setSplitMobileAmount(e.target.value)} />
+                </div>
+              </div>
+              <Separator />
+              <div className="text-sm font-medium">
+                Total: {(Number(splitCashAmount || 0) + Number(splitCardAmount || 0) + Number(splitMobileAmount || 0)).toFixed(3)} OMR
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -1813,98 +1992,87 @@ export default function POS() {
                   ? Number(selectedOrderForPayment.total_amount || 0) 
                   : grandTotal;
                 
-                if (isSplitPayment) {
-                  const cashAmt = Number(splitCashAmount || 0);
-                  const cardAmt = Number(splitCardAmount || 0);
-                  const mobileAmt = Number(splitMobileAmount || 0);
-                  const splitTotal = cashAmt + cardAmt + mobileAmt;
+                const cashAmt = Number(splitCashAmount || 0);
+                const cardAmt = Number(splitCardAmount || 0);
+                const mobileAmt = Number(splitMobileAmount || 0);
+                const splitTotal = cashAmt + cardAmt + mobileAmt;
+                
+                if (splitTotal < orderTotal) {
+                  toast({ variant: 'destructive', title: 'Error', description: 'Split amounts must cover the total' });
+                  return;
+                }
+                
+                let orderId = selectedOrderForPayment?.id;
+                
+                setLoading(true);
+                try {
+                  if (!orderId && cart.length > 0) {
+                    const batchItems = cart.map(item => ({
+                      menuItem: item.menuItem,
+                      quantity: item.quantity,
+                      notes: item.notes,
+                      isServing: item.isServing,
+                      portionName: item.portionName || item.selectedPortion?.name,
+                    }));
+                    
+                    const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
+                    orderId = newOrder.id;
+                    await addOrderItemsBatch(orderId, batchItems);
+                    
+                    if (discount > 0) {
+                      await applyDiscount(orderId, discount);
+                    }
+                    
+                    await updateOrderStatus(orderId, 'BILL_REQUESTED');
+                  }
                   
-                  if (splitTotal < orderTotal) {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Split amounts must cover the total' });
+                  if (!orderId) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'No order to pay' });
+                    setLoading(false);
                     return;
                   }
                   
+                  const payments: { amount: number; payment_method: PaymentMethod }[] = [];
+                  if (cashAmt > 0) payments.push({ amount: cashAmt, payment_method: 'cash' });
+                  if (cardAmt > 0) payments.push({ amount: cardAmt, payment_method: 'card' });
+                  if (mobileAmt > 0) payments.push({ amount: mobileAmt, payment_method: 'mobile' });
                   
-                  let orderId = selectedOrderForPayment?.id;
+                  await processSplitPayment(orderId, payments);
                   
-                  setLoading(true);
-                  try {
-                    // If no existing order selected, create one from cart (for takeaway split payments)
-                    if (!orderId && cart.length > 0) {
-                      const batchItems = cart.map(item => ({
-                        menuItem: item.menuItem,
-                        quantity: item.quantity,
-                        notes: item.notes,
-                        isServing: item.isServing,
-                        portionName: item.portionName || item.selectedPortion?.name,
-                      }));
-                      
-                      const newOrder = await createOrder(selectedTable?.id || null, customerName || undefined);
-                      orderId = newOrder.id;
-                      await addOrderItemsBatch(orderId, batchItems);
-                      
-                      // Apply discount to order
-                      if (discount > 0) {
-                        await applyDiscount(orderId, discount);
-                      }
-                      
-                      // Update status to BILL_REQUESTED
-                      await updateOrderStatus(orderId, 'BILL_REQUESTED');
-                    }
-                    
-                    if (!orderId) {
-                      toast({ variant: 'destructive', title: 'Error', description: 'No order to pay' });
-                      setLoading(false);
-                      return;
-                    }
-                    
-                    const payments: { amount: number; payment_method: PaymentMethod }[] = [];
-                    if (cashAmt > 0) payments.push({ amount: cashAmt, payment_method: 'cash' });
-                    if (cardAmt > 0) payments.push({ amount: cardAmt, payment_method: 'card' });
-                    if (mobileAmt > 0) payments.push({ amount: mobileAmt, payment_method: 'mobile' });
-                    
-                    await processSplitPayment(orderId, payments);
-                    
-                    // Clear cart on success for new orders
-                    if (!selectedOrderForPayment) {
-                      setCart([]);
-                      setDiscount(0);
-                      setCustomerName('');
-                    }
-                    
-                    setShowPaymentDialog(false);
-                    setSelectedOrderForPayment(null);
-                    setIsSplitPayment(false);
-                    setSplitCashAmount('');
-                    setSplitCardAmount('');
-                    setSplitMobileAmount('');
-                    setMobileTransactionRef('');
-                    
-                    const parts = [];
-                    if (cashAmt > 0) parts.push(`Cash: ${cashAmt.toFixed(3)}`);
-                    if (cardAmt > 0) parts.push(`Card: ${cardAmt.toFixed(3)}`);
-                    if (mobileAmt > 0) parts.push(`Mobile: ${mobileAmt.toFixed(3)}`);
-                    toast({ title: 'Split Payment Successful!', description: `${parts.join(' + ')} OMR` });
-                    loadAllOrders();
-                  } catch (error: any) {
-                    toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
-                  } finally {
-                    setLoading(false);
+                  if (!selectedOrderForPayment) {
+                    setCart([]);
+                    setDiscount(0);
+                    setCustomerName('');
                   }
-                } else {
-                  selectedOrderForPayment ? handleProcessOrderPayment() : handleProcessPayment();
+                  
+                  setShowPaymentDialog(false);
+                  setSelectedOrderForPayment(null);
+                  setSplitCashAmount('');
+                  setSplitCardAmount('');
+                  setSplitMobileAmount('');
+                  
+                  const parts = [];
+                  if (cashAmt > 0) parts.push(`Cash: ${cashAmt.toFixed(3)}`);
+                  if (cardAmt > 0) parts.push(`Card: ${cardAmt.toFixed(3)}`);
+                  if (mobileAmt > 0) parts.push(`Mobile: ${mobileAmt.toFixed(3)}`);
+                  toast({ title: 'Split Payment Successful!', description: `${parts.join(' + ')} OMR` });
+                  loadAllOrders();
+                } catch (error: any) {
+                  toast({ variant: 'destructive', title: 'Payment Failed', description: error.message });
+                } finally {
+                  setLoading(false);
                 }
               }}
               disabled={loading}
             >
-              Confirm Payment
+              Confirm Split Payment
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Mobile Bottom Action Bar */}
-      {isMobile && view === 'menu' && cart.length > 0 && (
+      {isMobile && view === 'menu' && cart.length > 0 && !showQuickPay && (
         <div className="fixed bottom-20 left-3 right-3 z-40 flex gap-2">
           <Button
             size="lg"
@@ -1927,15 +2095,59 @@ export default function POS() {
         </div>
       )}
 
+      {/* Mobile Quick Pay Buttons */}
+      {isMobile && showQuickPay && (
+        <div className="fixed bottom-20 left-3 right-3 z-40 bg-card border rounded-2xl shadow-xl p-3 space-y-2">
+          <div className="text-center text-sm font-bold mb-1">Pay {grandTotal.toFixed(3)} OMR</div>
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              size="lg"
+              className="flex-col gap-1 h-16 bg-green-600 hover:bg-green-700 text-white rounded-xl"
+              onClick={() => handleQuickPay('cash')}
+              disabled={loading}
+            >
+              <Banknote className="h-6 w-6" />
+              <span className="text-xs font-bold">Cash</span>
+            </Button>
+            <Button
+              size="lg"
+              className="flex-col gap-1 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+              onClick={() => handleQuickPay('card')}
+              disabled={loading}
+            >
+              <CreditCard className="h-6 w-6" />
+              <span className="text-xs font-bold">Card</span>
+            </Button>
+            <Button
+              size="lg"
+              className="flex-col gap-1 h-16 bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
+              onClick={() => handleQuickPay('mobile')}
+              disabled={loading}
+            >
+              <Smartphone className="h-6 w-6" />
+              <span className="text-xs font-bold">Mobile</span>
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setShowQuickPay(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => { setShowQuickPay(false); setShowPaymentDialog(true); }}>
+              Split Payment
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Cart Floating Button */}
-      {isMobile && (view === 'floor' || view === 'menu') && (
+      {isMobile && (view === 'tables' || view === 'menu') && (
         <button
           className="fixed bottom-5 right-5 z-50 bg-primary text-primary-foreground rounded-full w-16 h-16 flex items-center justify-center shadow-xl mobile-card-shadow"
           onClick={() => setShowMobileCart(true)}
         >
           <ShoppingCart className="h-7 w-7" />
           {cart.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-badge-pulse">
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
               {cart.length}
             </span>
           )}
@@ -2070,19 +2282,10 @@ export default function POS() {
                 <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700 h-14 text-base rounded-xl font-bold" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}>
                   🎁 CONFIRM FOC
                 </Button>
-              ) : orderType === 'take-out' ? (
-                <>
-                  <Button variant="secondary" size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-orange text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
-                    <ChefHat className="h-5 w-5 mr-1" />KITCHEN
-                  </Button>
-                  <Button size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-green text-white border-0" onClick={() => { setShowMobileCart(false); handleTakeawayPayment(); }} disabled={cart.length === 0 || loading}>
-                    <CreditCard className="h-5 w-5 mr-1" />PAY
-                  </Button>
-                </>
               ) : (
                 <>
-                  <Button variant="secondary" size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-blue text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
-                    <Check className="h-5 w-5 mr-1" />CONFIRM
+                  <Button variant="secondary" size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-orange text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
+                    <ChefHat className="h-5 w-5 mr-1" />KOT
                   </Button>
                   <Button size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-green text-white border-0" onClick={() => { setShowMobileCart(false); handlePayNow(); }} disabled={(cart.length === 0 && !existingOrder) || loading}>
                     <CreditCard className="h-5 w-5 mr-1" />PAY

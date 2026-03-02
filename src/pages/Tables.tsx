@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { getTables, updateTableStatus } from '@/services/tableService';
 import { useToast } from '@/hooks/use-toast';
 import type { RestaurantTable, TableStatus } from '@/types/pos';
@@ -67,6 +67,24 @@ export default function Tables() {
       </header>
 
       <main className="p-2 sm:p-4 md:p-6">
+        {/* Takeaway Card */}
+        <div className="mb-3 px-0">
+          <Card 
+            className="cursor-pointer border-2 border-orange-500 bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30"
+            onClick={() => navigate('/pos?mode=takeaway')}
+          >
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center text-white">
+                <ShoppingBag className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="font-bold text-base">Takeaway</div>
+                <div className="text-xs text-muted-foreground">Quick takeaway order</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
           {tables.map(table => (
             <Card key={table.id} className={`border-2 rounded-xl ${STATUS_STYLES[table.status as TableStatus]}`}>

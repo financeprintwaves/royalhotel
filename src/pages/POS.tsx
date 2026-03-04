@@ -164,14 +164,14 @@ export default function POS() {
   // Orders view functions
   const loadAllOrders = useCallback(async () => {
     try {
-      const data = await getOrders();
+      const data = await getOrders(undefined, 100, selectedBranch || undefined);
       setAllOrders(data);
       setIsConnected(true);
     } catch (error) {
       console.error('Failed to load orders:', error);
       setIsConnected(false);
     }
-  }, []);
+  }, [selectedBranch]);
 
   // Kitchen view functions  
   const loadKitchenOrders = useCallback(async () => {

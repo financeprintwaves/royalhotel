@@ -15,7 +15,7 @@ export function generateIdempotencyKey(): string {
 }
 
 // Get orders for current branch (optimized: defaults to today's active + recent completed)
-export async function getOrders(statusFilter?: OrderStatus[], limit: number = 50): Promise<Order[]> {
+export async function getOrders(statusFilter?: OrderStatus[], limit: number = 100, branchId?: string): Promise<Order[]> {
   let query = supabase
     .from('orders')
     .select(`
@@ -29,6 +29,10 @@ export async function getOrders(statusFilter?: OrderStatus[], limit: number = 50
     `)
     .order('created_at', { ascending: false })
     .limit(limit);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
 
   if (statusFilter && statusFilter.length > 0) {
     query = query.in('order_status', statusFilter);
@@ -121,6 +125,7 @@ export async function searchOrders(params: {
   startDate?: Date;
   endDate?: Date;
   status?: OrderStatus[];
+  branchId?: string;
 }): Promise<Order[]> {
   let query = supabase
     .from('orders')
@@ -134,6 +139,10 @@ export async function searchOrders(params: {
       waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .order('created_at', { ascending: false });
+
+  if (params.branchId) {
+    query = query.eq('branch_id', params.branchId);
+  }
 
   if (params.startDate) {
     query = query.gte('created_at', params.startDate.toISOString());

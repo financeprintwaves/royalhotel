@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders, canc
 import { finalizePayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import ReceiptDialog from '@/components/ReceiptDialog';
+import BranchSelector from '@/components/BranchSelector';
 import type { Order, OrderStatus, PaymentMethod } from '@/types/pos';
 import { playOrderNotification } from '@/lib/notificationSound';
 import { format } from 'date-fns';
@@ -31,6 +33,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 export default function Orders() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile, isAdmin } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -40,6 +43,7 @@ export default function Orders() {
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [transactionRef, setTransactionRef] = useState('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(profile?.branch_id || null);
   
   // Search filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,14 +53,14 @@ export default function Orders() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const data = await getOrders();
+      const data = await getOrders(undefined, 100, selectedBranchId || undefined);
       setOrders(data);
       setIsConnected(true);
     } catch (error) {
       console.error('Failed to load orders:', error);
       setIsConnected(false);
     }
-  }, []);
+  }, [selectedBranchId]);
 
   useEffect(() => {
     loadOrders();
@@ -92,6 +96,7 @@ export default function Orders() {
         searchTerm: searchTerm || undefined,
         startDate,
         endDate,
+        branchId: selectedBranchId || undefined,
       });
       setOrders(data);
     } catch (error: any) {
@@ -186,9 +191,16 @@ export default function Orders() {
             {isConnected ? 'Live' : 'Connecting...'}
           </span>
         </div>
-        <Button className="ml-auto" asChild>
-          <Link to="/new-order">New Order</Link>
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <BranchSelector
+            selectedBranchId={selectedBranchId}
+            onBranchChange={setSelectedBranchId}
+            showLabel={false}
+          />
+          <Button asChild>
+            <Link to="/new-order">New Order</Link>
+          </Button>
+        </div>
       </header>
 
       <main className="p-6">

@@ -47,6 +47,8 @@ export default function Dashboard() {
     if (profile?.branch_id) {
       setHasBranch(true);
       loadData();
+    } else {
+      setHasBranch(false);
     }
   }, [profile]);
 

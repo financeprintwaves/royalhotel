@@ -1342,8 +1342,8 @@ export default function POS() {
                             </Button>
                           )}
                           
-                          {/* Admin Edit/Cancel buttons */}
-                          {isAdmin() && (
+                          {/* Admin/Manager Edit/Cancel buttons */}
+                          {isManagerOrAdminUser && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)}>
                                 <Edit className="h-3 w-3 mr-1" />Edit
@@ -1397,7 +1397,7 @@ export default function POS() {
                           <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
                             <Printer className="h-3 w-3 mr-1" />Print
                           </Button>
-                          {isAdmin() && (
+                          {isManagerOrAdminUser && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)}>
                                 <Edit className="h-3 w-3 mr-1" />Edit

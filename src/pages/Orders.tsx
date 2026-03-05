@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User, Ban } from 'lucide-react';
+import { ArrowLeft, Send, Check, Receipt, CreditCard, Banknote, Smartphone, Wifi, Printer, Search, CalendarIcon, X, User, Ban, Edit } from 'lucide-react';
 import { getOrders, sendToKitchen, markAsServed, requestBill, searchOrders, cancelOrder } from '@/services/orderService';
 import { finalizePayment } from '@/services/paymentService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -33,7 +33,8 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 export default function Orders() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile, isAdmin } = useAuth();
+  const { profile, isAdmin, isManagerOrAdmin } = useAuth();
+  const canManageOrders = isManagerOrAdmin();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -141,6 +142,10 @@ export default function Orders() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleEditOrder(order: Order) {
+    navigate('/pos', { state: { editOrder: order } });
   }
 
   function openPaymentDialog(order: Order) {
@@ -345,9 +350,16 @@ export default function Orders() {
                           </Button>
                         </>
                       )}
-                      <Button size="sm" variant="destructive" onClick={() => handleCancelOrder(order)} disabled={loading}>
-                        <Ban className="h-3 w-3 mr-1" />Cancel
-                      </Button>
+                      {canManageOrders && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)} disabled={loading}>
+                            <Edit className="h-3 w-3 mr-1" />Edit
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleCancelOrder(order)} disabled={loading}>
+                            <Ban className="h-3 w-3 mr-1" />Cancel
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -391,9 +403,16 @@ export default function Orders() {
                     <div className="font-bold text-lg">
                       {Number(order.total_amount).toFixed(3)} OMR
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>
-                      <Printer className="h-3 w-3 mr-1" />Receipt
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openReceiptDialog(order)}>
+                        <Printer className="h-3 w-3 mr-1" />Receipt
+                      </Button>
+                      {canManageOrders && (
+                        <Button size="sm" variant="outline" onClick={() => handleEditOrder(order)}>
+                          <Edit className="h-3 w-3 mr-1" />Edit
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}

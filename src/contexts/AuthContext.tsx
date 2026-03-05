@@ -93,18 +93,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fetch profile but don't block the main render
         fetchUserData(session.user.id).then((profileData) => {
           if (!isMounted) return;
-          // Initialize session tracking in background (non-blocking)
           if (profileData?.branch_id) {
             initializeSessionTracking(session.user.id, profileData.branch_id);
           }
-        }).catch(console.error);
+          setLoading(false);
+        }).catch(() => {
+          if (isMounted) setLoading(false);
+        });
       } else { 
         setProfile(null); 
         setRoles([]); 
         setCurrentSessionId(null);
         setSessionLoginTime(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Initial session check
@@ -118,13 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fetch profile but don't block loading state
         fetchUserData(session.user.id).then((profileData) => {
           if (!isMounted) return;
-          // Initialize session tracking in background
           if (profileData?.branch_id) {
             initializeSessionTracking(session.user.id, profileData.branch_id);
           }
-        }).catch(console.error);
+          setLoading(false);
+        }).catch(() => {
+          if (isMounted) setLoading(false);
+        });
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     }).catch(() => {
       if (isMounted) setLoading(false);
     });

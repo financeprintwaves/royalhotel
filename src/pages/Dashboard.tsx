@@ -36,7 +36,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderStats, setOrderStats] = useState({ activeCount: 0, pendingBillsCount: 0, todayRevenue: 0, totalOrders: 0 });
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [bootstrapping, setBootstrapping] = useState(false);
@@ -54,12 +54,12 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [ordersData, tablesData, alertsCount] = await Promise.all([
-        getOrders(),
+      const [stats, tablesData, alertsCount] = await Promise.all([
+        getOrderStats(profile?.branch_id || undefined),
         getTables(),
         getInventoryAlertsCount(),
       ]);
-      setOrders(ordersData);
+      setOrderStats(stats);
       setTables(tablesData);
       setLowStockCount(alertsCount);
     } catch (error) {

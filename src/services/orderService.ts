@@ -230,10 +230,38 @@ export async function searchOrders(params: {
     query = query.or(`customer_name.ilike.%${params.searchTerm}%,id.ilike.%${params.searchTerm}%`);
   }
 
-  const { data, error } = await query.limit(100);
+  const { data: headers, error } = await query.limit(100);
   
   if (error) throw error;
-  return (data || []) as unknown as Order[];
+  if (!headers || headers.length === 0) return [] as unknown as Order[];
+
+  // Batch-fetch items
+  const orderIds = headers.map(o => o.id);
+  let orderItems: any[] = [];
+  try {
+    for (let i = 0; i < orderIds.length; i += 50) {
+      const chunk = orderIds.slice(i, i + 50);
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*, menu_item:menu_items(id, name, price, image_url)')
+        .in('order_id', chunk);
+      if (items) orderItems.push(...items);
+    }
+  } catch (err) {
+    console.warn('Search items enrichment failed:', err);
+  }
+
+  const itemsByOrderId = new Map<string, any[]>();
+  for (const item of orderItems) {
+    const existing = itemsByOrderId.get(item.order_id) || [];
+    existing.push(item);
+    itemsByOrderId.set(item.order_id, existing);
+  }
+
+  return headers.map(order => ({
+    ...order,
+    order_items: itemsByOrderId.get(order.id) || [],
+  })) as unknown as Order[];
 }
 
 // Add item to order

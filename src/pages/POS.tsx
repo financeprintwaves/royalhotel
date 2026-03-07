@@ -33,6 +33,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { saveCartDraft, loadCartDraft, clearCartDraft } from '@/services/localDb';
 import ReceiptDialog from '@/components/ReceiptDialog';
 import PortionSelectionDialog from '@/components/PortionSelectionDialog';
+import NumericKeypad from '@/components/NumericKeypad';
 import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch, PortionOption } from '@/types/pos';
 
 // Category color mapping for colorful UI
@@ -128,6 +129,12 @@ export default function POS() {
   const [selectedServingItem, setSelectedServingItem] = useState<MenuItem | null>(null);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const isMobile = useIsMobile();
+
+  // Numeric keypad state
+  const [showNumericKeypad, setShowNumericKeypad] = useState(false);
+  const [keypadValue, setKeypadValue] = useState('');
+  const [keypadTitle, setKeypadTitle] = useState('');
+  const [keypadCallback, setKeypadCallback] = useState<((value: string) => void) | null>(null);
 
   // Set default branch when branches load - use user's branch for non-admins
   useEffect(() => {
@@ -1021,6 +1028,29 @@ export default function POS() {
     }
   }
 
+  // Numeric keypad handlers
+  function showKeypad(title: string, initialValue: string, callback: (value: string) => void) {
+    setKeypadTitle(title);
+    setKeypadValue(initialValue);
+    setKeypadCallback(() => callback);
+    setShowNumericKeypad(true);
+  }
+
+  function handleKeypadSubmit() {
+    if (keypadCallback) {
+      keypadCallback(keypadValue);
+    }
+    setShowNumericKeypad(false);
+    setKeypadValue('');
+    setKeypadCallback(null);
+  }
+
+  function handleKeypadCancel() {
+    setShowNumericKeypad(false);
+    setKeypadValue('');
+    setKeypadCallback(null);
+  }
+
 
 
   const filteredItems = menuItems.filter(i => {
@@ -1046,7 +1076,7 @@ export default function POS() {
             <UtensilsCrossed className="h-5 w-5 text-white" />
             <h1 className="font-bold text-sm sm:text-lg text-white">POS</h1>
           </div>
-          <div className="flex gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide">
             {([
               { key: 'tables' as ViewType, icon: LayoutGrid, label: 'Tables', mobileColor: 'bg-emerald-500' },
               { key: 'menu' as ViewType, icon: ShoppingCart, label: 'Menu', mobileColor: 'bg-amber-500' },
@@ -1056,12 +1086,12 @@ export default function POS() {
               <Button 
                 key={key}
                 variant={view === key ? 'default' : 'outline'} 
-                size="sm"
-                className={`shrink-0 ${isMobile ? (view === key ? `${mobileColor} text-white border-0 shadow-lg` : 'bg-white/20 text-white border-white/30 hover:bg-white/30') : ''}`}
+                size="lg"
+                className={`shrink-0 h-12 px-4 ${isMobile ? (view === key ? `${mobileColor} text-white border-0 shadow-lg` : 'bg-white/20 text-white border-white/30 hover:bg-white/30') : ''}`}
                 onClick={() => setView(key)}
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden md:inline ml-1">{label}</span>
+                <Icon className="h-5 w-5" />
+                <span className="hidden md:inline ml-2">{label}</span>
               </Button>
             ))}
           </div>
@@ -1109,32 +1139,32 @@ export default function POS() {
             {/* Tables Grid */}
             <div className="p-2 sm:p-4">
               {/* Takeaway Card */}
-              <div className="mb-3">
+              <div className="mb-4">
                 <Card 
-                  className="cursor-pointer border-2 border-orange-500 bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30"
+                  className="cursor-pointer border-3 border-orange-500 bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30 rounded-3xl"
                   onClick={handleTakeout}
                 >
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center text-white text-xl">🛍️</div>
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-3xl bg-orange-500 flex items-center justify-center text-white text-3xl">🛍️</div>
                     <div>
-                      <div className="font-bold text-base">Takeaway</div>
-                      <div className="text-xs text-muted-foreground">Quick takeaway order</div>
+                      <div className="font-bold text-xl">Takeaway</div>
+                      <div className="text-sm text-muted-foreground">Quick takeaway order</div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 sm:gap-4">
                 {tables.map(table => (
                   <Card 
                     key={table.id} 
-                    className={`cursor-pointer border-2 rounded-xl ${TABLE_STATUS_COLORS[table.status as string] || ''}`}
+                    className={`cursor-pointer border-3 rounded-3xl hover:shadow-xl transition-all duration-200 ${TABLE_STATUS_COLORS[table.status as string] || ''}`}
                     onClick={() => handleSelectTable(table)}
                   >
-                    <CardContent className="p-2 sm:p-3 flex flex-col items-center text-center gap-1">
-                      <div className="text-lg sm:text-xl font-bold">{table.table_number}</div>
-                      <div className="text-xs text-muted-foreground">{table.capacity} seats</div>
-                      <Badge className="capitalize text-[10px] sm:text-xs">{table.status}</Badge>
+                    <CardContent className="p-4 flex flex-col items-center text-center gap-3">
+                      <div className="text-3xl sm:text-4xl font-bold">{table.table_number}</div>
+                      <div className="text-sm text-muted-foreground">{table.capacity} seats</div>
+                      <Badge className="capitalize text-sm py-1 px-3 rounded-full">{table.status}</Badge>
                     </CardContent>
                   </Card>
                 ))}
@@ -1237,33 +1267,33 @@ export default function POS() {
             </aside>
 
              <main className="flex-1 p-2 sm:p-3 md:p-4 overflow-y-auto min-h-0 min-w-0">
-              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
                 {filteredItems.map(item => (
                   <Card
                     key={item.id}
-                    className={`cursor-pointer hover:shadow-lg rounded-2xl border ${!item.is_available ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer hover:shadow-lg rounded-3xl border-2 hover:border-primary/50 transition-all duration-200 ${!item.is_available ? 'opacity-50' : ''}`}
                     onClick={() => handleMenuItemClick(item)}
                   >
-                    <CardContent className="p-2 flex flex-row items-center gap-2">
-                      {/* Compact Image */}
-                      <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                    <CardContent className="p-3 flex flex-col items-center gap-3">
+                      {/* Larger Image */}
+                      <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center overflow-hidden shrink-0">
                         {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-2xl" />
                         ) : (
-                          <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                          <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
                         )}
                       </div>
-                      {/* Name + Price */}
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <h4 className="font-semibold text-xs leading-tight line-clamp-1">{item.name}</h4>
-                        <span className="font-bold text-primary text-sm">{item.price.toFixed(3)} <span className="text-[10px] font-normal text-muted-foreground">OMR</span></span>
+                      {/* Name + Price - Larger text */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-1 items-center text-center">
+                        <h4 className="font-bold text-sm leading-tight line-clamp-2 text-center">{item.name}</h4>
+                        <span className="font-bold text-primary text-lg">{item.price.toFixed(3)} <span className="text-sm font-normal text-muted-foreground">OMR</span></span>
                         {item.billing_type === 'by_serving' && item.serving_price && (
-                          <span className="text-[9px] text-muted-foreground">Shot: {item.serving_price.toFixed(3)}</span>
+                          <span className="text-xs text-muted-foreground">Shot: {item.serving_price.toFixed(3)}</span>
                         )}
                       </div>
-                      {/* Add Button */}
-                      <div className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <Plus className="h-4 w-4" />
+                      {/* Larger Add Button */}
+                      <div className="shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary border-2 border-primary/20">
+                        <Plus className="h-6 w-6" />
                       </div>
                     </CardContent>
                   </Card>
@@ -1598,43 +1628,43 @@ export default function POS() {
                 <p className="text-sm">TICKET IS EMPTY</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {cart.map((item, idx) => (
-                  <div key={`${item.menuItem.id}-${item.isServing ? 'serving' : 'bottle'}-${idx}`} className="flex items-center gap-2 bg-muted/50 rounded p-2">
+                  <div key={`${item.menuItem.id}-${item.isServing ? 'serving' : 'bottle'}-${idx}`} className="flex items-center gap-3 bg-muted/50 rounded-xl p-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
+                      <p className="font-semibold text-sm truncate">
                         {item.menuItem.name}
                         {item.isServing && <span className="text-xs ml-1 text-muted-foreground">(Shot)</span>}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {item.menuItem.price.toFixed(3)} OMR × {item.quantity}
+                        {item.menuItem.price.toFixed(3)} OMR each
                       </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button 
                         size="icon" 
-                        variant="ghost" 
-                        className="h-6 w-6" 
+                        variant="outline" 
+                        className="h-10 w-10 rounded-full" 
                         onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}
                       >
-                        <Minus className="h-3 w-3" />
+                        <Minus className="h-4 w-4" />
                       </Button>
-                      <span className="w-5 text-center text-sm">{item.quantity}</span>
+                      <span className="w-8 text-center text-lg font-bold">{item.quantity}</span>
                       <Button 
                         size="icon" 
-                        variant="ghost" 
-                        className="h-6 w-6" 
+                        variant="outline" 
+                        className="h-10 w-10 rounded-full" 
                         onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}
                       >
-                        <Plus className="h-3 w-3" />
+                        <Plus className="h-4 w-4" />
                       </Button>
                       <Button 
                         size="icon" 
-                        variant="ghost" 
-                        className="h-6 w-6 text-destructive" 
+                        variant="outline" 
+                        className="h-10 w-10 rounded-full text-destructive hover:bg-destructive hover:text-destructive-foreground" 
                         onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1668,15 +1698,14 @@ export default function POS() {
               {!isFOC && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground">Discount</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    placeholder="0.000"
-                    value={discount || ''}
-                    onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-28 h-7 text-sm text-right"
-                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-32 h-8 text-right font-mono"
+                    onClick={() => showKeypad('Enter Discount', discount?.toString() || '', (value) => setDiscount(Math.max(0, parseFloat(value) || 0)))}
+                  >
+                    {discount?.toFixed(3) || '0.000'}
+                  </Button>
                 </div>
               )}
               {!isFOC && discount > 0 && (
@@ -1722,11 +1751,11 @@ export default function POS() {
               </div>
             </div>
 
-            <div className="p-4 space-y-2">
+            <div className="p-6 space-y-4">
               {isFOC ? (
                 <Button 
                   size="lg"
-                  className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                  className="w-full flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 h-16 text-xl font-bold rounded-2xl"
                   onClick={handleFOCConfirm}
                   disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}
                 >
@@ -1734,61 +1763,61 @@ export default function POS() {
                 </Button>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-4">
                     <Button 
                       variant="secondary" 
                       size="lg"
-                      className="flex items-center gap-2"
+                      className="flex items-center justify-center gap-3 h-16 text-lg font-bold rounded-2xl bg-orange-500 hover:bg-orange-600 text-white border-0"
                       onClick={handleSendToKitchen}
                       disabled={cart.length === 0 || loading}
                     >
-                      <ChefHat className="h-4 w-4" />
+                      <ChefHat className="h-6 w-6" />
                       KOT
                     </Button>
                     <Button 
                       size="lg"
-                      className="flex items-center gap-2 bg-primary"
+                      className="flex items-center justify-center gap-3 bg-primary h-16 text-lg font-bold rounded-2xl hover:bg-primary/90"
                       onClick={handlePayNow}
                       disabled={(cart.length === 0 && !existingOrder) || loading}
                     >
-                      <CreditCard className="h-4 w-4" />
+                      <CreditCard className="h-6 w-6" />
                       PAY
                     </Button>
                   </div>
                   {/* Quick Pay Buttons - shown after tapping PAY */}
                   {showQuickPay && (
-                    <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className="grid grid-cols-3 gap-3 pt-2">
                       <Button
                         size="lg"
-                        className="flex-col gap-1 h-16 bg-green-600 hover:bg-green-700 text-white"
+                        className="flex-col gap-2 h-20 bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-lg"
                         onClick={() => handleQuickPay('cash')}
                         disabled={loading}
                       >
-                        <Banknote className="h-5 w-5" />
-                        <span className="text-xs">Cash</span>
+                        <Banknote className="h-8 w-8" />
+                        <span className="text-sm font-bold">Cash</span>
                       </Button>
                       <Button
                         size="lg"
-                        className="flex-col gap-1 h-16 bg-blue-600 hover:bg-blue-700 text-white"
+                        className="flex-col gap-2 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg"
                         onClick={() => handleQuickPay('card')}
                         disabled={loading}
                       >
-                        <CreditCard className="h-5 w-5" />
-                        <span className="text-xs">Card</span>
+                        <CreditCard className="h-8 w-8" />
+                        <span className="text-sm font-bold">Card</span>
                       </Button>
                       <Button
                         size="lg"
-                        className="flex-col gap-1 h-16 bg-purple-600 hover:bg-purple-700 text-white"
+                        className="flex-col gap-2 h-20 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl shadow-lg"
                         onClick={() => handleQuickPay('mobile')}
                         disabled={loading}
                       >
-                        <Smartphone className="h-5 w-5" />
-                        <span className="text-xs">Mobile</span>
+                        <Smartphone className="h-8 w-8" />
+                        <span className="text-sm font-bold">Mobile</span>
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="col-span-3 text-xs"
+                        className="col-span-3 text-sm h-12 rounded-xl"
                         onClick={() => { setShowQuickPay(false); setShowPaymentDialog(true); }}
                       >
                         Split Payment
@@ -2073,23 +2102,23 @@ export default function POS() {
 
       {/* Mobile Bottom Action Bar */}
       {isMobile && view === 'menu' && cart.length > 0 && !showQuickPay && (
-        <div className="fixed bottom-20 left-3 right-3 z-40 flex gap-2">
+        <div className="fixed bottom-5 left-3 right-3 z-40 flex gap-3">
           <Button
             size="lg"
-            className="flex-1 h-12 rounded-xl font-bold mobile-gradient-orange text-white border-0 shadow-lg"
+            className="flex-1 h-14 rounded-2xl font-bold mobile-gradient-orange text-white border-0 shadow-xl"
             onClick={() => { handleSendToKitchen(); }}
             disabled={cart.length === 0 || loading}
           >
-            <ChefHat className="h-5 w-5 mr-1" />
+            <ChefHat className="h-6 w-6 mr-2" />
             KOT
           </Button>
           <Button
             size="lg"
-            className="flex-1 h-12 rounded-xl font-bold mobile-gradient-green text-white border-0 shadow-lg"
+            className="flex-1 h-14 rounded-2xl font-bold mobile-gradient-green text-white border-0 shadow-xl"
             onClick={() => { handlePayNow(); }}
             disabled={(cart.length === 0 && !existingOrder) || loading}
           >
-            <CreditCard className="h-5 w-5 mr-1" />
+            <CreditCard className="h-6 w-6 mr-2" />
             PAY {grandTotal.toFixed(3)}
           </Button>
         </div>
@@ -2097,42 +2126,42 @@ export default function POS() {
 
       {/* Mobile Quick Pay Buttons */}
       {isMobile && showQuickPay && (
-        <div className="fixed bottom-20 left-3 right-3 z-40 bg-card border rounded-2xl shadow-xl p-3 space-y-2">
-          <div className="text-center text-sm font-bold mb-1">Pay {grandTotal.toFixed(3)} OMR</div>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="fixed bottom-5 left-3 right-3 z-40 bg-card border rounded-3xl shadow-2xl p-4 space-y-3">
+          <div className="text-center text-lg font-bold mb-2">Pay {grandTotal.toFixed(3)} OMR</div>
+          <div className="grid grid-cols-3 gap-3">
             <Button
               size="lg"
-              className="flex-col gap-1 h-16 bg-green-600 hover:bg-green-700 text-white rounded-xl"
+              className="flex-col gap-2 h-20 bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-lg"
               onClick={() => handleQuickPay('cash')}
               disabled={loading}
             >
-              <Banknote className="h-6 w-6" />
-              <span className="text-xs font-bold">Cash</span>
+              <Banknote className="h-8 w-8" />
+              <span className="text-sm font-bold">Cash</span>
             </Button>
             <Button
               size="lg"
-              className="flex-col gap-1 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+              className="flex-col gap-2 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg"
               onClick={() => handleQuickPay('card')}
               disabled={loading}
             >
-              <CreditCard className="h-6 w-6" />
-              <span className="text-xs font-bold">Card</span>
+              <CreditCard className="h-8 w-8" />
+              <span className="text-sm font-bold">Card</span>
             </Button>
             <Button
               size="lg"
-              className="flex-col gap-1 h-16 bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
+              className="flex-col gap-2 h-20 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl shadow-lg"
               onClick={() => handleQuickPay('mobile')}
               disabled={loading}
             >
-              <Smartphone className="h-6 w-6" />
-              <span className="text-xs font-bold">Mobile</span>
+              <Smartphone className="h-8 w-8" />
+              <span className="text-sm font-bold">Mobile</span>
             </Button>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setShowQuickPay(false)}>
+          <div className="flex gap-3">
+            <Button variant="outline" size="sm" className="flex-1 text-sm h-12 rounded-xl" onClick={() => setShowQuickPay(false)}>
               Cancel
             </Button>
-            <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => { setShowQuickPay(false); setShowPaymentDialog(true); }}>
+            <Button variant="outline" size="sm" className="flex-1 text-sm h-12 rounded-xl" onClick={() => { setShowQuickPay(false); setShowPaymentDialog(true); }}>
               Split Payment
             </Button>
           </div>
@@ -2196,23 +2225,23 @@ export default function POS() {
                 <p className="text-sm">TICKET IS EMPTY</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {cart.map((item, idx) => (
-                  <div key={`mobile-${item.menuItem.id}-${idx}`} className="flex items-center gap-2 bg-muted/50 rounded p-2">
+                  <div key={`mobile-${item.menuItem.id}-${idx}`} className="flex items-center gap-3 bg-muted/50 rounded-xl p-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.menuItem.price.toFixed(3)} OMR × {item.quantity}</p>
+                      <p className="font-semibold text-sm truncate">{item.menuItem.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.menuItem.price.toFixed(3)} OMR each</p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}>
-                        <Minus className="h-3 w-3" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button size="icon" variant="outline" className="h-10 w-10 rounded-full" onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, -1, item.selectedPortion)}>
+                        <Minus className="h-4 w-4" />
                       </Button>
-                      <span className="w-5 text-center text-sm">{item.quantity}</span>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}>
-                        <Plus className="h-3 w-3" />
+                      <span className="w-8 text-center text-lg font-bold">{item.quantity}</span>
+                      <Button size="icon" variant="outline" className="h-10 w-10 rounded-full" onClick={() => updateCartQuantity(item.menuItem.id, item.isServing, 1, item.selectedPortion)}>
+                        <Plus className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}>
-                        <Trash2 className="h-3 w-3" />
+                      <Button size="icon" variant="outline" className="h-10 w-10 rounded-full text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => removeFromCart(item.menuItem.id, item.isServing, item.selectedPortion)}>
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -2225,15 +2254,14 @@ export default function POS() {
             {!isFOC && (
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground">Discount</span>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  placeholder="0.000"
-                  value={discount || ''}
-                  onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-28 h-7 text-sm text-right"
-                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-32 h-7 text-right font-mono text-sm"
+                  onClick={() => showKeypad('Enter Discount', discount?.toString() || '', (value) => setDiscount(Math.max(0, parseFloat(value) || 0)))}
+                >
+                  {discount?.toFixed(3) || '0.000'}
+                </Button>
               </div>
             )}
             {!isFOC && discount > 0 && (
@@ -2277,18 +2305,18 @@ export default function POS() {
               <span>Total</span>
               <span>{grandTotal.toFixed(3)} OMR</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               {isFOC ? (
-                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700 h-14 text-base rounded-xl font-bold" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}>
+                <Button size="lg" className="col-span-2 bg-green-600 hover:bg-green-700 h-16 text-lg rounded-2xl font-bold" onClick={() => { setShowMobileCart(false); handleFOCConfirm(); }} disabled={(cart.length === 0 && !existingOrder?.order_items?.length) || !focDancerName.trim() || loading}>
                   🎁 CONFIRM FOC
                 </Button>
               ) : (
                 <>
-                  <Button variant="secondary" size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-orange text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
-                    <ChefHat className="h-5 w-5 mr-1" />KOT
+                  <Button variant="secondary" size="lg" className="h-16 text-lg rounded-2xl font-bold mobile-gradient-orange text-white border-0" onClick={() => { setShowMobileCart(false); handleSendToKitchen(); }} disabled={cart.length === 0 || loading}>
+                    <ChefHat className="h-6 w-6 mr-2" />KOT
                   </Button>
-                  <Button size="lg" className="h-14 text-base rounded-xl font-bold mobile-gradient-green text-white border-0" onClick={() => { setShowMobileCart(false); handlePayNow(); }} disabled={(cart.length === 0 && !existingOrder) || loading}>
-                    <CreditCard className="h-5 w-5 mr-1" />PAY
+                  <Button size="lg" className="h-16 text-lg rounded-2xl font-bold mobile-gradient-green text-white border-0" onClick={() => { setShowMobileCart(false); handlePayNow(); }} disabled={(cart.length === 0 && !existingOrder) || loading}>
+                    <CreditCard className="h-6 w-6 mr-2" />PAY
                   </Button>
                 </>
               )}
@@ -2314,6 +2342,21 @@ export default function POS() {
         item={selectedServingItem}
         onSelect={handlePortionSelect}
       />
+
+      {/* Numeric Keypad Dialog */}
+      <Dialog open={showNumericKeypad} onOpenChange={setShowNumericKeypad}>
+        <DialogContent className="max-w-md p-0">
+          <NumericKeypad
+            value={keypadValue}
+            onChange={setKeypadValue}
+            onSubmit={handleKeypadSubmit}
+            onCancel={handleKeypadCancel}
+            title={keypadTitle}
+            showSubmit={true}
+            showCancel={true}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

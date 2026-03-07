@@ -191,7 +191,7 @@ export async function updateOrderCustomerName(orderId: string, customerName: str
   if (error) throw error;
 }
 
-// Search orders with filters
+// Search orders with filters (two-step fetch like getOrders)
 export async function searchOrders(params: {
   searchTerm?: string;
   startDate?: Date;
@@ -204,10 +204,6 @@ export async function searchOrders(params: {
     .select(`
       *,
       table:restaurant_tables(id, table_number, capacity),
-      order_items(
-        *,
-        menu_item:menu_items(id, name, price, image_url)
-      ),
       waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .order('created_at', { ascending: false });

@@ -106,12 +106,7 @@ export default function Dashboard() {
     }
   };
 
-  const activeOrders = orders.filter(o => !['PAID', 'CLOSED'].includes(o.order_status));
-  const pendingBills = orders.filter(o => o.order_status === 'BILL_REQUESTED');
   const occupiedTables = tables.filter(t => t.status === 'occupied');
-  const todayRevenue = orders
-    .filter(o => o.payment_status === 'paid')
-    .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
   // Quick action items for rendering
   const quickActions = [

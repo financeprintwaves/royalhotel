@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw, Building2, Printer } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { getOrders } from '@/services/orderService';
+import { getOrderStats } from '@/services/orderService';
 import { getTables } from '@/services/tableService';
 import { getInventoryAlertsCount } from '@/services/inventoryService';
 import { useToast } from '@/hooks/use-toast';
-import type { Order, RestaurantTable } from '@/types/pos';
+import type { RestaurantTable } from '@/types/pos';
 import LogoutSummaryDialog from '@/components/LogoutSummaryDialog';
 
 const DEMO_BRANCH_ID = 'a1111111-1111-1111-1111-111111111111';

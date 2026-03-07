@@ -64,7 +64,6 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
         getOrderPayments(order.id)
           .then(data => setPayments(data || []))
           .catch(err => {
-            console.error('Failed to load payments:', err);
             setPayments([]);
           }),
         
@@ -79,11 +78,9 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
                   .eq('user_id', order.created_by)
                   .maybeSingle()
               ).then(({ data, error }) => {
-                  if (error) console.error('Failed to load waiter:', error);
                   setWaiterName(data?.full_name || '');
                 })
                 .catch(err => {
-                  console.error('Failed to load waiter:', err);
                   setWaiterName('');
                 })
             : Promise.resolve(),
@@ -97,11 +94,9 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
                   .eq('id', profile.branch_id)
                   .maybeSingle()
               ).then(({ data, error }) => {
-                  if (error) console.error('Failed to load branch:', error);
                   if (data) setBranchInfo(data);
                 })
                 .catch(err => {
-                  console.error('Failed to load branch:', err);
                 })
             : Promise.resolve(),
         ]),
@@ -120,17 +115,12 @@ export default function ReceiptDialog({ open, onOpenChange, order, autoPrint = f
         // Wait for React to fully render and DOM to stabilize
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Log for debugging
-        console.log('Auto-printing receipt for order:', order?.order_number || order?.id);
-        
         // Send inner HTML to local print daemon (if running)
         const html = receiptRef.current.outerHTML;
         const result = await printToLocalPrinter(html);
-        console.log('Print sent to local daemon:', result);
         setHasPrinted(true);
       } catch (err) {
         // No local printer available - skip silently (no browser print dialog)
-        console.info('Local printer not available, skipping auto-print. Use manual Print button if needed.', err);
         setHasPrinted(true);
       }
     }

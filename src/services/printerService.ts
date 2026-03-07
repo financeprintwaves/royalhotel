@@ -12,7 +12,7 @@ async function loadQZ() {
     qz = mod.default || mod;
     return qz;
   } catch (err) {
-    console.warn('QZ Tray module not available:', err);
+    // QZ Tray module not available
     return null;
   }
 }
@@ -81,9 +81,9 @@ export async function connectPrinter(): Promise<boolean> {
   }
 
   connectionPromise = qzModule.websocket.connect()
-    .then(() => { console.log('QZ Tray connected'); })
+    .then(() => { /* QZ Tray connected */ })
     .catch((err: any) => {
-      console.warn('QZ Tray connection failed:', err);
+      // QZ Tray connection failed
       throw err;
     })
     .finally(() => { connectionPromise = null; });
@@ -101,7 +101,7 @@ async function silentPrint(html: string, overridePrinterName?: string): Promise<
   try {
     const settings = await fetchPrinterSettings();
     if (!settings.isEnabled && !overridePrinterName) {
-      console.log('Auto-print disabled in settings');
+      // Auto-print disabled in settings
       return false;
     }
 
@@ -116,7 +116,6 @@ async function silentPrint(html: string, overridePrinterName?: string): Promise<
     await qz.print(config, data);
     return true;
   } catch (err: any) {
-    console.error('Silent print failed:', err);
     toast.warning('Print failed: ' + (err?.message || 'Unknown error'));
     return false;
   }

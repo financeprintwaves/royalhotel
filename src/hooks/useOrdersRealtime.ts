@@ -20,7 +20,7 @@ export function useOrdersRealtime(
           table: 'orders',
         },
         (payload) => {
-          console.log('Order INSERT:', payload);
+          // Order INSERT event
           if (onInsert) onInsert(payload.new as Order);
         }
       )
@@ -32,7 +32,7 @@ export function useOrdersRealtime(
           table: 'orders',
         },
         (payload) => {
-          console.log('Order UPDATE:', payload);
+          // Order UPDATE event
           if (onUpdate) onUpdate(payload.new as Order);
         }
       )
@@ -44,12 +44,12 @@ export function useOrdersRealtime(
           table: 'orders',
         },
         (payload) => {
-          console.log('Order DELETE:', payload);
+          // Order DELETE event
           if (onDelete) onDelete((payload.old as { id: string }).id);
         }
       )
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
+        // Realtime subscription status change
       });
 
     return () => {

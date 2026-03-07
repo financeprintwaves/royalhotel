@@ -74,7 +74,7 @@ export async function saveCashDrawerCount(input: CashCountInput): Promise<CashDr
     .single();
 
   if (error) {
-    console.error("Error saving cash drawer count:", error);
+    // Error saving cash drawer count
     return null;
   }
 
@@ -93,7 +93,7 @@ export async function getCashDrawerCountBySession(sessionId: string): Promise<Ca
     if (error.code === "PGRST116") {
       return null; // No record found
     }
-    console.error("Error fetching cash drawer count:", error);
+    // Error fetching cash drawer count
     return null;
   }
 
@@ -109,7 +109,7 @@ export async function getUserCashDrawerCounts(userId: string): Promise<CashDrawe
     .order("counted_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching user cash drawer counts:", error);
+    // Error fetching user cash drawer counts
     return [];
   }
 
@@ -125,7 +125,7 @@ export async function getBranchCashDrawerCounts(branchId: string): Promise<CashD
     .order("counted_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching branch cash drawer counts:", error);
+    // Error fetching branch cash drawer counts
     return [];
   }
 

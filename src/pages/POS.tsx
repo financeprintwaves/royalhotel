@@ -175,7 +175,6 @@ export default function POS() {
       setAllOrders(data);
       setIsConnected(true);
     } catch (error) {
-      console.error('Failed to load orders:', error);
       setIsConnected(false);
     }
   }, [selectedBranch]);
@@ -187,7 +186,6 @@ export default function POS() {
       setKitchenOrders(data);
       setIsConnected(true);
     } catch (error) {
-      console.error('Failed to load kitchen orders:', error);
       setIsConnected(false);
     }
   }, []);
@@ -256,7 +254,6 @@ export default function POS() {
       if (error) throw error;
       return data as unknown as Order | null;
     } catch (error) {
-      console.error('Error checking existing order:', error);
       return null;
     }
   }
@@ -480,7 +477,7 @@ export default function POS() {
           isServing: c.isServing,
         }));
         printKOT(selectedTable?.table_number || null, kotItems);
-      } catch (e) { console.warn('KOT print skipped:', e); }
+      } catch (e) {}
       
       setCart([]);
       setExistingOrder(null);
@@ -631,7 +628,7 @@ export default function POS() {
           .eq('id', orderId)
           .maybeSingle();
         realOrderNumber = orderRow?.order_number || null;
-      } catch (e) { console.warn('Could not fetch order number:', e); }
+      } catch (e) {}
       
       // Build receipt from local state
       const localReceipt = {
@@ -713,7 +710,7 @@ export default function POS() {
           isFOC,
           focName: focDancerName || null,
         });
-      } catch (e) { console.warn('Invoice print skipped:', e); }
+      } catch (e) { /* Invoice print skipped */ }
       
       setCart([]);
       setExistingOrder(null);
@@ -793,9 +790,7 @@ export default function POS() {
           .eq('id', orderId)
           .maybeSingle();
         realOrderNumber = orderRow?.order_number || null;
-      } catch (e) {
-        console.warn('Could not fetch order number:', e);
-      }
+      } catch (e) {}
       
       setShowPaymentDialog(false);
       
@@ -880,7 +875,7 @@ export default function POS() {
           isFOC,
           focName: focDancerName || null,
         });
-      } catch (e) { console.warn('Invoice print skipped:', e); }
+      } catch (e) {}
       
       // For takeaway: After payment is done, notify kitchen if needed
       if (isTakeaway && needsKitchen) {
@@ -952,7 +947,7 @@ export default function POS() {
           .maybeSingle();
         if (orderRow?.order_number) realOrderNumber = orderRow.order_number;
       } catch (e) {
-        console.warn('Could not fetch order number:', e);
+        // Unable to fetch order number
       }
       
       setShowPaymentDialog(false);

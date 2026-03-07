@@ -70,7 +70,7 @@ export function useTables(branchId?: string) {
       // Check local cache first
       const cached = localCache.get<RestaurantTable[]>(cacheKey);
       if (cached) {
-        console.log('Tables loaded from cache');
+        // Tables loaded from cache
         return cached;
       }
       
@@ -97,7 +97,7 @@ export function useBranches() {
       // Check local cache first
       const cached = localCache.get<Branch[]>(CACHE_KEYS.BRANCHES);
       if (cached) {
-        console.log('Branches loaded from cache');
+        // Branches loaded from cache
         return cached;
       }
       

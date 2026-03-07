@@ -30,7 +30,7 @@ export default function Tables() {
       const data = await getTables();
       setTables(data);
     } catch (error) {
-      console.error('Failed to load tables:', error);
+      // Silently handle error
     }
   }
 

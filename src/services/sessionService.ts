@@ -42,7 +42,7 @@ export async function startSession(userId: string, branchId: string | null): Pro
     .single();
 
   if (error) {
-    console.error('Error starting session:', error);
+    // Error starting session
     return null;
   }
 
@@ -65,7 +65,7 @@ export async function getActiveSession(userId: string): Promise<StaffSession | n
       // No active session found
       return null;
     }
-    console.error('Error fetching active session:', error);
+    // Error fetching active session
     return null;
   }
 
@@ -85,7 +85,7 @@ export async function getSessionPayments(
     .gte('created_at', loginTime);
 
   if (error) {
-    console.error('Error fetching session payments:', error);
+    // Error fetching session payments
     return { cash: 0, card: 0, mobile: 0 };
   }
 
@@ -125,7 +125,7 @@ export async function endSession(
     .eq('id', sessionId);
 
   if (error) {
-    console.error('Error ending session:', error);
+    // Error ending session
     return false;
   }
 

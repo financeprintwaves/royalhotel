@@ -39,7 +39,7 @@ export default function PrinterSettings() {
         setIsEnabled(data.is_enabled);
       }
     } catch (err: any) {
-      console.error('Failed to load printer settings:', err);
+      // Silently handle error
     } finally {
       setLoading(false);
     }

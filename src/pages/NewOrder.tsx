@@ -49,7 +49,7 @@ export default function NewOrder() {
       const data = await getTables();
       setTables(data);
     } catch (error) {
-      console.error('Failed to load tables:', error);
+      // Silently handle error
     }
   }
 
@@ -59,7 +59,7 @@ export default function NewOrder() {
       setCategories(data);
       if (data.length > 0) setSelectedCategory(data[0].id);
     } catch (error) {
-      console.error('Failed to load categories:', error);
+      // Silently handle error
     }
   }
 
@@ -68,7 +68,7 @@ export default function NewOrder() {
       const data = await getMenuItems(categoryId);
       setMenuItems(data);
     } catch (error) {
-      console.error('Failed to load menu items:', error);
+      // Silently handle error
     }
   }
 

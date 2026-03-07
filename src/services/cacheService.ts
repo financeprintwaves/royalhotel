@@ -19,7 +19,7 @@ class LocalCache {
     try {
       localStorage.setItem(this.prefix + key, JSON.stringify(entry));
     } catch (e) {
-      console.warn('Failed to cache data:', e);
+      // Failed to cache data
     }
   }
 

@@ -223,7 +223,6 @@ export default function KitchenDisplay() {
       setOrders(data);
       setIsConnected(true);
     } catch (error) {
-      console.error('Failed to load kitchen orders:', error);
       setIsConnected(false);
     }
   }, []);

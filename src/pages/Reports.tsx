@@ -98,7 +98,7 @@ export default function Reports() {
       }, selectedBranchId || undefined);
       setData(result);
     } catch (error) {
-      console.error('Failed to load reports:', error);
+      // Silently handle error
     } finally {
       setLoading(false);
     }

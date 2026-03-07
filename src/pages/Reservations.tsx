@@ -66,7 +66,7 @@ export default function Reservations() {
       setReservations(reservationsData);
       setTables(tablesData);
     } catch (error) {
-      console.error('Failed to load data:', error);
+      // Silently handle error
     }
   }
 

@@ -77,7 +77,7 @@ async function recordInventoryHistory(
     });
 
   if (error) {
-    console.error('Failed to record inventory history:', error);
+    // Failed to record inventory history
   }
 }
 

@@ -65,7 +65,7 @@ export default function Orders() {
       setOrders(data);
       setIsConnected(true);
     } catch (error) {
-      console.error('Failed to load orders:', error);
+      // Silently handle error
       setIsConnected(false);
     }
   }, [selectedBranchId]);
@@ -77,12 +77,10 @@ export default function Orders() {
   // Realtime subscription
   useOrdersRealtime(
     useCallback(() => {
-      console.log('New order received');
       playOrderNotification();
       loadOrders();
     }, [loadOrders]),
     useCallback(() => {
-      console.log('Order updated');
       loadOrders();
     }, [loadOrders]),
     useCallback((deletedId: string) => {

@@ -92,7 +92,7 @@ export default function StaffManagement() {
       setStaff(staffWithPins);
       setBranches(branchesData);
     } catch (error: any) {
-      console.error('Failed to load data:', error);
+      // Silently handle error
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
       setLoading(false);

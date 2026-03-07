@@ -39,6 +39,6 @@ export function playOrderNotification() {
       osc.stop(now + i * 0.15 + 0.5);
     });
   } catch (e) {
-    console.warn('Could not play notification sound:', e);
+    // Could not play notification sound
   }
 }

@@ -18,19 +18,6 @@ export async function getTables(branchId?: string): Promise<RestaurantTable[]> {
   return (data || []) as RestaurantTable[];
 }
 
-// Get available tables only
-export async function getAvailableTables(): Promise<RestaurantTable[]> {
-  const { data, error } = await supabase
-    .from('restaurant_tables')
-    .select('*')
-    .eq('is_active', true)
-    .eq('status', 'available')
-    .order('table_number', { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as RestaurantTable[];
-}
-
 // Get table by ID
 export async function getTable(tableId: string): Promise<RestaurantTable | null> {
   const { data, error } = await supabase
@@ -142,56 +129,22 @@ export async function deleteTable(tableId: string): Promise<void> {
 }
 
 // Set table to available
-export async function setTableAvailable(tableId: string): Promise<RestaurantTable> {
-  return updateTableStatus(tableId, 'available');
-}
+// UNUSED - Helper function for updateTableStatus, never called directly
 
 // Set table to occupied
-export async function setTableOccupied(tableId: string): Promise<RestaurantTable> {
-  return updateTableStatus(tableId, 'occupied');
-}
+// UNUSED - Helper function for updateTableStatus, never called directly
 
 // Set table to reserved
-export async function setTableReserved(tableId: string): Promise<RestaurantTable> {
-  return updateTableStatus(tableId, 'reserved');
-}
+// UNUSED - Helper function for updateTableStatus, never called directly
 
 // Set table to cleaning
-export async function setTableCleaning(tableId: string): Promise<RestaurantTable> {
-  return updateTableStatus(tableId, 'cleaning');
-}
+// UNUSED - Helper function for updateTableStatus, never called directly
 
 // Get tables by status
-export async function getTablesByStatus(status: TableStatus): Promise<RestaurantTable[]> {
-  const { data, error } = await supabase
-    .from('restaurant_tables')
-    .select('*')
-    .eq('is_active', true)
-    .eq('status', status)
-    .order('table_number', { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as RestaurantTable[];
-}
+// UNUSED - Alternative to filtering getTables() with .filter(), never called
 
 // Get table statistics
-export async function getTableStats(): Promise<{
-  total: number;
-  available: number;
-  occupied: number;
-  reserved: number;
-  cleaning: number;
-}> {
-  const tables = await getTables();
-  
-  return {
-    total: tables.length,
-    available: tables.filter(t => t.status === 'available').length,
-    occupied: tables.filter(t => t.status === 'occupied').length,
-    reserved: tables.filter(t => t.status === 'reserved').length,
-    cleaning: tables.filter(t => t.status === 'cleaning').length,
-  };
-}
+// UNUSED - Never called, can be calculated client-side if needed
 
 // Merge tables together
 export async function mergeTables(

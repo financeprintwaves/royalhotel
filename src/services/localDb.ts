@@ -110,7 +110,7 @@ export async function cacheMenuItems(items: MenuItem[], branchId?: string): Prom
     if (branchId) await clearByIndex('menuItems', 'branch_id', branchId);
     await putAll('menuItems', entries);
   } catch (e) {
-    console.warn('Failed to cache menu items to IndexedDB:', e);
+      // Failed to cache menu items to IndexedDB
   }
 }
 
@@ -143,7 +143,7 @@ export async function cacheCategories(cats: Category[], branchId?: string): Prom
     if (branchId) await clearByIndex('categories', 'branch_id', branchId);
     await putAll('categories', entries);
   } catch (e) {
-    console.warn('Failed to cache categories to IndexedDB:', e);
+      // Failed to cache categories to IndexedDB
   }
 }
 
@@ -177,7 +177,7 @@ export async function saveCartDraft(cart: CartItem[], branchId: string): Promise
   try {
     await putOne<CartDraft>('cartDrafts', { id: CART_DRAFT_ID, branchId, cart, updatedAt: Date.now() });
   } catch (e) {
-    console.warn('Failed to save cart draft:', e);
+      // Failed to save cart draft
   }
 }
 

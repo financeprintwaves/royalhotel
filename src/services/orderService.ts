@@ -56,13 +56,13 @@ export async function getOrders(statusFilter?: OrderStatus[], limit: number = 10
         .in('order_id', chunk);
       
       if (itemsError) {
-        console.warn('Failed to fetch order items batch, continuing with headers only:', itemsError);
+        // Failed to fetch order items batch, continuing with headers only
         break;
       }
       if (items) orderItems.push(...items);
     }
   } catch (err) {
-    console.warn('Order items enrichment failed, showing headers only:', err);
+    // Order items enrichment failed, showing headers only
   }
 
   // Group items by order_id client-side
@@ -248,7 +248,7 @@ export async function searchOrders(params: {
       if (items) orderItems.push(...items);
     }
   } catch (err) {
-    console.warn('Search items enrichment failed:', err);
+    // Search items enrichment failed
   }
 
   const itemsByOrderId = new Map<string, any[]>();
@@ -426,7 +426,6 @@ export async function addOrderItemsBatch(
   // Prepare bulk insert data
   const insertData = items.map(item => {
     const portionName = item.portionName || null;
-    console.log('[OrderService] Batch item:', item.menuItem.name, 'portionName:', portionName, 'raw:', item.portionName);
     return {
       order_id: orderId,
       menu_item_id: item.menuItem.id,

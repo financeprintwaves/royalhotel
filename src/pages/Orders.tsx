@@ -45,6 +45,13 @@ export default function Orders() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [transactionRef, setTransactionRef] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(profile?.branch_id || null);
+
+  // Sync branch from profile for non-admin users to prevent unscoped queries
+  useEffect(() => {
+    if (profile?.branch_id && !isAdmin()) {
+      setSelectedBranchId(profile.branch_id);
+    }
+  }, [profile?.branch_id, isAdmin]);
   
   // Search filters
   const [searchTerm, setSearchTerm] = useState('');

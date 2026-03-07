@@ -14,17 +14,14 @@ export function generateIdempotencyKey(): string {
   return crypto.randomUUID();
 }
 
-// Get orders for current branch (optimized: defaults to today's active + recent completed)
+// Get orders for current branch (optimized: two-step fetch to avoid query timeout)
 export async function getOrders(statusFilter?: OrderStatus[], limit: number = 100, branchId?: string): Promise<Order[]> {
+  // Step A: Fetch order headers + table + waiter (lightweight, no embedded order_items)
   let query = supabase
     .from('orders')
     .select(`
       *,
       table:restaurant_tables(id, table_number, capacity),
-      order_items(
-        *,
-        menu_item:menu_items(id, name, price, image_url)
-      ),
       waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .order('created_at', { ascending: false })
@@ -38,10 +35,85 @@ export async function getOrders(statusFilter?: OrderStatus[], limit: number = 10
     query = query.in('order_status', statusFilter);
   }
 
-  const { data, error } = await query;
+  const { data: headers, error: headersError } = await query;
+  
+  if (headersError) throw headersError;
+  if (!headers || headers.length === 0) return [] as unknown as Order[];
+
+  // Step B: Batch-fetch order_items for all returned order IDs
+  const orderIds = headers.map(o => o.id);
+  let orderItems: any[] = [];
+  try {
+    // Fetch in chunks of 50 to avoid overly large IN clauses
+    for (let i = 0; i < orderIds.length; i += 50) {
+      const chunk = orderIds.slice(i, i + 50);
+      const { data: items, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          *,
+          menu_item:menu_items(id, name, price, image_url)
+        `)
+        .in('order_id', chunk);
+      
+      if (itemsError) {
+        console.warn('Failed to fetch order items batch, continuing with headers only:', itemsError);
+        break;
+      }
+      if (items) orderItems.push(...items);
+    }
+  } catch (err) {
+    console.warn('Order items enrichment failed, showing headers only:', err);
+  }
+
+  // Group items by order_id client-side
+  const itemsByOrderId = new Map<string, any[]>();
+  for (const item of orderItems) {
+    const existing = itemsByOrderId.get(item.order_id) || [];
+    existing.push(item);
+    itemsByOrderId.set(item.order_id, existing);
+  }
+
+  // Merge headers + items
+  const result = headers.map(order => ({
+    ...order,
+    order_items: itemsByOrderId.get(order.id) || [],
+  }));
+
+  return result as unknown as Order[];
+}
+
+// Lightweight stats query for Dashboard (no items, no joins overhead)
+export async function getOrderStats(branchId?: string): Promise<{
+  activeCount: number;
+  pendingBillsCount: number;
+  todayRevenue: number;
+  totalOrders: number;
+}> {
+  let query = supabase
+    .from('orders')
+    .select('id, order_status, payment_status, total_amount, created_at');
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  // Only today's orders for stats
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  query = query.gte('created_at', todayStart.toISOString());
+
+  const { data, error } = await query.limit(500);
   
   if (error) throw error;
-  return (data || []) as unknown as Order[];
+  const orders = data || [];
+
+  const activeCount = orders.filter(o => !['PAID', 'CLOSED'].includes(o.order_status)).length;
+  const pendingBillsCount = orders.filter(o => o.order_status === 'BILL_REQUESTED').length;
+  const todayRevenue = orders
+    .filter(o => o.payment_status === 'paid')
+    .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+  return { activeCount, pendingBillsCount, todayRevenue, totalOrders: orders.length };
 }
 
 // Get single order
@@ -119,7 +191,7 @@ export async function updateOrderCustomerName(orderId: string, customerName: str
   if (error) throw error;
 }
 
-// Search orders with filters
+// Search orders with filters (two-step fetch like getOrders)
 export async function searchOrders(params: {
   searchTerm?: string;
   startDate?: Date;
@@ -132,10 +204,6 @@ export async function searchOrders(params: {
     .select(`
       *,
       table:restaurant_tables(id, table_number, capacity),
-      order_items(
-        *,
-        menu_item:menu_items(id, name, price, image_url)
-      ),
       waiter:profiles!orders_created_by_fkey_profiles(full_name)
     `)
     .order('created_at', { ascending: false });
@@ -162,10 +230,38 @@ export async function searchOrders(params: {
     query = query.or(`customer_name.ilike.%${params.searchTerm}%,id.ilike.%${params.searchTerm}%`);
   }
 
-  const { data, error } = await query.limit(100);
+  const { data: headers, error } = await query.limit(100);
   
   if (error) throw error;
-  return (data || []) as unknown as Order[];
+  if (!headers || headers.length === 0) return [] as unknown as Order[];
+
+  // Batch-fetch items
+  const orderIds = headers.map(o => o.id);
+  let orderItems: any[] = [];
+  try {
+    for (let i = 0; i < orderIds.length; i += 50) {
+      const chunk = orderIds.slice(i, i + 50);
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*, menu_item:menu_items(id, name, price, image_url)')
+        .in('order_id', chunk);
+      if (items) orderItems.push(...items);
+    }
+  } catch (err) {
+    console.warn('Search items enrichment failed:', err);
+  }
+
+  const itemsByOrderId = new Map<string, any[]>();
+  for (const item of orderItems) {
+    const existing = itemsByOrderId.get(item.order_id) || [];
+    existing.push(item);
+    itemsByOrderId.set(item.order_id, existing);
+  }
+
+  return headers.map(order => ({
+    ...order,
+    order_items: itemsByOrderId.get(order.id) || [],
+  })) as unknown as Order[];
 }
 
 // Add item to order

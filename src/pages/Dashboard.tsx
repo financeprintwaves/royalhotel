@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw, Building2, Printer } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { getOrders } from '@/services/orderService';
+import { getOrderStats } from '@/services/orderService';
 import { getTables } from '@/services/tableService';
 import { getInventoryAlertsCount } from '@/services/inventoryService';
 import { useToast } from '@/hooks/use-toast';
-import type { Order, RestaurantTable } from '@/types/pos';
+import type { RestaurantTable } from '@/types/pos';
 import LogoutSummaryDialog from '@/components/LogoutSummaryDialog';
 
 const DEMO_BRANCH_ID = 'a1111111-1111-1111-1111-111111111111';
@@ -36,7 +36,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderStats, setOrderStats] = useState({ activeCount: 0, pendingBillsCount: 0, todayRevenue: 0, totalOrders: 0 });
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [bootstrapping, setBootstrapping] = useState(false);
@@ -54,12 +54,12 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [ordersData, tablesData, alertsCount] = await Promise.all([
-        getOrders(),
+      const [stats, tablesData, alertsCount] = await Promise.all([
+        getOrderStats(profile?.branch_id || undefined),
         getTables(),
         getInventoryAlertsCount(),
       ]);
-      setOrders(ordersData);
+      setOrderStats(stats);
       setTables(tablesData);
       setLowStockCount(alertsCount);
     } catch (error) {
@@ -106,12 +106,7 @@ export default function Dashboard() {
     }
   };
 
-  const activeOrders = orders.filter(o => !['PAID', 'CLOSED'].includes(o.order_status));
-  const pendingBills = orders.filter(o => o.order_status === 'BILL_REQUESTED');
   const occupiedTables = tables.filter(t => t.status === 'occupied');
-  const todayRevenue = orders
-    .filter(o => o.payment_status === 'paid')
-    .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
   // Quick action items for rendering
   const quickActions = [
@@ -135,10 +130,10 @@ export default function Dashboard() {
 
   // Stat cards data
   const statCards = [
-    { label: 'Active Orders', value: activeOrders.length, gradient: 'mobile-gradient-purple' },
+    { label: 'Active Orders', value: orderStats.activeCount, gradient: 'mobile-gradient-purple' },
     { label: 'Tables Occupied', value: `${occupiedTables.length} / ${tables.length}`, gradient: 'mobile-gradient-blue' },
-    { label: "Today's Revenue", value: `${todayRevenue.toFixed(3)} OMR`, gradient: 'mobile-gradient-green' },
-    { label: 'Pending Bills', value: pendingBills.length, gradient: 'mobile-gradient-orange' },
+    { label: "Today's Revenue", value: `${orderStats.todayRevenue.toFixed(3)} OMR`, gradient: 'mobile-gradient-green' },
+    { label: 'Pending Bills', value: orderStats.pendingBillsCount, gradient: 'mobile-gradient-orange' },
   ];
 
   return (

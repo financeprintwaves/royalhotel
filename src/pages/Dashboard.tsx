@@ -130,10 +130,10 @@ export default function Dashboard() {
 
   // Stat cards data
   const statCards = [
-    { label: 'Active Orders', value: activeOrders.length, gradient: 'mobile-gradient-purple' },
+    { label: 'Active Orders', value: orderStats.activeCount, gradient: 'mobile-gradient-purple' },
     { label: 'Tables Occupied', value: `${occupiedTables.length} / ${tables.length}`, gradient: 'mobile-gradient-blue' },
-    { label: "Today's Revenue", value: `${todayRevenue.toFixed(3)} OMR`, gradient: 'mobile-gradient-green' },
-    { label: 'Pending Bills', value: pendingBills.length, gradient: 'mobile-gradient-orange' },
+    { label: "Today's Revenue", value: `${orderStats.todayRevenue.toFixed(3)} OMR`, gradient: 'mobile-gradient-green' },
+    { label: 'Pending Bills', value: orderStats.pendingBillsCount, gradient: 'mobile-gradient-orange' },
   ];
 
   return (

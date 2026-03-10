@@ -1,10 +1,77 @@
 -- =============================================
--- ROYAL HOTEL POS - COMPLETE DATABASE SCHEMA
--- Updated: 2026-02-25
--- Run this in your Supabase SQL Editor (fresh project)
+-- ROYAL HOTEL POS - COMPLETE DATABASE SETUP
+-- Single-file migration for a fresh Supabase project
+-- Updated: 2026-03-10
+-- =============================================
+--
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │                  DEPLOYMENT GUIDE                           │
+-- ├─────────────────────────────────────────────────────────────┤
+-- │                                                             │
+-- │  1. CREATE SUPABASE PROJECT                                 │
+-- │     → Go to https://supabase.com/dashboard                  │
+-- │     → New Project → pick region, set DB password             │
+-- │     → Note your Project URL and anon key from Settings>API  │
+-- │                                                             │
+-- │  2. RUN THIS SQL                                            │
+-- │     → Open SQL Editor in your Supabase dashboard            │
+-- │     → Paste this ENTIRE file and click "Run"                │
+-- │     → All tables, functions, RLS, triggers, indexes created │
+-- │                                                             │
+-- │  3. DEPLOY EDGE FUNCTIONS (requires Supabase CLI)           │
+-- │     → Install CLI: npm i -g supabase                        │
+-- │     → supabase login                                        │
+-- │     → supabase link --project-ref YOUR_PROJECT_REF          │
+-- │     → Create these files locally:                           │
+-- │       supabase/config.toml (see bottom of this file)        │
+-- │       supabase/functions/pin-login/index.ts                 │
+-- │       supabase/functions/create-staff/index.ts              │
+-- │     → supabase functions deploy pin-login                   │
+-- │     → supabase functions deploy create-staff                │
+-- │                                                             │
+-- │  4. DEPLOY FRONTEND TO VERCEL                               │
+-- │     → Push your frontend code to GitHub                     │
+-- │     → Go to https://vercel.com → Import from GitHub         │
+-- │     → Framework Preset: Vite                                │
+-- │     → Set Environment Variables:                            │
+-- │       VITE_SUPABASE_URL = https://xxx.supabase.co           │
+-- │       VITE_SUPABASE_PUBLISHABLE_KEY = eyJ...                │
+-- │     → Deploy!                                               │
+-- │                                                             │
+-- │  5. FIRST-TIME SETUP                                        │
+-- │     → Sign up through your app with your admin email        │
+-- │     → The auto_assign_super_admin trigger will auto-grant   │
+-- │       admin role (change email on line ~355 below)           │
+-- │     → OR: create a branch first, then call:                 │
+-- │       SELECT bootstrap_demo_admin('branch-uuid-here');      │
+-- │                                                             │
+-- │  6. CONFIGURE AUTH (in Supabase Dashboard)                  │
+-- │     → Authentication > Settings > Email                     │
+-- │     → Enable "Confirm email" (recommended for production)   │
+-- │     → OR disable for dev/testing convenience                │
+-- │                                                             │
+-- └─────────────────────────────────────────────────────────────┘
+--
+-- CONTENTS:
+--   Phase 1:  Enum Types (4)
+--   Phase 2:  Tables (19) + Storage bucket
+--   Phase 3:  Security Definer Functions (17)
+--   Phase 4:  Enable RLS (19 tables)
+--   Phase 5:  RLS Policies (~50 policies)
+--   Phase 6:  Triggers (14)
+--   Phase 7:  Indexes (14)
+--   Phase 8:  Realtime (orders, order_items)
+--   Phase 9:  Permissions & Security
+--   Phase 10: Initial data (optional)
+--   Appendix A: Edge Function - pin-login
+--   Appendix B: Edge Function - create-staff
+--   Appendix C: supabase/config.toml
+--
+
+-- =============================================
+-- PHASE 1: Create ENUM Types
 -- =============================================
 
--- PHASE 1: Create ENUM Types
 CREATE TYPE public.order_status AS ENUM (
   'CREATED', 'SENT_TO_KITCHEN', 'SERVED', 'BILL_REQUESTED', 'PAID', 'CLOSED'
 );
@@ -184,6 +251,10 @@ CREATE TABLE public.orders (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Add foreign key for orders.created_by → profiles.user_id
+ALTER TABLE public.orders ADD CONSTRAINT orders_created_by_fkey_profiles
+  FOREIGN KEY (created_by) REFERENCES public.profiles(user_id);
+
 -- Order items table
 CREATE TABLE public.order_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -348,11 +419,12 @@ END;
 $$;
 
 -- Auto-assign super admin on signup
+-- *** IMPORTANT: Change the email below to YOUR admin email ***
 CREATE OR REPLACE FUNCTION public.auto_assign_super_admin()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
-  v_super_admin_email TEXT := 'iqbalussain@gmail.com'; -- Change this to your admin email
+  v_super_admin_email TEXT := 'iqbalussain@gmail.com'; -- ← CHANGE THIS TO YOUR ADMIN EMAIL
   v_branch_id UUID;
 BEGIN
   IF NEW.email = v_super_admin_email THEN
@@ -370,7 +442,7 @@ BEGIN
 END;
 $$;
 
--- PIN validation function
+-- PIN validation function (called ONLY from edge function, not directly by clients)
 CREATE OR REPLACE FUNCTION public.validate_staff_pin(p_pin TEXT)
 RETURNS TABLE(user_id UUID, email TEXT, full_name TEXT)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -920,9 +992,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.order_items;
 
 -- =============================================
--- PHASE 9: Grant permissions
+-- PHASE 9: Permissions & Security
 -- =============================================
-GRANT EXECUTE ON FUNCTION public.validate_staff_pin(TEXT) TO authenticated, anon;
+
+-- Grant execute on public functions
 GRANT EXECUTE ON FUNCTION public.generate_order_number(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.bootstrap_demo_admin(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_staff_with_roles() TO authenticated;
@@ -931,6 +1004,12 @@ GRANT EXECUTE ON FUNCTION public.quick_pay_order(UUID, NUMERIC, payment_method, 
 GRANT EXECUTE ON FUNCTION public.update_order_status(UUID, order_status) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.process_refund(UUID, NUMERIC, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.process_split_payment(UUID, JSONB) TO authenticated;
+
+-- SECURITY: Revoke direct access to validate_staff_pin from clients
+-- This function must ONLY be called from the pin-login edge function (service role)
+-- Granting to anon/authenticated would allow brute-force PIN attacks from the client
+REVOKE EXECUTE ON FUNCTION public.validate_staff_pin(TEXT) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.validate_staff_pin(TEXT) FROM authenticated;
 
 -- =============================================
 -- PHASE 10: Initial data (optional)
@@ -945,5 +1024,274 @@ GRANT EXECUTE ON FUNCTION public.process_split_payment(UUID, JSONB) TO authentic
 -- Next steps:
 -- 1. Deploy edge functions: pin-login, create-staff (via Supabase CLI)
 -- 2. Sign up a user through your app
--- 3. Run: SELECT public.bootstrap_demo_admin('a1111111-1111-1111-1111-111111111111');
--- 4. Configure env vars: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
+-- 3. The auto_assign_super_admin trigger will grant admin to your configured email
+-- 4. OR run: SELECT public.bootstrap_demo_admin('your-branch-uuid');
+-- 5. Configure env vars: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
+
+
+-- =============================================================================
+-- APPENDIX A: Edge Function — pin-login
+-- =============================================================================
+-- File: supabase/functions/pin-login/index.ts
+-- Deploy: supabase functions deploy pin-login
+-- This function validates a 5-digit staff PIN and returns a magic link token.
+-- It uses the service role key (server-side only) to call validate_staff_pin.
+-- =============================================================================
+/*
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { pin } = await req.json();
+
+    if (!pin || !/^\d{5}$/.test(pin)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid PIN format. Must be 5 digits." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: userData, error: validateError } = await supabaseAdmin
+      .rpc("validate_staff_pin", { p_pin: pin });
+
+    if (validateError) {
+      console.error("PIN validation error:", validateError);
+      return new Response(
+        JSON.stringify({ error: "Failed to validate PIN" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!userData || userData.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Invalid PIN" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const user = userData[0];
+
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
+      email: user.email,
+    });
+
+    if (linkError || !linkData) {
+      console.error("Failed to generate auth link:", linkError);
+      return new Response(
+        JSON.stringify({ error: "Failed to authenticate user" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const url = new URL(linkData.properties.action_link);
+    const token = url.searchParams.get("token");
+    const type = url.searchParams.get("type");
+
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: "Failed to generate authentication token" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ token, type, email: user.email, user_id: user.user_id, full_name: user.full_name }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("PIN login error:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+
+*/
+
+
+-- =============================================================================
+-- APPENDIX B: Edge Function — create-staff
+-- =============================================================================
+-- File: supabase/functions/create-staff/index.ts
+-- Deploy: supabase functions deploy create-staff
+-- Admin-only function to create new staff accounts with email/password,
+-- auto-confirm email, assign profile + role.
+-- =============================================================================
+/*
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface CreateStaffRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  branch_id?: string;
+  role?: 'admin' | 'manager' | 'cashier' | 'kitchen';
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user: requestingUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+    if (authError || !requestingUser) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid authorization token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: isAdmin } = await supabaseAdmin.rpc('is_admin', { _user_id: requestingUser.id });
+
+    if (!isAdmin) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Only admins can create staff members' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const body: CreateStaffRequest = await req.json();
+    const { email, password, full_name, branch_id, role } = body;
+
+    if (!email || !password || !full_name) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Email, password, and full name are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Password must be at least 6 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name },
+    });
+
+    if (createError) {
+      return new Response(
+        JSON.stringify({ success: false, error: createError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = newUser.user.id;
+
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({ user_id: userId, email, full_name, branch_id: branch_id || null });
+
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+    }
+
+    if (role) {
+      const { error: roleError } = await supabaseAdmin
+        .from('user_roles')
+        .insert({ user_id: userId, role });
+
+      if (roleError) {
+        console.error('Role assignment error:', roleError);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Staff member created successfully', user_id: userId, email }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error creating staff:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return new Response(
+      JSON.stringify({ success: false, error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+
+*/
+
+
+-- =============================================================================
+-- APPENDIX C: supabase/config.toml
+-- =============================================================================
+-- Create this file at: supabase/config.toml
+-- Required for the pin-login edge function (disables JWT verification
+-- so unauthenticated users can call it to log in via PIN)
+-- =============================================================================
+/*
+
+project_id = "YOUR_PROJECT_REF_HERE"
+
+[functions.pin-login]
+verify_jwt = false
+
+[functions.create-staff]
+verify_jwt = false
+
+*/
+
+
+-- =============================================================================
+-- APPENDIX D: Frontend Environment Variables
+-- =============================================================================
+-- For Vercel, set these in Project Settings → Environment Variables:
+--
+--   VITE_SUPABASE_URL          = https://YOUR_PROJECT_REF.supabase.co
+--   VITE_SUPABASE_PUBLISHABLE_KEY = eyJ... (your anon/public key)
+--
+-- The frontend code reads these via:
+--   import.meta.env.VITE_SUPABASE_URL
+--   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+--
+-- DO NOT put your service_role key in the frontend!
+-- =============================================================================

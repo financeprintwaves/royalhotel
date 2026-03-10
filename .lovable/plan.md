@@ -1,41 +1,65 @@
 
 
-## Plan: Complete Single-File Database Setup + Edge Functions + Vercel Deployment Guide
+## Fix: Manager Can't See Orders — Race Condition in AuthContext
 
-### What Already Exists
-The file `docs/supabase-migration.sql` (949 lines) already contains everything needed for the database:
-- All 16 tables with correct schemas
-- All enums (order_status, payment_status, app_role, payment_method)
-- All 14 security-definer functions
-- All RLS policies for every table
-- All triggers (auth, order number, reservations, updated_at)
-- All indexes (15 performance indexes)
-- Realtime publication config
-- Function grants/permissions
-- Storage bucket setup
+### Root Cause
+The session replay confirms the manager (`rhbr@royalhotel.com`) **has the correct branch assignment** in the database (Royal Hyderabadi, branch_id `c39f6b77...`), and the RLS policies are correct.
 
-### What to Create
-One updated file: `docs/supabase-migration.sql` with minor additions:
-1. Add a header comment block with Vercel deployment instructions
-2. Add edge function code as comments at the bottom (since edge functions can't run in SQL editor -- they need CLI deployment)
-3. Add `config.toml` content for the `pin-login` function (verify_jwt = false)
-4. Ensure the `REVOKE EXECUTE` on `validate_staff_pin` from `anon`/`authenticated` is included (security measure for PIN login edge function)
+The actual problem is a **race condition in AuthContext**: `setLoading(false)` fires immediately (line 107/127) BEFORE `fetchUserData()` resolves. The Dashboard renders with `profile = null`, sees no branch, and shows "No Branch Assigned." The profile eventually loads, but if the user navigates during that window, the state resets.
 
-### Edge Functions (documented in the file, deployed via CLI)
-- **pin-login**: Validates 5-digit PIN → generates magic link token via service role
-- **create-staff**: Admin-only function to provision new staff accounts with roles
+This means managers see the "No Branch Assigned" screen and can't access POS/Orders at all — they never get to see any Edit/Cancel buttons.
 
-### Vercel Deployment Steps (included as comments)
-1. Create new Supabase project at supabase.com
-2. Run the SQL in SQL Editor
-3. Deploy edge functions via Supabase CLI
-4. Push frontend to GitHub → import in Vercel
-5. Set env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+### Fix
 
-### Changes
+#### 1. AuthContext — Wait for profile before setting loading=false (`src/contexts/AuthContext.tsx`)
+
+Move `setLoading(false)` inside the `fetchUserData().then()` callback so the app stays in loading state until the profile is available:
+
+```typescript
+// onAuthStateChange handler
+if (session?.user) {
+  fetchUserData(session.user.id).then((profileData) => {
+    if (!isMounted) return;
+    if (profileData?.branch_id) {
+      initializeSessionTracking(session.user.id, profileData.branch_id);
+    }
+    setLoading(false); // ← Move here
+  }).catch(() => {
+    if (isMounted) setLoading(false);
+  });
+} else {
+  setProfile(null);
+  setRoles([]);
+  setLoading(false); // ← Keep here for logged-out state
+}
+```
+
+Same change for the `getSession()` block.
+
+#### 2. Dashboard — Handle edge case where profile loads slowly (`src/pages/Dashboard.tsx`)
+
+Reset `hasBranch` to false when profile changes to null (currently it only sets to true, never resets):
+
+```typescript
+useEffect(() => {
+  if (profile?.branch_id) {
+    setHasBranch(true);
+    loadData();
+  } else {
+    setHasBranch(false);
+  }
+}, [profile]);
+```
+
+### Files Modified
 | File | Change |
 |------|--------|
-| `docs/supabase-migration.sql` | Update header with deployment guide, add REVOKE for PIN security, append edge function source code as reference comments |
+| `src/contexts/AuthContext.tsx` | Move `setLoading(false)` after `fetchUserData` resolves |
+| `src/pages/Dashboard.tsx` | Reset `hasBranch` when profile is null |
 
-This is a documentation update -- no functional code changes.
+### What This Fixes
+- Manager no longer sees "No Branch Assigned" flash
+- Profile, roles, and branch are all loaded before the app renders
+- POS and Orders pages will have correct `isManagerOrAdmin()` from the start
+- Edit/Cancel buttons (already fixed in last edit) will be visible immediately
 

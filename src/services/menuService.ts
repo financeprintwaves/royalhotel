@@ -126,17 +126,7 @@ export async function getMenuItems(categoryId?: string, branchId?: string, optio
     query = query.eq('branch_id', branchId);
   }
 
-  if (options?.session && options.session !== 'all') {
-    query = query.in('session', ['all', options.session]);
-  }
-
-  if (options?.onlyDailySpecial) {
-    query = query.eq('is_daily_special', true);
-  }
-
-  if (options?.onlyFavorites) {
-    query = query.eq('is_favorite', true);
-  }
+  // session, daily_special, favorite filters removed - columns don't exist in current schema
 
   const { data, error } = await query;
   

@@ -73,7 +73,7 @@ export async function updateExpense(
   expenseId: string,
   updates: Partial<Pick<Expense, 'category' | 'description' | 'amount' | 'expense_date' | 'receipt_url'>>
 ): Promise<Expense> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('expenses')
     .update(updates)
     .eq('id', expenseId)

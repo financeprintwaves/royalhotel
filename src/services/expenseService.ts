@@ -50,7 +50,7 @@ export async function createExpense(options: CreateExpenseOptions): Promise<Expe
 
   if (!profile?.branch_id) throw new Error('User not assigned to a branch');
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('expenses')
     .insert({
       branch_id: profile.branch_id,

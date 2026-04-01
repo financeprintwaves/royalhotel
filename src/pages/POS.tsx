@@ -93,10 +93,8 @@ export default function POS() {
   // Core POS state - selectedBranch must be declared before hooks that use it
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   
-  // Use cached data hooks with branch filtering (MAJOR PERFORMANCE BOOST)
-  // Pass selectedBranch to filter by branch - non-admins see only their branch via RLS anyway
+  // Categories hook (no dependency on later state)
   const { data: categories = [], isLoading: categoriesLoading } = useCategories(selectedBranch || undefined);
-  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems(selectedCategory || undefined, selectedBranch || undefined, { session: menuSession });
   const { refreshTables, refreshMenu } = useRefreshCache();
   
   // Other hooks after selectedBranch is declared

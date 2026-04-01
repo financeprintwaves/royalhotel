@@ -86,7 +86,7 @@ export async function updateExpense(
 
 // Delete expense
 export async function deleteExpense(expenseId: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from('expenses')
     .delete()
     .eq('id', expenseId);

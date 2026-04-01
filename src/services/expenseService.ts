@@ -27,7 +27,7 @@ export async function getExpenses(branchId?: string): Promise<Expense[]> {
 
 // Get expense by ID
 export async function getExpense(expenseId: string): Promise<Expense | null> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('expenses')
     .select('*')
     .eq('id', expenseId)

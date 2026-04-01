@@ -311,23 +311,24 @@ export default function InventoryPage() {
               </Card>
             </div>
 
-            {/* Inventory Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Inventory Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="text-center">Quantity</TableHead>
-                      <TableHead className="text-center">Threshold</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead className="text-center">Stock Level</TableHead>
-                      {isManager && <TableHead className="text-right">Actions</TableHead>}
-                    </TableRow>
-                  </TableHeader>
+            {/* Inventory Table - Desktop */}
+            <div className="hidden md:block">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Inventory Items</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-center">Quantity</TableHead>
+                        <TableHead className="text-center">Threshold</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center">Stock Level</TableHead>
+                        {isManager && <TableHead className="text-right">Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
                     {inventory.map((item) => {
                       const level = getStockLevel(item);
@@ -430,6 +431,128 @@ export default function InventoryPage() {
                 )}
               </CardContent>
             </Card>
+            </div>
+
+            {/* Inventory Cards - Mobile */}
+            <div className="md:hidden space-y-4">
+              {inventory.map((item) => {
+                const level = getStockLevel(item);
+                const threshold = item.low_stock_threshold || 10;
+                const percentage = Math.min((item.quantity / (threshold * 3)) * 100, 100);
+
+                return (
+                  <Card key={item.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        {item.menu_item?.image_url ? (
+                          <img
+                            src={item.menu_item.image_url}
+                            alt={item.menu_item.name}
+                            className="h-12 w-12 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                            <Package className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h3 className="font-medium truncate">{item.menu_item?.name || 'Unknown Item'}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {item.menu_item?.price?.toFixed(3)} OMR
+                              </p>
+                            </div>
+                            {isManager && (
+                              <div className="flex gap-1 ml-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openItemHistory(item)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <History className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Quantity:</span>
+                              <span className="font-mono text-lg">{item.quantity}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Threshold:</span>
+                              <span>{threshold}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Status:</span>
+                              {getStockBadge(level)}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>Stock Level</span>
+                                <span>{Math.round(percentage)}%</span>
+                              </div>
+                              <Progress
+                                value={percentage}
+                                className={`h-2 ${
+                                  level === 'critical' ? '[&>div]:bg-destructive' :
+                                  level === 'low' ? '[&>div]:bg-amber-500' :
+                                  level === 'high' ? '[&>div]:bg-green-500' : ''
+                                }`}
+                              />
+                            </div>
+                          </div>
+                          {isManager && (
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openAdjustDialog(item, 'add')}
+                                className="flex-1"
+                              >
+                                <Plus className="h-4 w-4 mr-1" />Add
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openAdjustDialog(item, 'set')}
+                                className="flex-1"
+                              >
+                                Set Qty
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openAdjustDialog(item, 'threshold')}
+                                className="flex-1"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {inventory.length === 0 && (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">
+                      No inventory items. Add menu items with inventory tracking to get started.
+                    </p>
+                    <Button className="mt-4" asChild>
+                      <Link to="/menu">Go to Menu Management</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
           </TabsContent>
 
           <TabsContent value="history" className="space-y-6">

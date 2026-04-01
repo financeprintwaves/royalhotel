@@ -20,6 +20,7 @@ import MenuManagement from "@/pages/MenuManagement";
 import Inventory from "@/pages/Inventory";
 import BranchManagement from "@/pages/BranchManagement";
 import Expenses from "@/pages/Expenses";
+import DeliveryDashboard from "@/pages/DeliveryDashboard";
 import CustomerDisplayPage from "@/pages/CustomerDisplayPage";
 import NotFound from "@/pages/NotFound";
 import InstallPWA from "@/pages/InstallPWA";
@@ -79,6 +80,7 @@ function AppRoutes() {
       <Route path="/settings/printer" element={<ProtectedRoute><PrinterSettings /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/reservations" element={<ProtectedRoute><Reservations /></ProtectedRoute>} />
+      <Route path="/delivery" element={<ProtectedRoute><DeliveryDashboard /></ProtectedRoute>} />
       <Route path="/staff" element={<ProtectedRoute><StaffManagement /></ProtectedRoute>} />
       <Route path="/menu" element={<ProtectedRoute><MenuManagement /></ProtectedRoute>} />
       <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />

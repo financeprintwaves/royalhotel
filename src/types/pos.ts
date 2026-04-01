@@ -213,6 +213,48 @@ export interface Expense {
   updated_at: string;
 }
 
+// Phase 3: Delivery, driver, and cross-branch inventory sync types
+export type DeliveryStatus = 'awaiting_pickup' | 'en_route' | 'arrived' | 'delivered' | 'cancelled' | 'failed';
+
+export interface DeliveryDriver {
+  id: string;
+  branch_id: string;
+  full_name: string;
+  phone_number: string;
+  vehicle_plate: string | null;
+  status: 'available' | 'assigned' | 'off_shift';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryAssignment {
+  id: string;
+  order_id: string;
+  driver_id: string;
+  assigned_by: string;
+  eta_minutes: number;
+  status: DeliveryStatus;
+  route_geojson: string | null;
+  created_at: string;
+  updated_at: string;
+  order?: Order;
+  driver?: DeliveryDriver;
+}
+
+export interface InventoryTransferRequest {
+  id: string;
+  from_branch_id: string;
+  to_branch_id: string;
+  inventory_id: string;
+  quantity: number;
+  requested_by: string;
+  approved_by?: string;
+  status: 'requested' | 'approved' | 'rejected' | 'completed';
+  requested_at: string;
+  decided_at?: string;
+  notes?: string;
+}
+
 // RPC Response types
 export interface RPCResponse {
   success: boolean;

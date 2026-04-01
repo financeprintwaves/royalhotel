@@ -117,6 +117,7 @@ export default function Dashboard() {
     { to: '/kitchen', icon: ChefHat, label: 'Kitchen Display', always: true },
     { to: '/reports', icon: BarChart3, label: 'Reports', always: true },
     { to: '/reservations', icon: Calendar, label: 'Reservations', always: true },
+    { to: '/delivery', icon: Package, label: 'Delivery', role: 'manager' as const },
     { to: '/menu', icon: BookOpen, label: 'Menu Management', role: 'manager' as const },
     { to: '/inventory', icon: Package, label: 'Inventory', role: 'manager' as const, badge: lowStockCount },
     { to: '/expenses', icon: DollarSign, label: 'Expenses', role: 'manager' as const },

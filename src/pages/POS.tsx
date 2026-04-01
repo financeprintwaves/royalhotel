@@ -1,92 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTheme } from 'next-themes';
-import { useToast } from '@/hooks/use-toast';
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
-  Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
-  Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer,
-  UtensilsCrossed, ImageIcon, Search, Moon, Sun
-} from 'lucide-react';
-import { 
-  createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
-  markAsServed, requestBill, applyDiscount, cancelOrder, updateOrderStatus,
-  quickPayOrder, updateOrderItemQuantity, removeOrderItem
-} from '@/services/orderService';
-import { processSplitPayment } from '@/services/paymentService';
-import { mergeTables, splitTables } from '@/services/tableService';
-import { printKOT, printInvoice } from '@/services/printerService';
-import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
-import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
-import { supabase } from '@/integrations/supabase/client';
-import { saveCartDraft, loadCartDraft, clearCartDraft } from '@/services/localDb';
-import ReceiptDialog from '@/components/ReceiptDialog';
-import PortionSelectionDialog from '@/components/PortionSelectionDialog';
-import NumericKeypad from '@/components/NumericKeypad';
-import type { RestaurantTable, Category, MenuItem, Order, CartItem, PaymentMethod, Branch, PortionOption } from '@/types/pos';
+import { useNavigate } from 'react-router-dom';
+import { POSProvider } from '@/contexts/POSContext';
+import POSLayout from '@/components/pos/POSLayout';
 
-// Category color mapping for colorful UI
-const CATEGORY_COLORS: Record<string, string> = {
-  'Beer': 'bg-amber-500 hover:bg-amber-600 text-white',
-  'Whiskey': 'bg-orange-700 hover:bg-orange-800 text-white',
-  'Vodka': 'bg-sky-400 hover:bg-sky-500 text-white',
-  'Rum': 'bg-amber-800 hover:bg-amber-900 text-white',
-  'Gin': 'bg-teal-500 hover:bg-teal-600 text-white',
-  'Wine': 'bg-rose-700 hover:bg-rose-800 text-white',
-  'Champagne': 'bg-yellow-500 hover:bg-yellow-600 text-black',
-  'Soft Drink': 'bg-green-500 hover:bg-green-600 text-white',
-  'Tequila': 'bg-lime-600 hover:bg-lime-700 text-white',
-  'Service': 'bg-purple-500 hover:bg-purple-600 text-white',
-};
-
-type OrderType = 'dine-in' | 'take-out' | 'delivery';
-type ViewType = 'tables' | 'menu' | 'orders' | 'kitchen';
-export type MenuSession = 'breakfast' | 'lunch' | 'dinner' | 'all';
-
-type HeldBill = {
-  id: string;
-  name: string;
-  table?: RestaurantTable | null;
-  orderType: OrderType;
-  customerName: string;
-  cart: CartItem[];
-  discount: number;
-  isFOC: boolean;
-  session: MenuSession;
-  createdAt: string;
-};
-
-const TABLE_STATUS_COLORS: Record<string, string> = {
-  available: 'border-green-500 bg-green-500/10',
-  occupied: 'border-orange-500 bg-orange-500/10',
-  reserved: 'border-blue-500 bg-blue-500/10',
-  cleaning: 'border-yellow-500 bg-yellow-500/10',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  CREATED: 'bg-gray-500',
-  SENT_TO_KITCHEN: 'bg-yellow-500',
-  SERVED: 'bg-blue-500',
-  BILL_REQUESTED: 'bg-orange-500',
-  PAID: 'bg-green-500',
-  CLOSED: 'bg-muted',
-};
-
+/**
+ * Main POS Page
+ * Wraps POSLayout with POSProvider for state management
+ */
 export default function POS() {
+  const { user, session } = useAuth();
   const navigate = useNavigate();
+<<<<<<< HEAD
   const { toast } = useToast();
   const { isAdmin, isManagerOrAdmin, profile, roles } = useAuth();
   
@@ -146,206 +71,16 @@ export default function POS() {
   
   // Kitchen view state
   const [kitchenOrders, setKitchenOrders] = useState<Order[]>([]);
+=======
+>>>>>>> d73b66c (Phase 1: Build modern POS component structure with adaptive layout)
 
-  // Serving selection dialog state
-  const [showServingDialog, setShowServingDialog] = useState(false);
-  const [selectedServingItem, setSelectedServingItem] = useState<MenuItem | null>(null);
-  const [showMobileCart, setShowMobileCart] = useState(false);
-  const isMobile = useIsMobile();
-
-  // Numeric keypad state
-  const [showNumericKeypad, setShowNumericKeypad] = useState(false);
-  const [keypadValue, setKeypadValue] = useState('');
-  const [keypadTitle, setKeypadTitle] = useState('');
-  const [keypadCallback, setKeypadCallback] = useState<((value: string) => void) | null>(null);
-
-  // Set default branch when branches load - use user's branch for non-admins
-  useEffect(() => {
-    if (branches.length > 0 && !selectedBranch) {
-      // For non-admins, lock to their assigned branch
-      if (!canSwitchBranch && profile?.branch_id) {
-        setSelectedBranch(profile.branch_id);
-      } else {
-        setSelectedBranch(branches[0].id);
-      }
-    }
-  }, [branches, selectedBranch, canSwitchBranch, profile?.branch_id]);
-
-  // Restore cart + held bills from IndexedDB/localStorage on branch select
-  useEffect(() => {
-    if (!selectedBranch) return;
-
-    loadCartDraft(selectedBranch).then(saved => {
-      if (saved && saved.length > 0) setCart(saved);
-    });
-
-    try {
-      const savedHeld = localStorage.getItem(`heldBills:${selectedBranch}`);
-      if (savedHeld) {
-        const parsed = JSON.parse(savedHeld) as HeldBill[];
-        if (Array.isArray(parsed)) setHeldBills(parsed);
-      }
-    } catch {
-      // ignore localStorage errors
-    }
-  }, [selectedBranch]);
-
-  // Auto-save cart to IndexedDB on every change
-  useEffect(() => {
-    if (selectedBranch) {
-      if (cart.length > 0) {
-        saveCartDraft(cart, selectedBranch);
-      } else {
-        clearCartDraft();
-      }
-    }
-  }, [cart, selectedBranch]);
-
-  useEffect(() => {
-    if (!selectedBranch) return;
-    try {
-      localStorage.setItem(`heldBills:${selectedBranch}`, JSON.stringify(heldBills));
-    } catch {
-      // ignore localStorage write errors
-    }
-  }, [heldBills, selectedBranch]);
-
-  // Update repeat order from most recent paid order
-  useEffect(() => {
-    const lastPaid = allOrders.find(o => o.order_status === 'PAID');
-    if (lastPaid) setLastRepeatOrder(lastPaid);
-  }, [allOrders]);
-
-  // Keyboard shortcuts (F1-F9) for fast billing
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement).matches('input, textarea, [contenteditable=true]')) return;
-      switch (event.key) {
-        case 'F1':
-          event.preventDefault();
-          clearCurrentOrder();
-          toast({ title: 'New Bill', description: 'Cleared current ticket.' });
-          break;
-        case 'F2':
-          event.preventDefault();
-          document.querySelector<HTMLInputElement>('input[placeholder="Search menu items..."]')?.focus();
-          break;
-        case 'F3':
-          event.preventDefault();
-          handleHoldBill();
-          break;
-        case 'F4':
-          event.preventDefault();
-          setShowHeldBills(true);
-          break;
-        case 'F5':
-          event.preventDefault();
-          if (existingOrder || cart.length > 0) {
-            setShowReceiptDialog(true);
-          }
-          break;
-        case 'F6':
-          event.preventDefault();
-          handleSendToKitchen();
-          break;
-        case 'F7':
-          event.preventDefault();
-          handleQuickPay('cash');
-          break;
-        case 'F8':
-          event.preventDefault();
-          handleQuickPay('card');
-          break;
-        case 'F9':
-          event.preventDefault();
-          setShowPaymentDialog(true);
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [cart, existingOrder, showReceiptDialog, showPaymentDialog, menuSearch, toast]);
-
-  // Orders view functions
-  const loadAllOrders = useCallback(async () => {
-    try {
-      const data = await getOrders(undefined, 100, selectedBranch || undefined);
-      setAllOrders(data);
-      setIsConnected(true);
-    } catch (error) {
-      setIsConnected(false);
-    }
-  }, [selectedBranch]);
-
-  // Kitchen view functions  
-  const loadKitchenOrders = useCallback(async () => {
-    try {
-      const data = await getKitchenOrders();
-      setKitchenOrders(data);
-      setIsConnected(true);
-    } catch (error) {
-      setIsConnected(false);
-    }
-  }, []);
-
-  // Load orders data when view changes
-  useEffect(() => {
-    if (view === 'orders') {
-      loadAllOrders();
-    } else if (view === 'kitchen') {
-      loadKitchenOrders();
-    }
-  }, [view, loadAllOrders, loadKitchenOrders]);
-
-  // Debounced realtime refetch - prevents burst refetches (3-4 calls down to 1)
-  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedRefetch = useCallback((fn: () => void) => {
-    if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
-    realtimeTimerRef.current = setTimeout(fn, 300);
-  }, []);
-
-  // Realtime subscription for orders - with debouncing & view-gating
-  useOrdersRealtime(
-    useCallback((newOrder) => {
-      if (view === 'orders') debouncedRefetch(loadAllOrders);
-      if (view === 'kitchen') {
-        debouncedRefetch(loadKitchenOrders);
-        toast({ title: 'New Order!', description: 'A new order has arrived' });
-      }
-    }, [view, loadAllOrders, loadKitchenOrders, toast, debouncedRefetch]),
-    useCallback((updatedOrder) => {
-      // Surgical update: patch only the changed order in local state
-      setAllOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
-      setKitchenOrders(prev => {
-        // If order moved past kitchen states, remove it
-        if (['SERVED', 'BILL_REQUESTED', 'PAID', 'CLOSED'].includes(updatedOrder.order_status)) {
-          return prev.filter(o => o.id !== updatedOrder.id);
-        }
-        return prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
-      });
-    }, []),
-    useCallback((deletedId: string) => {
-      setAllOrders(prev => prev.filter(o => o.id !== deletedId));
-      setKitchenOrders(prev => prev.filter(o => o.id !== deletedId));
-    }, [])
-  );
-
-  // Kitchen timers to show order age
-  useEffect(() => {
-    const interval = setInterval(() => setTimerTick(Date.now()), 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  function formatOrderAge(createdAt: string) {
-    const seconds = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ${minutes % 60}m`;
+  // Redirect if not authenticated
+  if (!user || !session) {
+    navigate('/auth');
+    return null;
   }
 
+<<<<<<< HEAD
   function clearCurrentOrder() {
     setCart([]);
     setExistingOrder(null);
@@ -2738,5 +2473,11 @@ export default function POS() {
         </DialogContent>
       </Dialog>
     </div>
+=======
+  return (
+    <POSProvider>
+      <POSLayout />
+    </POSProvider>
+>>>>>>> d73b66c (Phase 1: Build modern POS component structure with adaptive layout)
   );
 }

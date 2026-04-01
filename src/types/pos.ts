@@ -247,6 +247,7 @@ export interface SplitPaymentInput {
 
 // Cart item for order creation
 export interface CartItem {
+  id: string;
   menuItem: MenuItem;
   quantity: number;
   notes?: string;

@@ -221,6 +221,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
 
         {/* FOC Label */}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {(order as any).is_foc && (
           <div style={{
             textAlign: 'center',

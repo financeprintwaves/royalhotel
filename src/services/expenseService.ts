@@ -11,7 +11,7 @@ export interface CreateExpenseOptions {
 
 // Get all expenses for branch
 export async function getExpenses(branchId?: string): Promise<Expense[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('expenses')
     .select('*')
     .order('expense_date', { ascending: false });

@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import type { Order, Payment } from '@/types/pos';
+import type { Order, OrderItem, Payment } from '@/types/pos';
 
 interface ReceiptProps {
   order: Order;
@@ -14,9 +14,10 @@ interface ReceiptProps {
 const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
   ({ order, payments = [], branchName = 'Restaurant POS', branchAddress, branchPhone, branchLogo, waiterName }, ref) => {
     // Ensure orderItems is always an array (could be null, undefined, or object from DB)
-    const rawOrderItems = (order as any).order_items;
+    const rawOrderItems = order.order_items;
     const orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
-    const tableNumber = (order as any).table?.table_number;
+    const tableNumber = order.table?.table_number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customerName = (order as any).customer_name;
     const createdAt = order.created_at ? new Date(order.created_at) : new Date();
     
@@ -24,7 +25,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
     const discountAmount = Number(order.discount_amount) || 0;
 
     // Calculate items total (without tax)
-    const itemsTotal = orderItems.reduce((sum: number, item: any) => 
+    const itemsTotal = orderItems.reduce((sum: number, item: OrderItem) => 
       sum + (Number(item.total_price) || 0), 0);
 
     // Inline styles optimized for 80mm thermal printers
@@ -175,7 +176,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
 
         {/* Items */}
         <div style={styles.section}>
-          {orderItems.map((item: any) => (
+          {orderItems.map((item: OrderItem) => (
             <div key={item.id} style={styles.itemRow}>
               <span style={styles.itemName}>
                 {item.quantity}x {item.menu_item?.name || 'Item'}{item.portion_name ? ` (${item.portion_name})` : ''}
@@ -219,6 +220,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
         )}
 
         {/* FOC Label */}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {(order as any).is_foc && (
           <div style={{
             textAlign: 'center',
@@ -230,6 +232,7 @@ const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
               ===== FOC =====
             </p>
             {(order as any).foc_dancer_name && (
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>
                 Person: {(order as any).foc_dancer_name}
               </p>

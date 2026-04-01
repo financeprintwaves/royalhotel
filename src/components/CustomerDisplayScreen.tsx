@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import type { Order } from '@/types/pos';
+import type { Order, OrderItem } from '@/types/pos';
 
 interface CustomerDisplayScreenProps {
   order?: Order | null;
@@ -49,7 +49,7 @@ export default function CustomerDisplayScreen({
     );
   }
 
-  const orderItems = (order as any).order_items || [];
+  const orderItems = order.order_items || [];
   const statusKey = order.order_status?.toLowerCase() as keyof typeof ORDER_STATUSES || 'pending';
   const statusConfig = ORDER_STATUSES[statusKey] || ORDER_STATUSES.pending;
   const StatusIcon = statusConfig.icon;
@@ -80,11 +80,11 @@ export default function CustomerDisplayScreen({
 
       {/* Items Grid */}
       <div className="flex-1 grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6 overflow-y-auto">
-        {orderItems.map((item: any, idx: number) => (
+        {orderItems.map((item: OrderItem, idx: number) => (
           <Card
             key={idx}
             className={`bg-slate-800 border-slate-700 ${
-              item.is_serving ? 'border-green-500 border-2 ring-2 ring-green-500/30' : ''
+              item.item_status === 'ready' ? 'border-green-500 border-2 ring-2 ring-green-500/30' : ''
             }`}
           >
             <CardContent className="p-4">
@@ -108,7 +108,7 @@ export default function CustomerDisplayScreen({
                 <div className="text-2xl font-bold text-primary mb-2">
                   ×{item.quantity}
                 </div>
-                {item.is_serving && (
+                {item.item_status === 'ready' && (
                   <Badge className="bg-green-500 text-white text-xs py-1 px-2">
                     Ready!
                   </Badge>

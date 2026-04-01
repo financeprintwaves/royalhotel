@@ -69,8 +69,9 @@ export default function BranchManagement() {
     try {
       const data = await getAllBranches();
       setBranches(data);
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load branches';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     } finally {
       setLoading(false);
     }
@@ -83,6 +84,7 @@ export default function BranchManagement() {
       setAddress(branch.address || '');
       setPhone(branch.phone || '');
       setOrderPrefix(branch.order_prefix || 'INB');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setLogoPreview((branch as any).logo_url || '');
     } else {
       setEditingBranch(null);
@@ -133,6 +135,7 @@ export default function BranchManagement() {
       }
 
       if (editingBranch) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updateData: any = {
           name: name.trim(),
           address: address.trim() || undefined,
@@ -154,9 +157,10 @@ export default function BranchManagement() {
       }
       setDialogOpen(false);
       loadBranches();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setUploadingLogo(false);
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      const message = error instanceof Error ? error.message : 'Failed to save branch';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     }
   }
 
@@ -174,8 +178,9 @@ export default function BranchManagement() {
       setDeleteDialogOpen(false);
       setBranchToDelete(null);
       loadBranches();
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete branch';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     }
   }
 

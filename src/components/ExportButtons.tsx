@@ -12,6 +12,7 @@ import {
 import PrintableReport, { type PrintableReportData } from "./PrintableReport";
 import { format } from "date-fns";
 import { DateRange } from "./DateRangePicker";
+import type { FOCDetail } from "@/services/reportingService";
 
 interface ExportButtonsProps {
   data: PrintableReportData;
@@ -98,8 +99,8 @@ export function generateCSV(data: PrintableReportData, activeTab: string): strin
     csvContent += `"TOTAL",,,,${formatCurrency(data.discountReport.totalDiscount)},\n`;
   }
 
-  if (activeTab === "foc" && (data as any).focReport) {
-    const focReport = (data as any).focReport;
+  if (activeTab === "foc" && data.focReport) {
+    const focReport = data.focReport;
     csvContent += "FOC (Free of Cost) Report\n\n";
     csvContent += "Summary\n";
     csvContent += `Total FOC Value,${formatCurrency(focReport.totalFOCValue)} OMR\n`;
@@ -108,13 +109,13 @@ export function generateCSV(data: PrintableReportData, activeTab: string): strin
     
     csvContent += "By Person\n";
     csvContent += "Person,Orders,Total Value (OMR)\n";
-    focReport.personSummary.forEach((d: any) => {
+    focReport.personSummary.forEach((d: { person: string; count: number; value: number }) => {
       csvContent += `"${d.person}",${d.count},${formatCurrency(d.value)}\n`;
     });
     
     csvContent += "\nOrder Details\n";
     csvContent += "Order #,Date,Person,Items,Value (OMR),Staff\n";
-    focReport.focDetails.forEach((item: any) => {
+    focReport.focDetails.forEach((item: FOCDetail) => {
       csvContent += `"${item.order_number}",${item.date},"${item.person_name}","${item.items.join('; ')}",${formatCurrency(item.total_value)},"${item.staff_name}"\n`;
     });
   }

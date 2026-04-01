@@ -1,25 +1,29 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { getOrder } from '@/services/orderService';
 import CustomerDisplayScreen from '@/components/CustomerDisplayScreen';
-import type { Order } from '@/types/pos';
+import type { Order, OrderItem } from '@/types/pos';
 
 export default function CustomerDisplay() {
   const { orderId } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const allOrders = useOrdersRealtime();
 
   useEffect(() => {
-    if (orderId) {
-      const foundOrder = allOrders.find(o => o.id === orderId);
-      if (foundOrder) {
-        setOrder(foundOrder);
-        setLoading(false);
+    async function fetchOrder() {
+      if (orderId) {
+        try {
+          const fetchedOrder = await getOrder(orderId);
+          setOrder(fetchedOrder);
+        } catch (error) {
+          console.error('Failed to fetch order:', error);
+        } finally {
+          setLoading(false);
+        }
       }
     }
-  }, [orderId, allOrders]);
+    fetchOrder();
+  }, [orderId]);
 
   if (loading) {
     return (
@@ -30,7 +34,7 @@ export default function CustomerDisplay() {
   }
 
   const totalAmount = order
-    ? (order as any).order_items?.reduce((sum: number, item: any) => {
+    ? (order.order_items || []).reduce((sum: number, item: OrderItem) => {
         return sum + (item.unit_price * item.quantity);
       }, 0) || 0
     : 0;

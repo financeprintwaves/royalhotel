@@ -18,7 +18,7 @@ export default function InstallPWA() {
     setIsIOS(isIOSDevice);
 
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches
-      || (navigator as any).standalone === true;
+      || (navigator as typeof navigator & { standalone?: boolean }).standalone === true;
     setIsInstalled(isStandalone);
 
     const handler = (e: Event) => {

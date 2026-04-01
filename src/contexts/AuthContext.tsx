@@ -175,8 +175,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { error: null };
-    } catch (err: any) {
-      return { error: new Error(err.message || 'PIN login failed') };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'PIN login failed';
+      return { error: new Error(message) };
     }
   };
 

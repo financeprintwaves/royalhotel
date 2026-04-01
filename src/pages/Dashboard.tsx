@@ -76,8 +76,9 @@ export default function Dashboard() {
       if (!result.success) throw new Error(result.error || 'Bootstrap failed');
       toast({ title: 'Success!', description: 'You are now the admin of Downtown Bistro!' });
       window.location.reload();
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Bootstrap Failed', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Bootstrap failed';
+      toast({ variant: 'destructive', title: 'Bootstrap Failed', description: message });
     } finally {
       setBootstrapping(false);
     }

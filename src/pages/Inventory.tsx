@@ -47,7 +47,9 @@ import type { Inventory } from '@/types/pos';
 import { format } from 'date-fns';
 import BranchSelector from '@/components/BranchSelector';
 
-const CHANGE_TYPE_CONFIG: Record<string, { icon: any; label: string; color: string }> = {
+import type { LucideIcon } from 'lucide-react';
+
+const CHANGE_TYPE_CONFIG: Record<string, { icon: LucideIcon; label: string; color: string }> = {
   add: { icon: ArrowUpCircle, label: 'Stock Added', color: 'text-green-500' },
   set: { icon: Pencil, label: 'Quantity Set', color: 'text-blue-500' },
   deduct: { icon: ArrowDownCircle, label: 'Deducted (Sale)', color: 'text-red-500' },
@@ -100,7 +102,8 @@ export default function InventoryPage() {
       ]);
       setInventory(inventoryData);
       setLowStockItems(lowStockData);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load inventory';
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
       setLoading(false);
@@ -112,8 +115,9 @@ export default function InventoryPage() {
     try {
       const history = await getBranchInventoryHistory(100);
       setHistoryItems(history);
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load history';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     } finally {
       setHistoryLoading(false);
     }
@@ -143,8 +147,9 @@ export default function InventoryPage() {
     try {
       const history = await getInventoryHistory(item.id, 50);
       setSelectedItemHistory(history);
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load item history';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     }
   }
 
@@ -173,8 +178,9 @@ export default function InventoryPage() {
       if (activeTab === 'history') {
         loadHistory();
       }
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to adjust inventory';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     }
   }
 

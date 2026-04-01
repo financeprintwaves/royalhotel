@@ -44,10 +44,10 @@ function OrderCard({ order, onItemToggle, onComplete, onPrintKOT, loading }: {
   onPrintKOT: (order: Order) => void;
   loading: boolean;
 }) {
-  const items = (order as any).order_items as OrderItemWithStatus[] || [];
+  const items = (order.order_items as OrderItemWithStatus[]) || [];
   const allReady = items.length > 0 && items.every(i => i.item_status === 'ready');
   const readyCount = items.filter(i => i.item_status === 'ready').length;
-  const tableNumber = (order as any).table?.table_number;
+  const tableNumber = order.table?.table_number;
   const isDineIn = !!order.table_id;
   const urgency = getUrgencyLevel(order.created_at);
 
@@ -283,9 +283,9 @@ export default function KitchenDisplay() {
     return { dineInOrders: dineIn, takeawayOrders: takeaway };
   }, [orders]);
 
-  const totalItems = orders.reduce((sum, o) => sum + ((o as any).order_items?.length || 0), 0);
+  const totalItems = orders.reduce((sum, o) => sum + (o.order_items?.length || 0), 0);
   const readyItems = orders.reduce((sum, o) => {
-    return sum + ((o as any).order_items || []).filter((i: any) => i.item_status === 'ready').length;
+    return sum + (o.order_items || []).filter((i: OrderItemWithStatus) => i.item_status === 'ready').length;
   }, 0);
   const pendingItems = totalItems - readyItems;
 
@@ -296,7 +296,7 @@ export default function KitchenDisplay() {
       setOrders(prev =>
         prev.map(o => ({
           ...o,
-          order_items: ((o as any).order_items || []).map((item: any) =>
+          order_items: (o.order_items || []).map((item: OrderItemWithStatus) =>
             item.id === itemId ? { ...item, item_status: newStatus } : item
           ),
         })) as Order[]

@@ -5,10 +5,3 @@
 export const formatOMR = (amount: number): string => {
   return `${amount.toFixed(3)} OMR`;
 };
-
-/**
- * Parse a currency string back to number
- */
-export const parseOMR = (value: string): number => {
-  return parseFloat(value.replace(/[^\d.-]/g, '')) || 0;
-};

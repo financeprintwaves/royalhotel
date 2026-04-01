@@ -24,7 +24,9 @@ export default function PortionSelectionDialog({
   if (Array.isArray(item.portion_options)) {
     portionOptions = item.portion_options;
   } else if (typeof item.portion_options === 'string') {
-    try { portionOptions = JSON.parse(item.portion_options); } catch {}
+    try { portionOptions = JSON.parse(item.portion_options); } catch {
+      // Ignore parsing errors for legacy data
+    }
   }
   
   // Check if item has custom portion options

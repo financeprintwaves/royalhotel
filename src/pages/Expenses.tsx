@@ -161,8 +161,9 @@ export default function Expenses() {
       resetForm();
       loadExpenses();
       loadSummary();
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save expense';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     }
   }
 
@@ -174,8 +175,9 @@ export default function Expenses() {
       toast({ title: 'Success', description: 'Expense deleted successfully' });
       loadExpenses();
       loadSummary();
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete expense';
+      toast({ variant: 'destructive', title: 'Error', description: message });
     }
   }
 

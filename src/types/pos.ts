@@ -141,6 +141,9 @@ export interface Order {
   discount_amount: number;
   total_amount: number;
   notes: string | null;
+  customer_name?: string | null;
+  is_foc?: boolean;
+  foc_dancer_name?: string | null;
   locked_at: string | null;
   created_at: string;
   updated_at: string;
@@ -160,6 +163,8 @@ export interface OrderItem {
   notes: string | null;
   created_at: string;
   item_status: ItemStatus;
+  is_serving?: boolean;
+  portion_name?: string | null;
   menu_item?: MenuItem;
 }
 

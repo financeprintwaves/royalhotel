@@ -433,7 +433,7 @@ export default function POS() {
     setSelectedTable(lastRepeatOrder.table || null);
     setCustomerName(lastRepeatOrder.customer_name || '');
     setDiscount(Number(lastRepeatOrder.discount_amount || 0));
-    setOrderType(lastRepeatOrder.order_status === 'delivery' ? 'delivery' : 'dine-in');
+    setOrderType('dine-in');
     toast({ title: 'Last Order Loaded', description: `Loaded from ${lastRepeatOrder.order_number}` });
   }
 
@@ -2690,8 +2690,8 @@ export default function POS() {
                     <div className="text-xs text-muted-foreground">Session: {hold.session}</div>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Button size="xs" onClick={() => { handleRecallBill(hold); setShowHeldBills(false); }}>Recall</Button>
-                    <Button size="xs" variant="destructive" onClick={() => setHeldBills(prev => prev.filter(h => h.id !== hold.id))}>Delete</Button>
+                    <Button size="sm" onClick={() => { handleRecallBill(hold); setShowHeldBills(false); }}>Recall</Button>
+                    <Button size="sm" variant="destructive" onClick={() => setHeldBills(prev => prev.filter(h => h.id !== hold.id))}>Delete</Button>
                   </div>
                 </div>
               ))

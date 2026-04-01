@@ -245,7 +245,7 @@ export function SplitBillDialog({
                               <div className="flex gap-1">
                                 {splitIdx > 0 && (
                                   <Button
-                                    size="xs"
+                                    size="sm"
                                     variant="ghost"
                                     onClick={() => moveItem(itemIdx, splitIdx, splitIdx - 1)}
                                   >
@@ -254,7 +254,7 @@ export function SplitBillDialog({
                                 )}
                                 {splitIdx < splits.length - 1 && (
                                   <Button
-                                    size="xs"
+                                    size="sm"
                                     variant="ghost"
                                     onClick={() => moveItem(itemIdx, splitIdx, splitIdx + 1)}
                                   >

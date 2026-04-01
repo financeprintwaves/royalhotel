@@ -104,7 +104,7 @@ export default function InventoryPage() {
       setLowStockItems(lowStockData);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to load inventory';
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error', description: message });
     } finally {
       setLoading(false);
     }

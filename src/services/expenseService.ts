@@ -11,7 +11,7 @@ export interface CreateExpenseOptions {
 
 // Get all expenses for branch
 export async function getExpenses(branchId?: string): Promise<Expense[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('expenses')
     .select('*')
     .order('expense_date', { ascending: false });
@@ -27,7 +27,7 @@ export async function getExpenses(branchId?: string): Promise<Expense[]> {
 
 // Get expense by ID
 export async function getExpense(expenseId: string): Promise<Expense | null> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('expenses')
     .select('*')
     .eq('id', expenseId)
@@ -50,7 +50,7 @@ export async function createExpense(options: CreateExpenseOptions): Promise<Expe
 
   if (!profile?.branch_id) throw new Error('User not assigned to a branch');
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('expenses')
     .insert({
       branch_id: profile.branch_id,
@@ -73,7 +73,7 @@ export async function updateExpense(
   expenseId: string,
   updates: Partial<Pick<Expense, 'category' | 'description' | 'amount' | 'expense_date' | 'receipt_url'>>
 ): Promise<Expense> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('expenses')
     .update(updates)
     .eq('id', expenseId)
@@ -86,7 +86,7 @@ export async function updateExpense(
 
 // Delete expense
 export async function deleteExpense(expenseId: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from('expenses')
     .delete()
     .eq('id', expenseId);
@@ -104,7 +104,7 @@ export async function getExpenseSummary(
   expensesByCategory: Record<string, number>;
   expenses: Expense[];
 }> {
-  let query = supabase
+  let query = (supabase as any)
     .from('expenses')
     .select('*')
     .gte('expense_date', startDate.toISOString().split('T')[0])

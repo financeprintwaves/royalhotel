@@ -183,7 +183,7 @@ export default function Expenses() {
 
   const handleExportCSV = () => {
     let csvContent = 'Date,Category,Description,Amount (OMR)\n';
-    filteredExpenses.forEach(exp => {
+    expenses.forEach(exp => {
       csvContent += `${new Date(exp.expense_date).toLocaleDateString()},"${exp.category}","${exp.description}",${exp.amount.toFixed(3)}\n`;
     });
 
@@ -199,7 +199,7 @@ export default function Expenses() {
   };
 
   const handleExportJSON = () => {
-    const jsonContent = JSON.stringify(filteredExpenses, null, 2);
+    const jsonContent = JSON.stringify(expenses, null, 2);
     const blob = new Blob([jsonContent], { type: 'application/json' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -356,14 +356,14 @@ export default function Expenses() {
                         Loading...
                       </TableCell>
                     </TableRow>
-                  ) : filteredExpenses.length === 0 ? (
+                  ) : expenses.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isAdmin() ? 5 : 4} className="text-center py-8 text-muted-foreground">
                         No expenses found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredExpenses.map((expense) => (
+                    expenses.map((expense) => (
                       <TableRow key={expense.id}>
                         <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
                         <TableCell>

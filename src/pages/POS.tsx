@@ -109,6 +109,7 @@ export default function POS() {
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [menuSession, setMenuSession] = useState<MenuSession>('all');
+  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems(selectedCategory || undefined, selectedBranch || undefined, { session: menuSession });
   const [quickAddQty, setQuickAddQty] = useState<number>(1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [existingOrder, setExistingOrder] = useState<Order | null>(null);

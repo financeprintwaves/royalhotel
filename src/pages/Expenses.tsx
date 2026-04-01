@@ -199,7 +199,7 @@ export default function Expenses() {
   };
 
   const handleExportJSON = () => {
-    const jsonContent = JSON.stringify(filteredExpenses, null, 2);
+    const jsonContent = JSON.stringify(expenses, null, 2);
     const blob = new Blob([jsonContent], { type: 'application/json' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

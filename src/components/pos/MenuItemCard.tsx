@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { format } from 'date-fns';
 import type { MenuItem } from '@/types/pos';
 
 interface MenuItemCardProps {
@@ -12,13 +11,13 @@ interface MenuItemCardProps {
 export default function MenuItemCard({ item }: MenuItemCardProps) {
   const { addCartItem } = usePOSContext();
 
-  const handleAddToCart = () => {
+  const handleAddToCart = useCallback(() => {
     addCartItem({
       id: `${item.id}-${Date.now()}`,
       menuItem: item,
       quantity: 1,
     });
-  };
+  }, [item, addCartItem]);
 
   return (
     <Card

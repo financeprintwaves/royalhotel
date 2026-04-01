@@ -1,0 +1,175 @@
+/**
+ * POS Integration Services
+ * Bridges between POS components and existing Supabase services
+ */
+
+import { Order, CartItem } from '@/types/pos';
+
+/**
+ * Create a new order from cart and table selection
+ */
+export async function createPOSOrder(
+  tableId: string | null,
+  orderType: 'dine-in' | 'takeout' | 'delivery',
+  branchId: string,
+  userId: string
+) {
+  const { createOrder } = await import('./orderService');
+  
+  const order = await createOrder({
+    branch_id: branchId,
+    table_id: tableId || undefined,
+    order_type: orderType,
+    created_by: userId,
+    order_status: 'CREATED',
+  });
+
+  return order;
+}
+
+/**
+ * Add cart items to existing order
+ */
+export async function addCartItemsToOrder(
+  orderId: string,
+  cartItems: CartItem[]
+) {
+  const { addOrderItemsBatch } = await import('./orderService');
+  
+  const orderItems = cartItems.map((item) => ({
+    menu_item_id: item.menuItem.id,
+    quantity: item.quantity,
+    unit_price: item.menuItem.price,
+    total_price: item.menuItem.price * item.quantity,
+    portion_name: item.portionName,
+    item_status: 'pending' as const,
+  }));
+
+  await addOrderItemsBatch(orderId, orderItems);
+}
+
+/**
+ * Print KOT (Kitchen Order Ticket) - no prices
+ */
+export async function printKOT(
+  order: Order,
+  cartItems: CartItem[]
+) {
+  try {
+    const { printKOT: printKOTService } = await import('./printerService');
+    
+    // Format items without prices for kitchen
+    const kotItems = cartItems.map((item) => ({
+      description: item.menuItem.description,
+      quantity: item.quantity,
+      notes: item.notes,
+    }));
+
+    await printKOTService({
+      orderId: order.id,
+      tableId: order.table_id,
+      items: kotItems,
+      timestamp: new Date(),
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error printing KOT:', error);
+    throw error;
+  }
+}
+
+/**
+ * Process payment and print receipt
+ */
+export async function processPaymentAndPrint(
+  order: Order,
+  cartItems: CartItem[],
+  paymentData: {
+    amount: number;
+    method: 'cash' | 'card' | 'transfer' | 'split';
+    tip?: number;
+  }
+) {
+  try {
+    const { finalizePayment } = await import('./paymentService');
+    const { printReceipt } = await import('./printerService');
+    
+    // Process payment (atomic transaction)
+    const payment = await finalizePayment({
+      order_id: order.id,
+      amount: paymentData.amount,
+      payment_method: paymentData.method,
+      tip: paymentData.tip || 0,
+    });
+
+    // Auto-print receipt
+    const receiptItems = cartItems.map((item) => ({
+      description: item.menuItem.description,
+      quantity: item.quantity,
+      price: item.menuItem.price,
+      total: item.menuItem.price * item.quantity,
+    }));
+
+    const subtotal = receiptItems.reduce((sum, item) => sum + item.total, 0);
+
+    await printReceipt({
+      orderId: order.id,
+      items: receiptItems,
+      subtotal,
+      tax: subtotal * 0.1,
+      total: paymentData.amount,
+      payment: paymentData,
+      timestamp: new Date(),
+    });
+
+    return payment;
+  } catch (error) {
+    console.error('Error processing payment:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send order to kitchen (change status to SENT_TO_KITCHEN)
+ */
+export async function sendToKitchenPOS(orderId: string) {
+  const { sendToKitchen } = await import('./orderService');
+  await sendToKitchen(orderId);
+}
+
+/**
+ * Hold current order (save to DB with HOLD status)
+ */
+export async function holdOrderPOS(orderId: string) {
+  const { updateOrderStatus } = await import('./orderService');
+  await updateOrderStatus(orderId, 'HOLD');
+}
+
+/**
+ * Recall held order
+ */
+export async function recallHeldOrderPOS(orderId: string) {
+  const { getOrders } = await import('./orderService');
+  const orders = await getOrders({ id: orderId });
+  return orders[0] || null;
+}
+
+/**
+ * Apply discount to order
+ */
+export async function applyDiscountPOS(
+  orderId: string,
+  discountAmount: number
+) {
+  const { applyDiscount } = await import('./orderService');
+  await applyDiscount(orderId, discountAmount);
+}
+
+/**
+ * Close order after payment
+ */
+export async function closeOrderPOS(orderId: string) {
+  const { updateOrderStatus } = await import('./orderService');
+  await updateOrderStatus(orderId, 'CLOSED');
+}

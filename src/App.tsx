@@ -20,6 +20,7 @@ import MenuManagement from "@/pages/MenuManagement";
 import Inventory from "@/pages/Inventory";
 import BranchManagement from "@/pages/BranchManagement";
 import Expenses from "@/pages/Expenses";
+import CustomerDisplayPage from "@/pages/CustomerDisplayPage";
 import NotFound from "@/pages/NotFound";
 import InstallPWA from "@/pages/InstallPWA";
 
@@ -83,6 +84,7 @@ function AppRoutes() {
       <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/branches" element={<ProtectedRoute><BranchManagement /></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+      <Route path="/display/order/:orderId" element={<ProtectedRoute><CustomerDisplayPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

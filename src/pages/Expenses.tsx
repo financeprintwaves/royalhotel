@@ -183,7 +183,7 @@ export default function Expenses() {
 
   const handleExportCSV = () => {
     let csvContent = 'Date,Category,Description,Amount (OMR)\n';
-    filteredExpenses.forEach(exp => {
+    expenses.forEach(exp => {
       csvContent += `${new Date(exp.expense_date).toLocaleDateString()},"${exp.category}","${exp.description}",${exp.amount.toFixed(3)}\n`;
     });
 

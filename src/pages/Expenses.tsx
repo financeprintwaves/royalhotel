@@ -363,7 +363,7 @@ export default function Expenses() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredExpenses.map((expense) => (
+                    expenses.map((expense) => (
                       <TableRow key={expense.id}>
                         <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
                         <TableCell>

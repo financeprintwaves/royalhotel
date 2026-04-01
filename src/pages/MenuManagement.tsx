@@ -674,7 +674,7 @@ export default function MenuManagement() {
                         <div className="flex flex-wrap gap-1 mt-1">
                           <Badge variant="secondary" className="text-[10px] py-1 px-2">{item.session?.toUpperCase() || 'ALL'}</Badge>
                           {item.is_daily_special && <Badge variant="destructive" className="text-[10px] py-1 px-2">Daily Special</Badge>}
-                          {item.is_favorite && <Badge variant="success" className="text-[10px] py-1 px-2">Favorite</Badge>}
+                          {item.is_favorite && <Badge variant="secondary" className="text-[10px] py-1 px-2">Favorite</Badge>}
                         </div>
                       </div>
                     </div>

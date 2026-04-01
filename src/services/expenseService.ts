@@ -104,7 +104,7 @@ export async function getExpenseSummary(
   expensesByCategory: Record<string, number>;
   expenses: Expense[];
 }> {
-  let query = supabase
+  let query = (supabase as any)
     .from('expenses')
     .select('*')
     .gte('expense_date', startDate.toISOString().split('T')[0])

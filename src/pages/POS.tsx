@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -18,7 +19,7 @@ import {
   ArrowLeft, Plus, Minus, Trash2, Send, CreditCard, Banknote, 
   Smartphone, User, ChefHat, ShoppingCart, LayoutGrid, ClipboardList,
   Wifi, Clock, Check, Receipt, RefreshCw, Lock, Edit, X, Eye, Printer,
-  UtensilsCrossed, ImageIcon, Search
+  UtensilsCrossed, ImageIcon, Search, Moon, Sun
 } from 'lucide-react';
 import { 
   createOrder, addOrderItemsBatch, sendToKitchen, getOrders, getKitchenOrders, 
@@ -26,6 +27,7 @@ import {
   quickPayOrder, updateOrderItemQuantity, removeOrderItem
 } from '@/services/orderService';
 import { processSplitPayment } from '@/services/paymentService';
+import { mergeTables, splitTables } from '@/services/tableService';
 import { printKOT, printInvoice } from '@/services/printerService';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useCategories, useMenuItems, useTables, useBranches, useRefreshCache } from '@/hooks/useMenuData';
@@ -52,6 +54,20 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 type OrderType = 'dine-in' | 'take-out' | 'delivery';
 type ViewType = 'tables' | 'menu' | 'orders' | 'kitchen';
+export type MenuSession = 'breakfast' | 'lunch' | 'dinner' | 'all';
+
+type HeldBill = {
+  id: string;
+  name: string;
+  table?: RestaurantTable | null;
+  orderType: OrderType;
+  customerName: string;
+  cart: CartItem[];
+  discount: number;
+  isFOC: boolean;
+  session: MenuSession;
+  createdAt: string;
+};
 
 const TABLE_STATUS_COLORS: Record<string, string> = {
   available: 'border-green-500 bg-green-500/10',
@@ -80,7 +96,7 @@ export default function POS() {
   // Use cached data hooks with branch filtering (MAJOR PERFORMANCE BOOST)
   // Pass selectedBranch to filter by branch - non-admins see only their branch via RLS anyway
   const { data: categories = [], isLoading: categoriesLoading } = useCategories(selectedBranch || undefined);
-  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems(undefined, selectedBranch || undefined);
+  const { data: menuItems = [], isLoading: menuItemsLoading } = useMenuItems(selectedCategory || undefined, selectedBranch || undefined, { session: menuSession });
   const { refreshTables, refreshMenu } = useRefreshCache();
   
   // Other hooks after selectedBranch is declared
@@ -94,9 +110,17 @@ export default function POS() {
   
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [menuSession, setMenuSession] = useState<MenuSession>('all');
+  const [quickAddQty, setQuickAddQty] = useState<number>(1);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [existingOrder, setExistingOrder] = useState<Order | null>(null);
   const [orderType, setOrderType] = useState<OrderType>('dine-in');
+  const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
+  const [showHeldBills, setShowHeldBills] = useState(false);
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSourceTable, setMergeSourceTable] = useState<RestaurantTable | null>(null);
+  const [lastRepeatOrder, setLastRepeatOrder] = useState<Order | null>(null);
+  const [timerTick, setTimerTick] = useState<number>(Date.now());
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -148,12 +172,22 @@ export default function POS() {
     }
   }, [branches, selectedBranch, canSwitchBranch, profile?.branch_id]);
 
-  // Restore cart from IndexedDB on mount
+  // Restore cart + held bills from IndexedDB/localStorage on branch select
   useEffect(() => {
-    if (selectedBranch) {
-      loadCartDraft(selectedBranch).then(saved => {
-        if (saved && saved.length > 0) setCart(saved);
-      });
+    if (!selectedBranch) return;
+
+    loadCartDraft(selectedBranch).then(saved => {
+      if (saved && saved.length > 0) setCart(saved);
+    });
+
+    try {
+      const savedHeld = localStorage.getItem(`heldBills:${selectedBranch}`);
+      if (savedHeld) {
+        const parsed = JSON.parse(savedHeld) as HeldBill[];
+        if (Array.isArray(parsed)) setHeldBills(parsed);
+      }
+    } catch {
+      // ignore localStorage errors
     }
   }, [selectedBranch]);
 
@@ -167,6 +201,72 @@ export default function POS() {
       }
     }
   }, [cart, selectedBranch]);
+
+  useEffect(() => {
+    if (!selectedBranch) return;
+    try {
+      localStorage.setItem(`heldBills:${selectedBranch}`, JSON.stringify(heldBills));
+    } catch {
+      // ignore localStorage write errors
+    }
+  }, [heldBills, selectedBranch]);
+
+  // Update repeat order from most recent paid order
+  useEffect(() => {
+    const lastPaid = allOrders.find(o => o.order_status === 'PAID');
+    if (lastPaid) setLastRepeatOrder(lastPaid);
+  }, [allOrders]);
+
+  // Keyboard shortcuts (F1-F9) for fast billing
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement).matches('input, textarea, [contenteditable=true]')) return;
+      switch (event.key) {
+        case 'F1':
+          event.preventDefault();
+          clearCurrentOrder();
+          toast({ title: 'New Bill', description: 'Cleared current ticket.' });
+          break;
+        case 'F2':
+          event.preventDefault();
+          document.querySelector<HTMLInputElement>('input[placeholder="Search menu items..."]')?.focus();
+          break;
+        case 'F3':
+          event.preventDefault();
+          handleHoldBill();
+          break;
+        case 'F4':
+          event.preventDefault();
+          setShowHeldBills(true);
+          break;
+        case 'F5':
+          event.preventDefault();
+          if (existingOrder || cart.length > 0) {
+            setShowReceiptDialog(true);
+          }
+          break;
+        case 'F6':
+          event.preventDefault();
+          handleSendToKitchen();
+          break;
+        case 'F7':
+          event.preventDefault();
+          handleQuickPay('cash');
+          break;
+        case 'F8':
+          event.preventDefault();
+          handleQuickPay('card');
+          break;
+        case 'F9':
+          event.preventDefault();
+          setShowPaymentDialog(true);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [cart, existingOrder, showReceiptDialog, showPaymentDialog, menuSearch, toast]);
 
   // Orders view functions
   const loadAllOrders = useCallback(async () => {
@@ -231,6 +331,112 @@ export default function POS() {
       setKitchenOrders(prev => prev.filter(o => o.id !== deletedId));
     }, [])
   );
+
+  // Kitchen timers to show order age
+  useEffect(() => {
+    const interval = setInterval(() => setTimerTick(Date.now()), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  function formatOrderAge(createdAt: string) {
+    const seconds = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  function clearCurrentOrder() {
+    setCart([]);
+    setExistingOrder(null);
+    setSelectedTable(null);
+    setCustomerName('');
+    setDiscount(0);
+    setIsFOC(false);
+    setFocDancerName('');
+    setOrderType('dine-in');
+    setMenuSession('all');
+    setShowQuickPay(false);
+  }
+
+  function handleHoldBill() {
+    if (cart.length === 0 && !existingOrder) {
+      toast({ variant: 'destructive', title: 'Hold Failed', description: 'Cart is empty' });
+      return;
+    }
+
+    const holdEntry: HeldBill = {
+      id: crypto.randomUUID(),
+      name: `Held ${new Date().toLocaleTimeString()}`,
+      table: selectedTable,
+      orderType,
+      customerName,
+      cart: [...cart],
+      discount,
+      isFOC,
+      session: menuSession,
+      createdAt: new Date().toISOString(),
+    };
+
+    setHeldBills(prev => [holdEntry, ...prev].slice(0, 20));
+    clearCurrentOrder();
+    toast({ title: 'Bill Held', description: `Saved as ${holdEntry.name}` });
+  }
+
+  function handleRecallBill(hold: HeldBill) {
+    setCart(hold.cart);
+    setSelectedTable(hold.table || null);
+    setOrderType(hold.orderType);
+    setCustomerName(hold.customerName);
+    setDiscount(hold.discount);
+    setIsFOC(hold.isFOC);
+    setMenuSession(hold.session);
+    setHeldBills(prev => prev.filter(h => h.id !== hold.id));
+    toast({ title: 'Bill Recalled', description: `Recalled ${hold.name}` });
+  }
+
+  function handleRepeatLastOrder() {
+    if (!lastRepeatOrder || !lastRepeatOrder.order_items?.length) {
+      toast({ variant: 'destructive', title: 'No paid orders', description: 'Cannot repeat last order yet.' });
+      return;
+    }
+
+    const repeated = lastRepeatOrder.order_items.map(item => ({
+      menuItem: {
+        id: item.menu_item?.id || crypto.randomUUID(),
+        branch_id: selectedBranch,
+        category_id: item.menu_item?.category_id || null,
+        name: item.menu_item?.name || 'Item',
+        description: item.menu_item?.description || null,
+        price: item.unit_price,
+        image_url: item.menu_item?.image_url || null,
+        is_available: true,
+        is_active: true,
+        session: 'all',
+        is_daily_special: false,
+        is_favorite: false,
+        bottle_size_ml: null,
+        cost_price: null,
+        serving_size_ml: null,
+        serving_price: null,
+        billing_type: 'service',
+        portion_options: null,
+      } as any,
+      quantity: item.quantity,
+      isServing: item.is_serving || false,
+      notes: item.notes || undefined,
+      selectedPortion: null,
+      portionName: item.portion_name || undefined,
+    }));
+
+    setCart(repeated);
+    setSelectedTable(lastRepeatOrder.table || null);
+    setCustomerName(lastRepeatOrder.customer_name || '');
+    setDiscount(Number(lastRepeatOrder.discount_amount || 0));
+    setOrderType(lastRepeatOrder.order_status === 'delivery' ? 'delivery' : 'dine-in');
+    toast({ title: 'Last Order Loaded', description: `Loaded from ${lastRepeatOrder.order_number}` });
+  }
 
   // Check if table has existing order
   async function checkExistingOrder(tableId: string): Promise<Order | null> {
@@ -302,12 +508,12 @@ export default function POS() {
       setShowServingDialog(true);
     } else {
       // For bottle_only or service items, add directly
-      addToCart(item);
+      addToCart(item, undefined, false, quickAddQty);
     }
   }
 
   // Add item to cart with portion/serving support
-  function addToCart(item: MenuItem, selectedPortion?: PortionOption, isServing: boolean = false) {
+  function addToCart(item: MenuItem, selectedPortion?: PortionOption, isServing: boolean = false, quantity: number = 1) {
     let price = item.price;
     let cartKey = item.id;
     
@@ -330,12 +536,12 @@ export default function POS() {
       
       if (existingIndex >= 0) {
         return prev.map((c, i) => 
-          i === existingIndex ? { ...c, quantity: c.quantity + 1 } : c
+          i === existingIndex ? { ...c, quantity: c.quantity + quantity } : c
         );
       }
       return [...prev, { 
         menuItem: { ...item, price }, // Override price based on selection
-        quantity: 1, 
+        quantity, 
         isServing,
         selectedPortion,
         portionName: selectedPortion?.name || undefined,
@@ -1129,6 +1335,22 @@ export default function POS() {
                   </Badge>
                 )}
               </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={mergeMode ? 'destructive' : 'outline'}
+                  onClick={() => {
+                    setMergeMode(prev => !prev);
+                    setMergeSourceTable(null);
+                    toast({ title: mergeMode ? 'Merge canceled' : 'Merge started', description: mergeMode ? 'Merge mode disabled' : 'Select source table first' });
+                  }}
+                >
+                  {mergeMode ? 'Cancel Merge' : 'Merge Tables'}
+                </Button>
+                {mergeMode && mergeSourceTable && (
+                  <span className="text-xs text-muted-foreground">Source: {mergeSourceTable.table_number}</span>
+                )}
+              </div>
             </div>
             
             {/* Tables Grid */}
@@ -1154,7 +1376,29 @@ export default function POS() {
                   <Card 
                     key={table.id} 
                     className={`cursor-pointer border-3 rounded-3xl hover:shadow-xl transition-all duration-200 ${TABLE_STATUS_COLORS[table.status as string] || ''}`}
-                    onClick={() => handleSelectTable(table)}
+                    onClick={async () => {
+                      if (mergeMode) {
+                        if (!mergeSourceTable) {
+                          setMergeSourceTable(table);
+                          toast({ title: 'Merge source selected', description: `Now choose target table` });
+                        } else if (mergeSourceTable.id === table.id) {
+                          toast({ variant: 'destructive', title: 'Invalid selection', description: 'Choose a different table' });
+                        } else {
+                          try {
+                            await mergeTables(mergeSourceTable.id, [table.id]);
+                            toast({ title: 'Tables merged', description: `${mergeSourceTable.table_number} + ${table.table_number}` });
+                          } catch (error: any) {
+                            toast({ variant: 'destructive', title: 'Merge failed', description: error.message });
+                          } finally {
+                            setMergeMode(false);
+                            setMergeSourceTable(null);
+                            refetchTables();
+                          }
+                        }
+                      } else {
+                        handleSelectTable(table);
+                      }
+                    }}
                   >
                     <CardContent className="p-4 flex flex-col items-center text-center gap-3">
                       <div className="text-3xl sm:text-4xl font-bold">{table.table_number}</div>
@@ -1236,6 +1480,72 @@ export default function POS() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Session / Daily Special / Favorites */}
+              <div className="pt-2 border-t">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(['all', 'breakfast', 'lunch', 'dinner'] as MenuSession[]).map(session => (
+                    <Button
+                      key={session}
+                      variant={menuSession === session ? 'default' : 'outline'}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setMenuSession(session)}
+                    >
+                      {session === 'all' ? 'All Sessions' : session.charAt(0).toUpperCase() + session.slice(1)}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2 items-center mb-2">
+                  <span className="text-xs font-semibold uppercase">Qty:</span>
+                  {[1, 2, 3, 5].map(q => (
+                    <Button
+                      key={q}
+                      size="sm"
+                      variant={quickAddQty === q ? 'default' : 'outline'}
+                      onClick={() => setQuickAddQty(q)}
+                    >
+                      x{q}
+                    </Button>
+                  ))}
+                  <Button size="sm" variant="outline" onClick={() => setQuickAddQty(1)}>
+                    Reset
+                  </Button>
+                </div>
+
+                {menuItems.some(item => item.is_daily_special) && (
+                  <div className="mb-2">
+                    <div className="text-xs font-semibold uppercase text-amber-600 mb-1">Today Specials</div>
+                    <div className="flex flex-wrap gap-2">
+                      {menuItems.filter(item => item.is_daily_special).slice(0, 12).map(item => (
+                        <Button key={item.id} size="sm" className="rounded-xl" onClick={() => handleMenuItemClick(item)}>
+                          {item.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {menuItems.some(item => item.is_favorite) && (
+                  <div className="mb-2">
+                    <div className="text-xs font-semibold uppercase text-green-600 mb-1">Favorites</div>
+                    <div className="flex flex-wrap gap-2">
+                      {menuItems.filter(item => item.is_favorite).slice(0, 12).map(item => (
+                        <Button key={item.id} size="sm" className="rounded-xl" onClick={() => handleMenuItemClick(item)}>
+                          {item.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowHeldBills(true)}>Recall Bill</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleRepeatLastOrder()}>Repeat Last Order</Button>
+                  <Button size="sm" variant="outline" onClick={handleHoldBill}>Hold Bill</Button>
+                </div>
               </div>
             </div>
 
@@ -1547,6 +1857,27 @@ export default function POS() {
                 </Button>
               ))}
             </div>
+            {selectedTable && (
+              <div className="mt-2">
+                <div className="text-xs text-muted-foreground mb-1">Transfer table</div>
+                <Select value={selectedTable.id} onValueChange={async (value) => {
+                  const target = tables.find(t => t.id === value);
+                  if (!target || !existingOrder) return;
+                  try {
+                    await supabase.from('orders').update({ table_id: target.id }).eq('id', existingOrder.id);
+                    setSelectedTable(target);
+                    refetchTables();
+                    toast({ title: 'Table transferred', description: `Moved order to ${target.table_number}` });
+                  } catch (error: any) {
+                    toast({ variant: 'destructive', title: 'Transfer failed', description: error.message });
+                  }
+                }}>
+                  {tables.filter(t => t.id !== selectedTable.id).map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.table_number}</SelectItem>
+                  ))}
+                </Select>
+              </div>
+            )}
           </div>
 
           {existingOrder && existingOrder.order_items && existingOrder.order_items.length > 0 && (
@@ -1612,6 +1943,27 @@ export default function POS() {
               <div className="flex justify-between text-xs font-medium">
                 <span>Previous Total</span>
                 <span>{existingTotal.toFixed(3)} OMR</span>
+              </div>
+            </div>
+          )}
+
+          {heldBills.length > 0 && (
+            <div className="px-4 py-3 border-b bg-muted/30">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">Held Bills</div>
+              <div className="space-y-1 max-h-28 overflow-y-auto">
+                {heldBills.map((hold) => (
+                  <div key={hold.id} className="flex items-center justify-between gap-2">
+                    <button
+                      className="text-left text-xs truncate font-medium"
+                      onClick={() => handleRecallBill(hold)}
+                    >
+                      {hold.name} ({hold.cart.length})
+                    </button>
+                    <Button size="icon" variant="ghost" onClick={() => setHeldBills(prev => prev.filter(h => h.id !== hold.id))}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -2316,6 +2668,35 @@ export default function POS() {
                 </>
               )}
             </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Held Bills Sheet */}
+      <Sheet open={showHeldBills} onOpenChange={setShowHeldBills}>
+        <SheetContent side="right" className="w-[320px]">
+          <SheetHeader>
+            <SheetTitle>Held Bills</SheetTitle>
+            <p className="text-sm text-muted-foreground">Tap to recall or delete</p>
+          </SheetHeader>
+          <div className="p-4 space-y-2">
+            {heldBills.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No held bills yet</div>
+            ) : (
+              heldBills.map(hold => (
+                <div key={hold.id} className="flex justify-between items-start bg-muted/70 rounded-lg p-3">
+                  <div>
+                    <div className="font-semibold text-sm">{hold.name}</div>
+                    <div className="text-xs text-muted-foreground">{hold.cart.length} items - {hold.orderType}</div>
+                    <div className="text-xs text-muted-foreground">Session: {hold.session}</div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Button size="xs" onClick={() => { handleRecallBill(hold); setShowHeldBills(false); }}>Recall</Button>
+                    <Button size="xs" variant="destructive" onClick={() => setHeldBills(prev => prev.filter(h => h.id !== hold.id))}>Delete</Button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </SheetContent>
       </Sheet>

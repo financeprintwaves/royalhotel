@@ -11,6 +11,8 @@ export type OrderStatus =
 // Billing type for bar products
 export type BillingType = 'bottle_only' | 'by_serving' | 'service';
 
+export type MenuSession = 'breakfast' | 'lunch' | 'dinner' | 'all';
+
 // Portion option for flexible size/price combinations
 export interface PortionOption {
   name: string;      // "Small", "Medium", "Large", "Regular", "Shot", etc.
@@ -78,6 +80,9 @@ export interface MenuItem {
   image_url: string | null;
   is_available: boolean;
   is_active: boolean;
+  session: MenuSession;
+  is_daily_special: boolean;
+  is_favorite: boolean;
   created_at: string;
   updated_at: string;
   category?: Category;
@@ -188,6 +193,19 @@ export interface OrderStatusLog {
   new_status: OrderStatus;
   changed_by: string | null;
   created_at: string;
+}
+
+export interface Expense {
+  id: string;
+  branch_id: string;
+  category: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  recorded_by: string;
+  receipt_url?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // RPC Response types

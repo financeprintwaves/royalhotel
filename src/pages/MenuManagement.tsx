@@ -65,6 +65,9 @@ export default function MenuManagement() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [sessionFilter, setSessionFilter] = useState<'breakfast' | 'lunch' | 'dinner' | 'all'>('all');
+  const [showSpecialOnly, setShowSpecialOnly] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const isAdmin = roles.includes('admin');
 
@@ -94,6 +97,10 @@ export default function MenuManagement() {
   const [costPrice, setCostPrice] = useState('');
   const [servingSizeMl, setServingSizeMl] = useState('60');
   const [servingPrice, setServingPrice] = useState('');
+
+  const [itemSession, setItemSession] = useState<'breakfast' | 'lunch' | 'dinner' | 'all'>('all');
+  const [itemDailySpecial, setItemDailySpecial] = useState(false);
+  const [itemFavorite, setItemFavorite] = useState(false);
   
   // Portion options state
   const [portionOptions, setPortionOptions] = useState<PortionOption[]>([]);
@@ -186,6 +193,10 @@ export default function MenuManagement() {
       setCostPrice(item.cost_price?.toString() || '');
       setServingSizeMl(item.serving_size_ml?.toString() || '60');
       setServingPrice(item.serving_price?.toString() || '');
+      setItemSession(item.session || 'all');
+      setItemDailySpecial(item.is_daily_special || false);
+      setItemFavorite(item.is_favorite || false);
+      
       // Portion options - parse from JSON string if needed
       const rawPortions = item.portion_options;
       let parsedPortions: PortionOption[] = [];
@@ -221,6 +232,9 @@ export default function MenuManagement() {
       setServingPrice('');
       // Reset portion options
       setPortionOptions([]);
+      setItemSession('all');
+      setItemDailySpecial(false);
+      setItemFavorite(false);
       // Reset multi-branch selection
       setSelectedBranchIds([]);
     }
@@ -264,6 +278,9 @@ export default function MenuManagement() {
           description: itemDescription || undefined,
           image_url: itemImageUrl || undefined,
           category_id: itemCategoryId || undefined,
+          session: itemSession,
+          is_daily_special: itemDailySpecial,
+          is_favorite: itemFavorite,
           billing_type: billingType,
           bottle_size_ml: bottleSizeMl ? parseInt(bottleSizeMl) : null,
           cost_price: costPrice ? parseFloat(costPrice) : null,
@@ -279,6 +296,9 @@ export default function MenuManagement() {
           categoryId: itemCategoryId || undefined,
           description: itemDescription || undefined,
           imageUrl: itemImageUrl || undefined,
+          session: itemSession,
+          isDailySpecial: itemDailySpecial,
+          isFavorite: itemFavorite,
           billingType,
           bottleSizeMl: bottleSizeMl ? parseInt(bottleSizeMl) : undefined,
           costPrice: costPrice ? parseFloat(costPrice) : undefined,
@@ -353,9 +373,13 @@ export default function MenuManagement() {
     }
   }
 
-  const filteredItems = selectedCategory
-    ? menuItems.filter(item => item.category_id === selectedCategory)
-    : menuItems;
+  const filteredItems = menuItems.filter((item) => {
+    if (selectedCategory && item.category_id !== selectedCategory) return false;
+    if (sessionFilter !== 'all' && item.session !== 'all' && item.session !== sessionFilter) return false;
+    if (showSpecialOnly && !item.is_daily_special) return false;
+    if (showFavoritesOnly && !item.is_favorite) return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -413,7 +437,7 @@ export default function MenuManagement() {
           {/* Menu Items Tab */}
           <TabsContent value="items" className="space-y-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <Select
                   value={selectedCategory || 'all'}
                   onValueChange={(v) => setSelectedCategory(v === 'all' ? null : v)}
@@ -428,6 +452,28 @@ export default function MenuManagement() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select
+                  value={sessionFilter}
+                  onValueChange={(v) => setSessionFilter(v as any)}
+                >
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sessions</SelectItem>
+                    <SelectItem value="breakfast">Breakfast</SelectItem>
+                    <SelectItem value="lunch">Lunch</SelectItem>
+                    <SelectItem value="dinner">Dinner</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2">
+                  <Switch checked={showSpecialOnly} onCheckedChange={setShowSpecialOnly} />
+                  <span className="text-xs">Today Special</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={showFavoritesOnly} onCheckedChange={setShowFavoritesOnly} />
+                  <span className="text-xs">Favorites</span>
+                </div>
                 <span className="text-sm text-muted-foreground">
                   {filteredItems.length} items
                 </span>
@@ -472,6 +518,30 @@ export default function MenuManagement() {
                       <div className="space-y-2">
                         <Label>Image URL</Label>
                         <Input value={itemImageUrl} onChange={(e) => setItemImageUrl(e.target.value)} placeholder="https://..." />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Session</Label>
+                          <Select value={itemSession} onValueChange={(v) => setItemSession(v as any)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="All Sessions" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All</SelectItem>
+                              <SelectItem value="breakfast">Breakfast</SelectItem>
+                              <SelectItem value="lunch">Lunch</SelectItem>
+                              <SelectItem value="dinner">Dinner</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Daily Special</Label>
+                          <Switch checked={itemDailySpecial} onCheckedChange={setItemDailySpecial} />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Favorite</Label>
+                        <Switch checked={itemFavorite} onCheckedChange={setItemFavorite} />
                       </div>
                       {isAdmin && !editingItem && (
                         <div className="space-y-2">
@@ -601,6 +671,11 @@ export default function MenuManagement() {
                         {item.category && (
                           <Badge variant="outline" className="mt-1">{item.category.name}</Badge>
                         )}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <Badge variant="secondary" className="text-[10px] py-1 px-2">{item.session?.toUpperCase() || 'ALL'}</Badge>
+                          {item.is_daily_special && <Badge variant="destructive" className="text-[10px] py-1 px-2">Daily Special</Badge>}
+                          {item.is_favorite && <Badge variant="success" className="text-[10px] py-1 px-2">Favorite</Badge>}
+                        </div>
                       </div>
                     </div>
                     {item.description && (

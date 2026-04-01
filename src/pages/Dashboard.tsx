@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw, Building2, Printer } from 'lucide-react';
+import { LogOut, UtensilsCrossed, Receipt, Users, ChefHat, Sparkles, BarChart3, Calendar, UserCog, BookOpen, Package, MonitorPlay, RefreshCw, Building2, Printer, DollarSign } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrderStats } from '@/services/orderService';
@@ -118,6 +118,7 @@ export default function Dashboard() {
     { to: '/reservations', icon: Calendar, label: 'Reservations', always: true },
     { to: '/menu', icon: BookOpen, label: 'Menu Management', role: 'manager' as const },
     { to: '/inventory', icon: Package, label: 'Inventory', role: 'manager' as const, badge: lowStockCount },
+    { to: '/expenses', icon: DollarSign, label: 'Expenses', role: 'manager' as const },
     { to: '/staff', icon: UserCog, label: 'Staff Management', role: 'admin' as const },
     { to: '/branches', icon: Building2, label: 'Branch Management', role: 'manager' as const },
     { to: '/settings/printer', icon: Printer, label: 'Printer Settings', role: 'manager' as const },

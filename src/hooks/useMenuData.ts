@@ -4,7 +4,7 @@ import { getTables } from '@/services/tableService';
 import { getAllBranches } from '@/services/staffService';
 import { localCache, CACHE_KEYS, CACHE_DURATION } from '@/services/cacheService';
 import { cacheMenuItems, getCachedMenuItems, cacheCategories, getCachedCategories } from '@/services/localDb';
-import type { Category, MenuItem, RestaurantTable, Branch } from '@/types/pos';
+import type { Category, MenuItem, MenuSession, RestaurantTable, Branch } from '@/types/pos';
 
 // Hook for categories with local caching and branch filtering
 export function useCategories(branchId?: string) {
@@ -33,21 +33,21 @@ export function useCategories(branchId?: string) {
 }
 
 // Hook for menu items with local caching and branch filtering
-export function useMenuItems(categoryId?: string, branchId?: string) {
+export function useMenuItems(categoryId?: string, branchId?: string, options?: { session?: MenuSession; onlyDailySpecial?: boolean; onlyFavorites?: boolean; }) {
   return useQuery({
-    queryKey: ['menu_items', categoryId, branchId],
+    queryKey: ['menu_items', categoryId, branchId, options],
     queryFn: async (): Promise<MenuItem[]> => {
       // Try Dexie first (instant)
       const dexieCached = await getCachedMenuItems(categoryId, branchId);
       if (dexieCached && dexieCached.length > 0) {
         // Background refresh from server
-        getMenuItems(categoryId, branchId).then(data => {
+        getMenuItems(categoryId, branchId, options).then(data => {
           cacheMenuItems(data, branchId);
         }).catch(() => {});
         return dexieCached;
       }
 
-      const data = await getMenuItems(categoryId, branchId);
+      const data = await getMenuItems(categoryId, branchId, options);
       cacheMenuItems(data, branchId);
       return data;
     },

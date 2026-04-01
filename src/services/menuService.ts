@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Category, MenuItem, BillingType, PortionOption } from '@/types/pos';
+import type { Category, MenuItem, BillingType, MenuSession, PortionOption } from '@/types/pos';
 
 // Extended menu item creation options for bar products
 export interface CreateMenuItemOptions {
@@ -8,6 +8,9 @@ export interface CreateMenuItemOptions {
   categoryId?: string;
   description?: string;
   imageUrl?: string;
+  session?: MenuSession;
+  isDailySpecial?: boolean;
+  isFavorite?: boolean;
   bottleSizeMl?: number;
   costPrice?: number;
   servingSizeMl?: number;
@@ -105,7 +108,7 @@ export async function deleteCategory(categoryId: string): Promise<void> {
 }
 
 // Get all menu items for branch (with optional branchId for admin cross-branch queries)
-export async function getMenuItems(categoryId?: string, branchId?: string): Promise<MenuItem[]> {
+export async function getMenuItems(categoryId?: string, branchId?: string, options?: { session?: MenuSession; onlyDailySpecial?: boolean; onlyFavorites?: boolean; }): Promise<MenuItem[]> {
   let query = supabase
     .from('menu_items')
     .select(`
@@ -119,9 +122,20 @@ export async function getMenuItems(categoryId?: string, branchId?: string): Prom
     query = query.eq('category_id', categoryId);
   }
 
-  // If branchId specified, filter by it (for admins switching branches)
   if (branchId) {
     query = query.eq('branch_id', branchId);
+  }
+
+  if (options?.session && options.session !== 'all') {
+    query = query.in('session', ['all', options.session]);
+  }
+
+  if (options?.onlyDailySpecial) {
+    query = query.eq('is_daily_special', true);
+  }
+
+  if (options?.onlyFavorites) {
+    query = query.eq('is_favorite', true);
   }
 
   const { data, error } = await query;
@@ -212,6 +226,9 @@ export async function createMenuItemForBranch(
     price: options.price,
     description: options.description,
     image_url: options.imageUrl,
+    session: options.session || 'all',
+    is_daily_special: !!options.isDailySpecial,
+    is_favorite: !!options.isFavorite,
     bottle_size_ml: options.bottleSizeMl,
     cost_price: options.costPrice,
     serving_size_ml: options.servingSizeMl,
@@ -236,7 +253,7 @@ export async function createMenuItemForBranch(
 // Update menu item with portion options support
 export async function updateMenuItemWithPortions(
   menuItemId: string,
-  updates: Partial<Pick<MenuItem, 'name' | 'price' | 'description' | 'image_url' | 'category_id' | 'is_available' | 'is_active' | 'billing_type' | 'bottle_size_ml' | 'cost_price' | 'serving_size_ml' | 'serving_price' | 'portion_options'>>
+  updates: Partial<Pick<MenuItem, 'name' | 'price' | 'description' | 'image_url' | 'category_id' | 'is_available' | 'is_active' | 'session' | 'is_daily_special' | 'is_favorite' | 'billing_type' | 'bottle_size_ml' | 'cost_price' | 'serving_size_ml' | 'serving_price' | 'portion_options'>>
 ): Promise<MenuItem> {
   const updateData: Record<string, unknown> = { ...updates };
   
@@ -259,7 +276,7 @@ export async function updateMenuItemWithPortions(
 // Update menu item
 export async function updateMenuItem(
   menuItemId: string,
-  updates: Partial<Pick<MenuItem, 'name' | 'price' | 'description' | 'image_url' | 'category_id' | 'is_available' | 'is_active'>>
+  updates: Partial<Pick<MenuItem, 'name' | 'price' | 'description' | 'image_url' | 'category_id' | 'is_available' | 'is_active' | 'session' | 'is_daily_special' | 'is_favorite'>>
 ): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')

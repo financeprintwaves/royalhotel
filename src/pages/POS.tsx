@@ -1871,9 +1871,14 @@ export default function POS() {
                     toast({ variant: 'destructive', title: 'Transfer failed', description: error.message });
                   }
                 }}>
-                  {tables.filter(t => t.id !== selectedTable.id).map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.table_number}</SelectItem>
-                  ))}
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select table" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tables.filter(t => t.id !== selectedTable.id).map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.table_number}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
             )}

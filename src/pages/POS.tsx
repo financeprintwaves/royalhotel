@@ -433,7 +433,7 @@ export default function POS() {
     setSelectedTable(lastRepeatOrder.table || null);
     setCustomerName(lastRepeatOrder.customer_name || '');
     setDiscount(Number(lastRepeatOrder.discount_amount || 0));
-    setOrderType(lastRepeatOrder.order_status === 'delivery' ? 'delivery' : 'dine-in');
+    setOrderType('dine-in');
     toast({ title: 'Last Order Loaded', description: `Loaded from ${lastRepeatOrder.order_number}` });
   }
 

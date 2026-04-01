@@ -356,7 +356,7 @@ export default function Expenses() {
                         Loading...
                       </TableCell>
                     </TableRow>
-                  ) : filteredExpenses.length === 0 ? (
+                  ) : expenses.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isAdmin() ? 5 : 4} className="text-center py-8 text-muted-foreground">
                         No expenses found

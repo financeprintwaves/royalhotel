@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useCategories, useMenuItems } from '@/hooks/useMenuData';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useResponsive } from '@/hooks/useResponsive';
 import POSTableSelector from './POSTableSelector';
 import POSOrderPanel from './POSOrderPanel';
 import POSMenuPanel from './POSMenuPanel';
@@ -14,7 +14,7 @@ export default function POSLayout() {
   const { orderType, selectedTableId, selectedTableName, cartItems, currentOrder } =
     usePOSContext();
   const { data: categories = [], isLoading } = useCategories();
-  const isMobile = useIsMobile();
+  const { deviceType, isMobile, isTablet, isDesktop } = useResponsive();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showHoldOrders, setShowHoldOrders] = useState(false);
@@ -34,18 +34,20 @@ export default function POSLayout() {
     );
   }
 
-  // Mobile Layout: Single column with drawers
+  // Mobile Layout: Single column with drawers (320px - 767px)
   if (isMobile) {
     return (
       <div className="flex flex-col h-screen bg-background overflow-hidden">
         {/* Header */}
-        <div className="flex-shrink-0 border-b bg-card p-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="flex-shrink-0 border-b bg-card p-3 md:p-4 rounded-b-lg">
+          <div className="flex items-center justify-between gap-2 md:gap-3">
             <POSTableSelector compact />
-            <div className="text-sm font-semibold">
+            <div className="text-sm md:text-base font-semibold truncate">
               {orderType === 'takeout' ? 'Take Out' : selectedTableName || 'Select Table'}
             </div>
-            <div className="text-xs text-muted-foreground">Items: {cartItems.length}</div>
+            <div className="text-xs md:text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
+              {cartItems.length} items
+            </div>
           </div>
         </div>
 
@@ -55,18 +57,18 @@ export default function POSLayout() {
         </div>
 
         {/* Bottom Controls */}
-        <div className="flex-shrink-0 border-t bg-card p-3 space-y-2">
-          <div className="flex gap-2">
+        <div className="flex-shrink-0 border-t bg-card p-3 md:p-4 space-y-3 rounded-t-lg">
+          <div className="flex gap-2 md:gap-3">
             <button
               onClick={() => setShowKOTDialog(true)}
-              className="flex-1 px-3 py-2 bg-blue-600 text-white rounded text-sm font-semibold"
+              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
             >
               Print KOT
             </button>
             <button
               onClick={() => setShowPaymentDialog(true)}
               disabled={cartItems.length === 0}
-              className="flex-1 px-3 py-2 bg-green-600 text-white rounded text-sm font-semibold disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
             >
               Payment
             </button>
@@ -80,27 +82,27 @@ export default function POSLayout() {
     );
   }
 
-  // Tablet Layout: 2 columns with overlays
-  if (window.innerWidth < 1024) {
+  // Tablet Layout: 2 columns with overlays (768px - 1023px)
+  if (isTablet) {
     return (
       <div className="flex h-screen bg-background overflow-hidden">
         {/* Left: Order Panel + Cart */}
-        <div className="w-1/3 border-r bg-card flex flex-col overflow-hidden">
+        <div className="w-1/3 border-r bg-card flex flex-col overflow-hidden rounded-r-lg">
           <POSTableSelector />
           <div className="flex-1 overflow-y-auto">
             <POSOrderPanel />
           </div>
-          <div className="flex-shrink-0 p-3 border-t space-y-2">
+          <div className="flex-shrink-0 p-4 border-t space-y-3 rounded-t-lg">
             <button
               onClick={() => setShowKOTDialog(true)}
-              className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm font-semibold"
+              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
             >
               Print KOT
             </button>
             <button
               onClick={() => setShowPaymentDialog(true)}
               disabled={cartItems.length === 0}
-              className="w-full px-3 py-2 bg-green-600 text-white rounded text-sm font-semibold disabled:opacity-50"
+              className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
             >
               Payment
             </button>
@@ -108,7 +110,7 @@ export default function POSLayout() {
         </div>
 
         {/* Right: Menu */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden rounded-l-lg">
           <POSMenuPanel />
         </div>
 
@@ -123,35 +125,35 @@ export default function POSLayout() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Left Sidebar: Order Summary + Hold Orders */}
-      <div className="w-60 border-r bg-card flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 p-3 border-b">
+      <div className="w-60 border-r bg-card flex flex-col overflow-hidden rounded-r-lg">
+        <div className="flex-shrink-0 p-4 border-b rounded-br-lg">
           <h2 className="text-lg font-bold text-green-600">SALE TOTAL</h2>
           <div className="text-3xl font-bold text-white mt-1">
             ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-2 p-3">
+        <div className="flex-1 overflow-y-auto space-y-2 p-4">
           <POSOrderPanel />
         </div>
 
-        <div className="flex-shrink-0 p-3 border-t space-y-2">
+        <div className="flex-shrink-0 p-4 border-t space-y-3 rounded-t-lg">
           <button
             onClick={() => setShowHoldOrders(true)}
-            className="w-full px-2 py-2 bg-yellow-500 text-black rounded text-xs font-semibold hover:bg-yellow-600"
+            className="w-full px-4 py-3 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg md:rounded-xl text-sm font-semibold transition-colors duration-200 min-h-[44px]"
           >
             Hold Orders
           </button>
           <button
             onClick={() => setShowKOTDialog(true)}
-            className="w-full px-2 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
+            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl text-sm font-semibold transition-colors duration-200 min-h-[44px]"
           >
             Print KOT
           </button>
           <button
             onClick={() => setShowPaymentDialog(true)}
             disabled={cartItems.length === 0}
-            className="w-full px-2 py-2 bg-green-600 text-white rounded text-xs font-semibold disabled:opacity-50 hover:bg-green-700"
+            className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white rounded-lg md:rounded-xl text-sm font-semibold transition-colors duration-200 min-h-[44px]"
           >
             Payment
           </button>
@@ -169,7 +171,7 @@ export default function POSLayout() {
       </div>
 
       {/* Right Sidebar: Payment + Function Buttons */}
-      <div className="w-56 border-l bg-card flex flex-col overflow-hidden">
+      <div className="w-56 border-l bg-card flex flex-col overflow-hidden rounded-l-lg">
         <POSActionPanel />
       </div>
 

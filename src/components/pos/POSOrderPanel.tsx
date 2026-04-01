@@ -4,7 +4,7 @@ import CartItemRow from './CartItemRow';
 import { Card } from '@/components/ui/card';
 
 export default function POSOrderPanel() {
-  const { cartItems, getOrderSubtotal, getOrderTax, currentOrder } = usePOSContext();
+  const { cartItems } = usePOSContext();
 
   if (cartItems.length === 0) {
     return (
@@ -14,6 +14,10 @@ export default function POSOrderPanel() {
       </Card>
     );
   }
+
+  const subtotal = cartItems.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+  const tax = subtotal * 0.1; // 10% tax
+  const total = subtotal + tax;
 
   return (
     <div className="space-y-4">
@@ -30,21 +34,15 @@ export default function POSOrderPanel() {
       <Card className="p-3 space-y-2 bg-muted">
         <div className="flex justify-between text-sm">
           <span>Subtotal:</span>
-          <span className="font-semibold">${getOrderSubtotal().toFixed(2)}</span>
+          <span className="font-semibold">${subtotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Tax (10%):</span>
-          <span className="font-semibold">${getOrderTax().toFixed(2)}</span>
+          <span className="font-semibold">${tax.toFixed(2)}</span>
         </div>
-        {currentOrder?.discount ? (
-          <div className="flex justify-between text-sm text-green-600">
-            <span>Discount:</span>
-            <span className="font-semibold">-${currentOrder.discount.toFixed(2)}</span>
-          </div>
-        ) : null}
         <div className="border-t pt-2 flex justify-between text-base font-bold">
           <span>Total:</span>
-          <span className="text-lg">${(getOrderSubtotal() + getOrderTax() - (currentOrder?.discount || 0)).toFixed(2)}</span>
+          <span className="text-lg">${total.toFixed(2)}</span>
         </div>
       </Card>
     </div>

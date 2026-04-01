@@ -14,14 +14,9 @@ export default function MenuItemCard({ item }: MenuItemCardProps) {
 
   const handleAddToCart = () => {
     addCartItem({
-      id: item.id,
-      name: item.description,
-      unit_price: item.price,
+      id: `${item.id}-${Date.now()}`,
+      menuItem: item,
       quantity: 1,
-      menu_item_id: item.id,
-      portion_name: null,
-      total_price: item.price,
-      item_status: 'pending',
     });
   };
 

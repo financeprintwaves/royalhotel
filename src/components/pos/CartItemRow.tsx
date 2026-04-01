@@ -19,9 +19,9 @@ export default function CartItemRow({ item }: CartItemRowProps) {
   return (
     <div className="flex items-center justify-between gap-2 p-2 bg-card border rounded text-sm">
       <div className="flex-1 min-w-0">
-        <div className="font-semibold truncate">{item.name}</div>
+        <div className="font-semibold truncate">{item.menuItem.description}</div>
         <div className="text-xs text-muted-foreground">
-          ${item.unit_price.toFixed(2)} × {item.quantity}
+          ${item.menuItem.price.toFixed(2)} × {item.quantity}
         </div>
       </div>
 
@@ -54,7 +54,7 @@ export default function CartItemRow({ item }: CartItemRowProps) {
       </div>
 
       <div className="text-right font-semibold">
-        ${(item.unit_price * item.quantity).toFixed(2)}
+        ${(item.menuItem.price * item.quantity).toFixed(2)}
       </div>
     </div>
   );

@@ -127,7 +127,7 @@ export default function POSLayout() {
         <div className="flex-shrink-0 p-3 border-b">
           <h2 className="text-lg font-bold text-green-600">SALE TOTAL</h2>
           <div className="text-3xl font-bold text-white mt-1">
-            ${cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0).toFixed(2)}
+            ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
           </div>
         </div>
 

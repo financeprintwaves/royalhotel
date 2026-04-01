@@ -160,6 +160,8 @@ export interface OrderItem {
   notes: string | null;
   created_at: string;
   item_status: ItemStatus;
+  is_serving?: boolean;
+  portion_name?: string | null;
   menu_item?: MenuItem;
 }
 

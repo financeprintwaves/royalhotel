@@ -209,23 +209,20 @@ export async function createMenuItemForBranch(
     portionOptions?: PortionOption[];
   }
 ): Promise<MenuItem> {
-  const insertData = {
+  const insertData: any = {
     branch_id: branchId,
     category_id: options.categoryId,
     name: options.name,
     price: options.price,
     description: options.description,
     image_url: options.imageUrl,
-    session: options.session || 'all',
-    is_daily_special: !!options.isDailySpecial,
-    is_favorite: !!options.isFavorite,
     bottle_size_ml: options.bottleSizeMl,
     cost_price: options.costPrice,
     serving_size_ml: options.servingSizeMl,
     serving_price: options.servingPrice,
     billing_type: options.billingType || 'bottle_only',
     portion_options: options.portionOptions || null,
-  } as any;
+  };
 
   const { data, error } = await supabase
     .from('menu_items')

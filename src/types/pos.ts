@@ -337,3 +337,320 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   cashier: 'Cashier',
   kitchen: 'Kitchen Staff',
 };
+
+// Phase 4: Advanced Analytics Types
+export interface SalesAnalytics {
+  id: string;
+  branch_id: string;
+  date: string;
+  hour_of_day?: number;
+  total_orders: number;
+  total_sales: number;
+  total_items: number;
+  average_order_value: number;
+  revenue_by_category: Record<string, number>;
+  service_type_breakdown: Record<string, number>;
+  payment_method_breakdown: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaffPerformance {
+  id: string;
+  branch_id: string;
+  staff_id: string;
+  date: string;
+  orders_count: number;
+  total_sales: number;
+  average_order_value: number;
+  items_sold: number;
+  customer_satisfaction_avg?: number;
+  efficiency_score?: number;
+  incentive_points: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductAnalytics {
+  id: string;
+  branch_id: string;
+  menu_item_id: string;
+  date: string;
+  quantity_sold: number;
+  revenue: number;
+  cost: number;
+  gross_margin?: number;
+  rank_by_revenue?: number;
+  rank_by_quantity?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerAnalytics {
+  id: string;
+  branch_id: string;
+  loyalty_customer_id?: string;
+  phone_number?: string;
+  total_orders: number;
+  total_spent: number;
+  average_order_value: number;
+  last_order_date?: string;
+  customer_lifetime_value: number;
+  loyalty_tier?: string;
+  is_returning_customer: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OperationalMetrics {
+  id: string;
+  branch_id: string;
+  date: string;
+  table_turnover_rate?: number;
+  average_service_time?: number;
+  peak_hour?: number;
+  peak_hour_orders?: number;
+  delivery_average_time?: number;
+  delivery_success_rate?: number;
+  cancellation_rate?: number;
+  waste_cost?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Phase 5: Customer Engagement Types
+export interface RewardsRedemption {
+  id: string;
+  branch_id: string;
+  customer_id: string;
+  order_id?: string;
+  reward_id?: string;
+  points_redeemed: number;
+  redemption_type: 'reward' | 'discount' | 'free_item';
+  discount_amount?: number;
+  notes?: string;
+  redeemed_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerNotification {
+  id: string;
+  branch_id: string;
+  customer_id?: string;
+  phone_number?: string;
+  email?: string;
+  notification_type: 'sms' | 'email' | 'push';
+  subject?: string;
+  message: string;
+  related_order_id?: string;
+  status: 'pending' | 'sent' | 'failed' | 'delivered';
+  scheduled_for?: string;
+  sent_at?: string;
+  delivery_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerFeedback {
+  id: string;
+  branch_id: string;
+  order_id?: string;
+  customer_id?: string;
+  phone_number?: string;
+  rating: number; // 1-5
+  comment?: string;
+  feedback_categories: Record<string, number>;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  response_from_management?: string;
+  responded_at?: string;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketingCampaign {
+  id: string;
+  branch_id: string;
+  name: string;
+  description?: string;
+  campaign_type: 'sms' | 'email' | 'in_app';
+  discount_percentage?: number;
+  discount_amount?: number;
+  coupon_code?: string;
+  start_date: string;
+  end_date: string;
+  target_segment: string;
+  status: 'draft' | 'scheduled' | 'active' | 'completed';
+  recipients_count: number;
+  click_count: number;
+  redemption_count: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignRecipient {
+  id: string;
+  campaign_id: string;
+  customer_id?: string;
+  phone_number?: string;
+  email?: string;
+  delivery_status: 'pending' | 'sent' | 'failed' | 'clicked' | 'redeemed';
+  sent_at?: string;
+  clicked_at?: string;
+  redeemed_at?: string;
+  created_at: string;
+}
+
+export interface Currency {
+  id: string;
+  branch_id: string;
+  currency_code: string;
+  currency_symbol: string;
+  exchange_rate: number;
+  is_primary: boolean;
+  decimal_places: number;
+  rounding_mode: 'round' | 'ceil' | 'floor';
+  created_at: string;
+  updated_at: string;
+}
+
+// Phase 6: Advanced Reporting & Forecasting Types
+export interface SalesForecast {
+  id: string;
+  branch_id: string;
+  forecast_date: string;
+  forecast_type: 'daily' | 'weekly' | 'monthly';
+  predicted_revenue: number;
+  predicted_orders: number;
+  confidence_score: number; // 0.00 to 1.00
+  actual_revenue?: number;
+  actual_orders?: number;
+  accuracy_score?: number;
+  factors: {
+    historical_average: number;
+    trend_factor: number;
+    seasonality_factor: number;
+    data_points: number;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryForecast {
+  id: string;
+  branch_id: string;
+  item_id: string;
+  forecast_date: string;
+  predicted_demand: number;
+  safety_stock_level?: number;
+  reorder_point?: number;
+  confidence_score: number;
+  actual_consumption?: number;
+  accuracy_score?: number;
+  factors: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaffingForecast {
+  id: string;
+  branch_id: string;
+  forecast_date: string;
+  shift_type: 'morning' | 'afternoon' | 'evening' | 'night';
+  predicted_staff_needed: number;
+  actual_staff_used?: number;
+  peak_hour_prediction?: string;
+  busy_period_start?: string;
+  busy_period_end?: string;
+  factors: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomReport {
+  id: string;
+  branch_id: string;
+  name: string;
+  description?: string;
+  report_type: 'sales' | 'inventory' | 'staff' | 'customer';
+  config: {
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    filters: Record<string, any>;
+    groupBy?: string[];
+    metrics: string[];
+    chartType?: 'bar' | 'line' | 'pie' | 'table';
+  };
+  schedule?: {
+    frequency: 'daily' | 'weekly' | 'monthly';
+    time: string;
+    recipients: string[];
+  };
+  is_active: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReportSchedule {
+  id: string;
+  report_id: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  schedule_time: string;
+  recipients: string[];
+  is_active: boolean;
+  last_run?: string;
+  next_run?: string;
+  created_at: string;
+}
+
+export interface TrendAnalysis {
+  id: string;
+  branch_id: string;
+  analysis_type: 'seasonal' | 'weekly' | 'monthly' | 'yearly';
+  data_type: 'sales' | 'orders' | 'customers' | 'items';
+  period_start: string;
+  period_end: string;
+  trend_direction: 'increasing' | 'decreasing' | 'stable';
+  trend_strength: number; // 0.00 to 1.00
+  seasonality_score: number;
+  forecast_accuracy?: number;
+  insights: {
+    key_findings: string[];
+    recommendations: string[];
+    anomalies: any[];
+  };
+  created_at: string;
+}
+
+export interface ForecastFactors {
+  weather?: {
+    temperature: number;
+    condition: string;
+    impact_score: number;
+  };
+  holidays?: {
+    is_holiday: boolean;
+    holiday_name?: string;
+    impact_score: number;
+  };
+  events?: {
+    has_event: boolean;
+    event_type?: string;
+    impact_score: number;
+  };
+  seasonality?: {
+    day_of_week: number;
+    month_of_year: number;
+    seasonal_multiplier: number;
+  };
+  historical_performance?: {
+    previous_period_avg: number;
+    growth_rate: number;
+    volatility: number;
+  };
+}

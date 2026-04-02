@@ -37,17 +37,20 @@ export default function POSLayout() {
   // Mobile Layout: Single column with drawers (320px - 767px)
   if (isMobile) {
     return (
-      <div className="flex flex-col h-screen bg-background overflow-hidden">
+      <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 overflow-hidden">
         {/* Header */}
-        <div className="flex-shrink-0 border-b bg-card p-3 md:p-4 rounded-b-lg">
-          <div className="flex items-center justify-between gap-2 md:gap-3">
+        <div className="flex-shrink-0 border-b border-slate-300 dark:border-slate-700 bg-gradient-to-r from-blue-600 to-blue-700 p-3 md:p-4 rounded-b-lg shadow-md">
+          <div className="flex items-center justify-between gap-2 md:gap-3 mb-2">
             <POSTableSelector compact />
-            <div className="text-sm md:text-base font-semibold truncate">
-              {orderType === 'takeout' ? 'Take Out' : selectedTableName || 'Select Table'}
+            <div className="text-sm md:text-base font-bold text-white truncate">
+              {orderType === 'takeout' ? '🛍️ Take Out' : selectedTableName || 'Select Table'}
             </div>
-            <div className="text-xs md:text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
+            <div className="text-xs md:text-sm text-blue-100 bg-blue-500/40 px-2 py-1 rounded-md font-semibold">
               {cartItems.length} items
             </div>
+          </div>
+          <div className="text-right text-2xl font-bold text-white tabular-nums">
+            ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
           </div>
         </div>
 
@@ -57,20 +60,20 @@ export default function POSLayout() {
         </div>
 
         {/* Bottom Controls */}
-        <div className="flex-shrink-0 border-t bg-card p-3 md:p-4 space-y-3 rounded-t-lg">
+        <div className="flex-shrink-0 border-t border-slate-300 dark:border-slate-700 bg-gradient-to-t from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-3 md:p-4 space-y-3 rounded-t-lg shadow-xl">
           <div className="flex gap-2 md:gap-3">
             <button
               onClick={() => setShowKOTDialog(true)}
-              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105"
             >
-              Print KOT
+              🖨️ Print KOT
             </button>
             <button
               onClick={() => setShowPaymentDialog(true)}
               disabled={cartItems.length === 0}
-              className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
             >
-              Payment
+              💳 Payment
             </button>
           </div>
         </div>
@@ -85,26 +88,31 @@ export default function POSLayout() {
   // Tablet Layout: 2 columns with overlays (768px - 1023px)
   if (isTablet) {
     return (
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 overflow-hidden">
         {/* Left: Order Panel + Cart */}
-        <div className="w-1/3 border-r bg-card flex flex-col overflow-hidden rounded-r-lg">
-          <POSTableSelector />
-          <div className="flex-1 overflow-y-auto">
+        <div className="w-1/3 border-r border-slate-300 dark:border-slate-700 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 flex flex-col overflow-hidden rounded-r-lg shadow-lg">
+          <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 p-4 rounded-br-lg shadow-md">
+            <POSTableSelector />
+            <div className="text-right text-2xl font-bold text-white mt-2 tabular-nums">
+              ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
             <POSOrderPanel />
           </div>
-          <div className="flex-shrink-0 p-4 border-t space-y-3 rounded-t-lg">
+          <div className="flex-shrink-0 p-4 border-t border-slate-300 dark:border-slate-700 space-y-3 rounded-t-lg bg-gradient-to-t from-white to-slate-50 dark:from-slate-900 dark:to-slate-800">
             <button
               onClick={() => setShowKOTDialog(true)}
-              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
+              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105"
             >
-              Print KOT
+              🖨️ Print KOT
             </button>
             <button
               onClick={() => setShowPaymentDialog(true)}
               disabled={cartItems.length === 0}
-              className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-colors duration-200 min-h-[44px]"
+              className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
             >
-              Payment
+              💳 Payment
             </button>
           </div>
         </div>
@@ -123,39 +131,43 @@ export default function POSLayout() {
 
   // Desktop Layout: 4 columns
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 overflow-hidden">
       {/* Left Sidebar: Order Summary + Hold Orders */}
-      <div className="w-60 border-r bg-card flex flex-col overflow-hidden rounded-r-lg">
-        <div className="flex-shrink-0 p-4 border-b rounded-br-lg">
-          <h2 className="text-lg font-bold text-green-600">SALE TOTAL</h2>
-          <div className="text-3xl font-bold text-white mt-1">
+      <div className="w-64 border-r border-slate-300 dark:border-slate-700 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 flex flex-col overflow-hidden shadow-lg">
+        {/* Header with Total */}
+        <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 p-4 rounded-b-lg shadow-md">
+          <h2 className="text-xs font-bold text-blue-100 uppercase tracking-widest">💰 Sale Total</h2>
+          <div className="text-4xl font-bold text-white mt-2 tabular-nums">
             ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
           </div>
+          <p className="text-blue-100 text-xs mt-2">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-2 p-4">
+        {/* Order Items */}
+        <div className="flex-1 overflow-y-auto p-4">
           <POSOrderPanel />
         </div>
 
-        <div className="flex-shrink-0 p-4 border-t space-y-3 rounded-t-lg">
+        {/* Action Buttons */}
+        <div className="flex-shrink-0 p-4 border-t border-slate-300 dark:border-slate-700 space-y-3 rounded-t-lg bg-gradient-to-t from-white to-slate-50 dark:from-slate-900 dark:to-slate-800">
           <button
             onClick={() => setShowHoldOrders(true)}
-            className="w-full px-4 py-3 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg md:rounded-xl text-sm font-semibold transition-colors duration-200 min-h-[44px]"
+            className="w-full px-4 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105"
           >
-            Hold Orders
+            ⏸️ Hold Orders
           </button>
           <button
             onClick={() => setShowKOTDialog(true)}
-            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl text-sm font-semibold transition-colors duration-200 min-h-[44px]"
+            className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105"
           >
-            Print KOT
+            🖨️ Print KOT
           </button>
           <button
             onClick={() => setShowPaymentDialog(true)}
             disabled={cartItems.length === 0}
-            className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white rounded-lg md:rounded-xl text-sm font-semibold transition-colors duration-200 min-h-[44px]"
+            className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:hover:from-gray-400 disabled:hover:to-gray-500 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
           >
-            Payment
+            💳 Payment
           </button>
         </div>
       </div>
@@ -167,7 +179,7 @@ export default function POSLayout() {
 
       {/* Center-Right: Menu Items Grid */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <POSMenuPanel />
+        <POSMenuPanel hideCategoryBar />
       </div>
 
       {/* Right Sidebar: Payment + Function Buttons */}

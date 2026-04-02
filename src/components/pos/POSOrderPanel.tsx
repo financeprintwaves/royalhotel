@@ -8,10 +8,11 @@ export default function POSOrderPanel() {
 
   if (cartItems.length === 0) {
     return (
-      <Card className="p-6 text-center text-muted-foreground">
-        <p>No items in cart</p>
-        <p className="text-xs mt-2">Select items from menu to begin</p>
-      </Card>
+      <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg">
+        <div className="text-6xl mb-4 opacity-20">🛒</div>
+        <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">No Items in Cart</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Select items from menu to begin order</p>
+      </div>
     );
   }
 
@@ -20,31 +21,46 @@ export default function POSOrderPanel() {
   const total = subtotal + tax;
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h3 className="font-semibold text-sm">Order Items</h3>
-        <div className="space-y-1 max-h-96 overflow-y-auto">
-          {cartItems.map((item) => (
-            <CartItemRow key={item.id} item={item} />
-          ))}
-        </div>
+    <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden shadow-lg">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-white">
+        <h3 className="font-bold text-lg">📋 Order Summary</h3>
+        <p className="text-blue-100 text-xs mt-1">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in order</p>
       </div>
 
-      {/* Totals */}
-      <Card className="p-3 space-y-2 bg-muted">
-        <div className="flex justify-between text-sm">
-          <span>Subtotal:</span>
-          <span className="font-semibold">${subtotal.toFixed(2)}</span>
+      {/* Order Items */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {cartItems.map((item) => (
+          <CartItemRow key={item.id} item={item} />
+        ))}
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300 dark:from-slate-700 dark:via-slate-600 dark:to-slate-700"></div>
+
+      {/* Totals Section */}
+      <div className="p-4 space-y-3 bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900">
+        {/* Subtotal */}
+        <div className="flex justify-between items-center px-2">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Subtotal:</span>
+          <span className="text-lg font-bold text-gray-900 dark:text-white">${subtotal.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-sm">
-          <span>Tax (10%):</span>
-          <span className="font-semibold">${tax.toFixed(2)}</span>
+
+        {/* Tax */}
+        <div className="flex justify-between items-center px-2">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Tax (10%):</span>
+          <span className="text-lg font-bold text-orange-600 dark:text-orange-400">${tax.toFixed(2)}</span>
         </div>
-        <div className="border-t pt-2 flex justify-between text-base font-bold">
-          <span>Total:</span>
-          <span className="text-lg">${total.toFixed(2)}</span>
+
+        {/* Divider */}
+        <div className="h-px bg-gradient-to-r from-slate-300 to-slate-300 dark:from-slate-600 to-slate-600"></div>
+
+        {/* Total */}
+        <div className="flex justify-between items-center px-2 py-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg">
+          <span className="text-base font-bold text-gray-900 dark:text-white">TOTAL:</span>
+          <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">${total.toFixed(2)}</span>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

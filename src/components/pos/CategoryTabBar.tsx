@@ -21,10 +21,10 @@ export default function CategoryTabBar({
       onValueChange={(value) => onSelectCategory(value === 'all' ? null : value)}
       className="w-full"
     >
-      <TabsList className="grid w-full gap-1 bg-transparent p-0">
+      <TabsList className="grid w-full gap-2 bg-transparent p-0 h-auto">
         <TabsTrigger
           value="all"
-          className="text-xs h-8 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+          className="text-sm h-10 px-4 py-2 font-semibold rounded-lg transition-all duration-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-700 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           All
         </TabsTrigger>
@@ -32,7 +32,7 @@ export default function CategoryTabBar({
           <TabsTrigger
             key={cat.id}
             value={cat.id}
-            className="text-xs h-8 data-[state=active]:bg-blue-600 data-[state=active]:text-white truncate"
+            className="text-sm h-10 px-4 py-2 font-semibold rounded-lg transition-all duration-200 truncate data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-700 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             {cat.name}
           </TabsTrigger>

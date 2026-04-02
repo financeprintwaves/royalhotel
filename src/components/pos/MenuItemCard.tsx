@@ -21,43 +21,42 @@ export default function MenuItemCard({ item }: MenuItemCardProps) {
 
   return (
     <Card
-      className="p-3 cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full"
+      className="overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 hover:scale-105 flex flex-col h-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700"
       onClick={handleAddToCart}
     >
-      {/* Image or Icon */}
-      <div className="w-full h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded mb-2 flex items-center justify-center text-2xl">
+      {/* Image or Icon - Premium Gradient */}
+      <div className="w-full h-24 bg-gradient-to-br from-blue-500 via-blue-400 to-cyan-400 flex items-center justify-center text-4xl relative overflow-hidden">
         {item.icon || '🍽️'}
       </div>
 
       {/* Content */}
-      <div className="flex-1">
-        <h4 className="font-semibold text-sm line-clamp-2">{item.description}</h4>
+      <div className="flex-1 p-4 flex flex-col">
+        <h4 className="font-bold text-sm line-clamp-2 text-gray-900 dark:text-white mb-2">{item.description}</h4>
         {item.is_favorite && (
-          <span className="inline-block text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded mt-1">
+          <span className="inline-flex items-center text-xs bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 dark:from-green-900 dark:to-emerald-900 dark:text-green-200 px-3 py-1 rounded-full font-semibold mb-2 w-fit">
             ⭐ Favorite
           </span>
         )}
         {item.is_daily_special && (
-          <span className="inline-block text-xs bg-orange-200 text-orange-800 px-2 py-0.5 rounded mt-1 ml-1">
+          <span className="inline-flex items-center text-xs bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 dark:from-orange-900 dark:to-amber-900 dark:text-orange-200 px-3 py-1 rounded-full font-semibold w-fit">
             🌟 Special
           </span>
         )}
       </div>
 
-      {/* Price */}
-      <div className="mt-2 pt-2 border-t">
-        <div className="text-lg font-bold text-green-600">
+      {/* Price Section */}
+      <div className="px-4 py-3 border-t border-gray-200 dark:border-slate-700 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900">
+        <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">
           ${item.price.toFixed(2)}
         </div>
       </div>
 
       {/* Add Button */}
       <Button
-        size="sm"
-        className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+        className="w-full m-3 mt-0 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-sm py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 uppercase tracking-wide"
         onClick={handleAddToCart}
       >
-        Add to Cart
+        + Add to Cart
       </Button>
     </Card>
   );

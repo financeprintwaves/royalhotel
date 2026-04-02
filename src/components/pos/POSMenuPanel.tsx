@@ -10,11 +10,13 @@ import type { MenuItem } from '@/types/pos';
 
 interface POSMenuPanelProps {
   showCategoriesOnly?: boolean;
+  hideCategoryBar?: boolean;
   compact?: boolean;
 }
 
 export default function POSMenuPanel({
   showCategoriesOnly,
+  hideCategoryBar,
   compact,
 }: POSMenuPanelProps) {
   const { selectedCategory, setSelectedCategory, currentPage, setCurrentPage, searchQuery, setSearchQuery } =
@@ -57,7 +59,7 @@ export default function POSMenuPanel({
 
   if (showCategoriesOnly) {
     return (
-      <div className="p-3">
+      <div className="p-3 h-full overflow-y-auto">
         <CategoryTabBar
           categories={categories}
           selectedCategory={selectedCategory}
@@ -71,11 +73,13 @@ export default function POSMenuPanel({
     <div className="flex flex-col h-full overflow-hidden">
       {/* Search Bar */}
       <div className="flex-shrink-0 p-3 border-b space-y-3">
-        <CategoryTabBar
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-        />
+        {!hideCategoryBar && (
+          <CategoryTabBar
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+          />
+        )}
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input

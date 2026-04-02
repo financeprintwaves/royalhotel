@@ -5,11 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Printer, Save, TestTube } from 'lucide-react';
+import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { connectPrinter } from '@/services/printerService';
 
 export default function PrinterSettings() {
   const { profile, roles } = useAuth();
@@ -18,7 +17,6 @@ export default function PrinterSettings() {
   const [isEnabled, setIsEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
 
   const isAdminOrManager = roles.includes('admin') || roles.includes('manager');
 
@@ -65,37 +63,6 @@ export default function PrinterSettings() {
     }
   }
 
-  async function handleTestPrint() {
-    setTesting(true);
-    try {
-      const connected = await connectPrinter();
-      if (!connected) {
-        toast({ variant: 'destructive', title: 'Connection Failed', description: 'QZ Tray is not running. Please start it and try again.' });
-        return;
-      }
-
-      const qzMod = await import('qz-tray');
-      const qz = qzMod.default || qzMod;
-      const config = qz.configs.create(printerName.trim() || 'POS_PRINTER');
-      const html = `
-<div style="width:280px;font-family:'Courier New',monospace;font-size:13px;padding:8px;text-align:center">
-  <div style="font-weight:bold;font-size:15px">*** TEST PRINT ***</div>
-  <div style="margin:8px 0">Printer: ${printerName}</div>
-  <div style="border-top:1px dashed #000;margin:6px 0"></div>
-  <div>If you can read this,</div>
-  <div>your printer is working!</div>
-  <div style="border-top:1px dashed #000;margin:6px 0"></div>
-  <div style="font-size:11px">${new Date().toLocaleString('en-GB')}</div>
-</div>`;
-      await qz.print(config, [{ type: 'html', format: 'plain', data: html }]);
-      toast({ title: 'Test Sent', description: 'Test page sent to printer' });
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Test Failed', description: err.message });
-    } finally {
-      setTesting(false);
-    }
-  }
-
   if (!isAdminOrManager) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -123,7 +90,7 @@ export default function PrinterSettings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Printer className="h-5 w-5" />
-              Thermal Printer Configuration
+              Printer Configuration
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -142,30 +109,24 @@ export default function PrinterSettings() {
                     placeholder="POS_PRINTER"
                   />
                   <p className="text-xs text-muted-foreground">
-                    The exact name of your thermal printer as shown in your OS printer settings.
+                    Configure your printer settings here.
                   </p>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label>Auto-Print Enabled</Label>
+                    <Label>Printing Enabled</Label>
                     <p className="text-xs text-muted-foreground">
-                      Automatically print KOT and invoices
+                      Enable/disable printing features
                     </p>
                   </div>
                   <Switch checked={isEnabled} onCheckedChange={setIsEnabled} />
                 </div>
 
-                <div className="flex gap-3">
-                  <Button onClick={handleSave} disabled={saving} className="flex-1">
-                    <Save className="h-4 w-4 mr-2" />
-                    {saving ? 'Saving...' : 'Save Settings'}
-                  </Button>
-                  <Button variant="outline" onClick={handleTestPrint} disabled={testing}>
-                    <TestTube className="h-4 w-4 mr-2" />
-                    {testing ? 'Printing...' : 'Test Print'}
-                  </Button>
-                </div>
+                <Button onClick={handleSave} disabled={saving} className="w-full">
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Settings'}
+                </Button>
               </>
             )}
           </CardContent>

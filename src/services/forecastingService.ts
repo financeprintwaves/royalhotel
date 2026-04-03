@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+const db = supabase as any;
 import {
   SalesForecast,
   InventoryForecast,
@@ -15,7 +16,7 @@ export async function generateSalesForecast(
   forecastDate: string,
   forecastType: 'daily' | 'weekly' | 'monthly' = 'daily'
 ): Promise<SalesForecast> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .rpc('generate_sales_forecast', {
       p_branch_id: branchId,
       p_forecast_date: forecastDate,
@@ -25,7 +26,7 @@ export async function generateSalesForecast(
   if (error) throw error;
 
   // Insert the forecast into the database
-  const { data: forecast, error: insertError } = await supabase
+  const { data: forecast, error: insertError } = await db
     .from('sales_forecasts')
     .insert({
       branch_id: branchId,
@@ -48,7 +49,7 @@ export async function getSalesForecasts(
   startDate: string,
   endDate: string
 ): Promise<SalesForecast[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('sales_forecasts')
     .select('*')
     .eq('branch_id', branchId)
@@ -65,7 +66,7 @@ export async function updateForecastAccuracy(
   actualRevenue: number,
   actualOrders: number
 ): Promise<SalesForecast> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('sales_forecasts')
     .update({
       actual_revenue: actualRevenue,
@@ -90,7 +91,7 @@ export async function generateInventoryForecast(
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const { data: historicalData, error: histError } = await supabase
+  const { data: historicalData, error: histError } = await db
     .from('order_items')
     .select('quantity, orders!inner(created_at)')
     .eq('menu_item_id', itemId)
@@ -113,7 +114,7 @@ export async function generateInventoryForecast(
   const dataPoints = historicalData.length;
   const confidenceScore = Math.min(0.9, Math.max(0.3, dataPoints / 100));
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('inventory_forecasts')
     .insert({
       branch_id: branchId,
@@ -141,7 +142,7 @@ export async function getInventoryForecasts(
   startDate: string,
   endDate: string
 ): Promise<InventoryForecast[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('inventory_forecasts')
     .select(`
       *,
@@ -166,7 +167,7 @@ export async function generateStaffingForecast(
 
   for (const shiftType of shifts) {
     // Get historical data for this shift
-    const { data: shiftData, error } = await supabase
+    const { data: shiftData, error } = await db
       .from('orders')
       .select('created_at, total_amount')
       .eq('branch_id', branchId)
@@ -205,7 +206,7 @@ export async function generateStaffingForecast(
       hourCounts[a[0] as any] > hourCounts[b[0] as any] ? a : b
     )?.[0];
 
-    const { data: forecast, error: insertError } = await supabase
+    const { data: forecast, error: insertError } = await db
       .from('staffing_forecasts')
       .insert({
         branch_id: branchId,
@@ -234,7 +235,7 @@ export async function getStaffingForecasts(
   startDate: string,
   endDate: string
 ): Promise<StaffingForecast[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('staffing_forecasts')
     .select('*')
     .eq('branch_id', branchId)
@@ -250,7 +251,7 @@ export async function getStaffingForecasts(
 export async function createCustomReport(
   report: Omit<CustomReport, 'id' | 'created_at' | 'updated_at'>
 ): Promise<CustomReport> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('custom_reports')
     .insert(report)
     .select()
@@ -261,7 +262,7 @@ export async function createCustomReport(
 }
 
 export async function getCustomReports(branchId: string): Promise<CustomReport[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('custom_reports')
     .select('*')
     .eq('branch_id', branchId)
@@ -276,7 +277,7 @@ export async function updateCustomReport(
   reportId: string,
   updates: Partial<CustomReport>
 ): Promise<CustomReport> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('custom_reports')
     .update(updates)
     .eq('id', reportId)
@@ -288,7 +289,7 @@ export async function updateCustomReport(
 }
 
 export async function deleteCustomReport(reportId: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await db
     .from('custom_reports')
     .update({ is_active: false })
     .eq('id', reportId);
@@ -305,7 +306,7 @@ export async function scheduleReport(
     recipients: string[];
   }
 ): Promise<ReportSchedule> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('report_schedules')
     .insert({
       report_id: reportId,
@@ -319,7 +320,7 @@ export async function scheduleReport(
 }
 
 export async function getReportSchedules(branchId: string): Promise<ReportSchedule[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('report_schedules')
     .select(`
       *,
@@ -366,7 +367,7 @@ export async function performTrendAnalysis(
   // Generate insights
   const insights = generateInsights(dataPoints, trendDirection, trendStrength, seasonalityScore);
 
-  const { data: analysis, error: insertError } = await supabase
+  const { data: analysis, error: insertError } = await db
     .from('trend_analysis')
     .insert({
       branch_id: branchId,
@@ -452,7 +453,7 @@ function calculateTrendStrength(dataPoints: { date: Date; value: number }[]): nu
 }
 
 async function calculateSeasonalityScore(branchId: string, dataType: string): Promise<number> {
-  const { data, error } = await supabase.rpc('detect_seasonality', {
+  const { data, error } = await db.rpc('detect_seasonality', {
     p_branch_id: branchId,
     p_data_type: dataType
   });

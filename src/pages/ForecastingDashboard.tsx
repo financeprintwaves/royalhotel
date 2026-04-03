@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   ArrowLeft, TrendingUp, TrendingDown, BarChart3, Calendar, Users, Package,
-  DollarSign, Target, AlertTriangle, CheckCircle, Clock, Zap, PieChart as PieChartIcon
+  DollarSign, Target, AlertTriangle, CheckCircle, Clock, Zap, PieChart as PieChartIcon, FileText
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -388,7 +388,7 @@ export default function ForecastingDashboard() {
                         <Tooltip
                           labelFormatter={(date) => format(new Date(date), 'MMM dd, yyyy')}
                           formatter={(value, name) => [
-                            name === 'predicted_revenue' ? `$${value.toFixed(0)}` : value,
+                            name === 'predicted_revenue' ? `$${Number(value).toFixed(0)}` : value,
                             name === 'predicted_revenue' ? 'Revenue' : 'Orders'
                           ]}
                         />

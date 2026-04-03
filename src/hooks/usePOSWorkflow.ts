@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import type { Order } from '@/types/pos';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePOSContext } from '@/contexts/POSContext';
@@ -78,8 +79,8 @@ export function usePOSWorkflow() {
    */
   const printKOTMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOrder) throw new Error('No order created');
-      await printKOT(currentOrder, cartItems);
+      if (!currentOrder?.id) throw new Error('No order created');
+      await printKOT(currentOrder as Order, cartItems);
     },
     onSuccess: () => {
       toast({
@@ -106,16 +107,16 @@ export function usePOSWorkflow() {
       method: 'cash' | 'card' | 'transfer' | 'split';
       tip?: number;
     }) => {
-      if (!currentOrder) throw new Error('No order created');
+      if (!currentOrder?.id) throw new Error('No order created');
       
       const payment = await processPaymentAndPrint(
-        currentOrder,
+        currentOrder as Order,
         cartItems,
         paymentData
       );
 
       // Close order after successful payment
-      await closeOrderPOS(currentOrder.id);
+      await closeOrderPOS(currentOrder.id!);
       
       return payment;
     },
@@ -144,8 +145,8 @@ export function usePOSWorkflow() {
    */
   const holdOrderMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOrder) throw new Error('No order created');
-      await holdOrderPOS(currentOrder.id);
+      if (!currentOrder?.id) throw new Error('No order created');
+      await holdOrderPOS(currentOrder.id!);
     },
     onSuccess: () => {
       toast({

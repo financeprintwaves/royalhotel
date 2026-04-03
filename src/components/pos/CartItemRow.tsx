@@ -1,7 +1,6 @@
 import React from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
-import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { Minus, Plus, X } from 'lucide-react';
 import type { CartItem } from '@/types/pos';
 
 interface CartItemRowProps {
@@ -19,53 +18,44 @@ export default function CartItemRow({ item }: CartItemRowProps) {
   const itemTotal = item.menuItem.price * item.quantity;
 
   return (
-    <div className="flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-blue-800 via-blue-850 to-blue-800 border border-blue-700 rounded-lg hover:shadow-lg transition-all duration-300 group hover:from-blue-750 hover:via-blue-800">
-      {/* Item Details */}
+    <div className="flex items-center gap-2 py-2 px-3 bg-slate-800 rounded-md group hover:bg-slate-750 transition-colors">
+      {/* Name */}
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-white truncate text-base">{item.menuItem.description}</div>
-        <div className="text-sm text-blue-400 mt-1">
-          <span className="text-cyan-400 font-semibold">${item.menuItem.price.toFixed(2)}</span>
-          <span className="mx-1.5 text-blue-500">×</span>
-          <span className="font-semibold text-blue-300">{item.quantity}</span>
+        <div className="text-sm font-medium text-white truncate">{item.menuItem.name}</div>
+        <div className="text-xs text-slate-400 tabular-nums">
+          ${item.menuItem.price.toFixed(2)} × {item.quantity}
         </div>
       </div>
 
-      {/* Quantity Controls */}
-      <div className="flex items-center gap-1.5 bg-blue-700/50 rounded-lg p-1 border border-blue-600/50">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0 text-blue-300 hover:bg-blue-600/30 hover:text-cyan-300 font-bold transition-colors"
+      {/* Quantity controls */}
+      <div className="flex items-center gap-1 bg-slate-700 rounded px-1 py-0.5">
+        <button
+          className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 rounded transition-colors"
           onClick={() => handleQuantityChange(-1)}
         >
-          −
-        </Button>
-        <span className="w-8 text-center text-sm font-bold text-white">{item.quantity}</span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0 text-blue-300 hover:bg-blue-600/30 hover:text-cyan-300 font-bold transition-colors"
+          <Minus className="w-3 h-3" />
+        </button>
+        <span className="w-6 text-center text-xs font-bold text-white tabular-nums">{item.quantity}</span>
+        <button
+          className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 rounded transition-colors"
           onClick={() => handleQuantityChange(1)}
         >
-          +
-        </Button>
+          <Plus className="w-3 h-3" />
+        </button>
       </div>
 
-      {/* Item Total */}
-      <div className="text-right min-w-16">
-        <div className="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-400 to-cyan-400 drop-shadow-sm">${itemTotal.toFixed(2)}</div>
+      {/* Total */}
+      <div className="text-sm font-bold text-emerald-400 tabular-nums min-w-[60px] text-right">
+        ${itemTotal.toFixed(2)}
       </div>
 
-      {/* Remove Button */}
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-7 w-7 p-0 text-blue-500 hover:bg-red-600/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+      {/* Remove */}
+      <button
+        className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
         onClick={() => removeCartItem(item.id)}
-        title="Remove item"
       >
-        <X className="w-4 h-4" />
-      </Button>
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }

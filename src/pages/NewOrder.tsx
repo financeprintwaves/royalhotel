@@ -88,7 +88,7 @@ export default function NewOrder() {
       if (existing) {
         return prev.map(c => c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
       }
-      return [...prev, { menuItem: item, quantity: 1 }];
+      return [...prev, { id: `${item.id}-${Date.now()}`, menuItem: item, quantity: 1 }];
     });
   }
 

@@ -73,7 +73,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const itemsPerPage = 12;
 
-  // Cart management
   const addCartItem = useCallback((item: CartItem) => {
     setCartItems((prev) => {
       const existing = prev.find((i) => i.id === item.id);
@@ -100,86 +99,46 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCartItems([]);
   }, []);
 
-  // Table/Order type
   const setSelectedTable = useCallback((tableId: string | null, tableName: string | null) => {
     setSelectedTableIdState(tableId);
     setSelectedTableName(tableName);
   }, []);
 
-  // Calculations
   const getOrderSubtotal = useCallback(() => {
-    return cartItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    return cartItems.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
   }, [cartItems]);
 
   const getOrderTax = useCallback(() => {
-    const subtotal = getOrderSubtotal();
-    const taxRate = 0.1; // 10% default, can be made configurable
-    return subtotal * taxRate;
+    return getOrderSubtotal() * 0.1;
   }, [getOrderSubtotal]);
 
   const getOrderTotal = useCallback(() => {
     const subtotal = getOrderSubtotal();
     const tax = getOrderTax();
-    const discount = currentOrder?.discount || 0;
+    const discount = currentOrder?.discount_amount || 0;
     return subtotal + tax - discount;
   }, [currentOrder, getOrderSubtotal, getOrderTax]);
 
   const getBalanceRemaining = useCallback(() => {
-    const total = getOrderTotal();
-    return Math.max(0, total - amountPaid);
+    return Math.max(0, getOrderTotal() - amountPaid);
   }, [amountPaid, getOrderTotal]);
 
   const getChange = useCallback(() => {
-    const total = getOrderTotal();
-    return Math.max(0, amountPaid - total);
+    return Math.max(0, amountPaid - getOrderTotal());
   }, [amountPaid, getOrderTotal]);
 
-  // Held orders
   const addHeldOrder = useCallback((order: Order) => {
     setHeldOrders((prev) => [...prev, order]);
   }, []);
 
   const value: POSContextType = {
-    currentOrder,
-    cartItems,
-    selectedTableId,
-    selectedTableName,
-    orderType,
-    selectedCategory,
-    currentPage,
-    itemsPerPage,
-    searchQuery,
-    paymentMethod,
-    amountPaid,
-    tipAmount,
-    heldOrders,
-    
-    setCurrentOrder,
-    setCartItems,
-    addCartItem,
-    removeCartItem,
-    updateCartItem,
-    clearCart,
-    
-    setSelectedTable,
-    setOrderType,
-    
-    setSelectedCategory,
-    setCurrentPage,
-    setSearchQuery,
-    
-    setPaymentMethod,
-    setAmountPaid,
-    setTipAmount,
-    
-    setHeldOrders,
-    addHeldOrder,
-    
-    getOrderTotal,
-    getOrderTax,
-    getOrderSubtotal,
-    getBalanceRemaining,
-    getChange,
+    currentOrder, cartItems, selectedTableId, selectedTableName, orderType,
+    selectedCategory, currentPage, itemsPerPage, searchQuery,
+    paymentMethod, amountPaid, tipAmount, heldOrders,
+    setCurrentOrder, setCartItems, addCartItem, removeCartItem, updateCartItem, clearCart,
+    setSelectedTable, setOrderType, setSelectedCategory, setCurrentPage, setSearchQuery,
+    setPaymentMethod, setAmountPaid, setTipAmount, setHeldOrders, addHeldOrder,
+    getOrderTotal, getOrderTax, getOrderSubtotal, getBalanceRemaining, getChange,
   };
 
   return <POSContext.Provider value={value}>{children}</POSContext.Provider>;

@@ -78,8 +78,8 @@ export function usePOSWorkflow() {
    */
   const printKOTMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOrder) throw new Error('No order created');
-      await printKOT(currentOrder, cartItems);
+      if (!currentOrder?.id) throw new Error('No order created');
+      await printKOT(currentOrder as Order, cartItems);
     },
     onSuccess: () => {
       toast({

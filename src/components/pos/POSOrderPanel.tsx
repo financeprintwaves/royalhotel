@@ -23,9 +23,9 @@ export default function POSOrderPanel() {
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden shadow-lg">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-white">
+      <div className="bg-slate-700 px-4 py-3 text-white">
         <h3 className="font-bold text-lg">📋 Order Summary</h3>
-        <p className="text-blue-100 text-xs mt-1">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in order</p>
+        <p className="text-slate-300 text-xs mt-1">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in order</p>
       </div>
 
       {/* Order Items */}
@@ -56,9 +56,9 @@ export default function POSOrderPanel() {
         <div className="h-px bg-gradient-to-r from-slate-300 to-slate-300 dark:from-slate-600 to-slate-600"></div>
 
         {/* Total */}
-        <div className="flex justify-between items-center px-2 py-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg">
-          <span className="text-base font-bold text-gray-900 dark:text-white">TOTAL:</span>
-          <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">${total.toFixed(2)}</span>
+        <div className="flex justify-between items-center px-2 py-2 bg-slate-700 rounded-lg">
+          <span className="text-base font-bold text-white">TOTAL:</span>
+          <span className="text-3xl font-bold text-white">${total.toFixed(2)}</span>
         </div>
       </div>
     </div>

@@ -106,10 +106,10 @@ export function usePOSWorkflow() {
       method: 'cash' | 'card' | 'transfer' | 'split';
       tip?: number;
     }) => {
-      if (!currentOrder) throw new Error('No order created');
+      if (!currentOrder?.id) throw new Error('No order created');
       
       const payment = await processPaymentAndPrint(
-        currentOrder,
+        currentOrder as Order,
         cartItems,
         paymentData
       );

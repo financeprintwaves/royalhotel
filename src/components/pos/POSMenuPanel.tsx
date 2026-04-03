@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useCategories, useMenuItems } from '@/hooks/useMenuData';
 import MenuItemCard from './MenuItemCard';

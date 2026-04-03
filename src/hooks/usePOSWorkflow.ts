@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import type { Order } from '@/types/pos';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePOSContext } from '@/contexts/POSContext';

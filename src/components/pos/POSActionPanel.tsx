@@ -9,7 +9,7 @@ import {
 import OrdersDialog from './OrdersDialog';
 
 export default function POSActionPanel() {
-  const { clearCart, addHeldOrder, cartItems, getOrderTotal, heldOrders, setCartItems } = usePOSContext();
+  const { clearCart, cartItems, getOrderTotal } = usePOSContext();
   const navigate = useNavigate();
   const [showOrdersDialog, setShowOrdersDialog] = useState(false);
 

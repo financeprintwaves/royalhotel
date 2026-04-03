@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useCategories } from '@/hooks/useMenuData';
 import { useResponsive } from '@/hooks/useResponsive';

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   ArrowLeft, TrendingUp, TrendingDown, BarChart3, Calendar, Users, Package,
-  DollarSign, Target, AlertTriangle, CheckCircle, Clock, Zap, PieChart as PieChartIcon
+  DollarSign, Target, AlertTriangle, CheckCircle, Clock, Zap, PieChart as PieChartIcon, FileText
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,

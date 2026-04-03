@@ -1,8 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
+const db = supabase as any;
 import type { DeliveryAssignment, DeliveryDriver, DeliveryStatus } from '@/types/pos';
 
 export async function listDeliveryDrivers(): Promise<DeliveryDriver[]> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('delivery_drivers')
     .select('*')
     .order('full_name', { ascending: true });
@@ -17,7 +18,7 @@ export async function createDeliveryDriver(driver: {
   vehicle_plate?: string;
   branch_id: string;
 }): Promise<DeliveryDriver> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('delivery_drivers')
     .insert({ ...driver, status: 'available' })
     .single();
@@ -47,7 +48,7 @@ export async function assignDeliveryOrder(params: {
   eta_minutes: number;
   route_geojson?: string | null;
 }): Promise<DeliveryAssignment> {
-  const { data, error } = await supabase.from('delivery_assignments').insert({
+  const { data, error } = await db.from('delivery_assignments').insert({
     order_id: params.order_id,
     driver_id: params.driver_id,
     branch_id: params.branch_id,
@@ -59,12 +60,12 @@ export async function assignDeliveryOrder(params: {
 
   if (error) throw error;
 
-  await supabase
+  await db
     .from('delivery_drivers')
     .update({ status: 'assigned' })
     .eq('id', params.driver_id);
 
-  await supabase
+  await db
     .from('orders')
     .update({ order_status: 'SENT_TO_KITCHEN' })
     .eq('id', params.order_id);
@@ -73,7 +74,7 @@ export async function assignDeliveryOrder(params: {
 }
 
 export async function updateDeliveryStatus(assignmentId: string, status: DeliveryStatus): Promise<DeliveryAssignment> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('delivery_assignments')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', assignmentId)
@@ -83,13 +84,13 @@ export async function updateDeliveryStatus(assignmentId: string, status: Deliver
 
   if (status === 'delivered' || status === 'cancelled' || status === 'failed') {
     const assignment = data as DeliveryAssignment;
-    await supabase
+    await db
       .from('delivery_drivers')
       .update({ status: 'available' })
       .eq('id', assignment.driver_id);
 
     if (status === 'delivered') {
-      await supabase
+      await db
         .from('orders')
         .update({ order_status: 'PAID', payment_status: 'paid' })
         .eq('id', assignment.order_id);

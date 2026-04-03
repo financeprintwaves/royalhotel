@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+const db = supabase as any;
 import type {
   RewardsRedemption,
   CustomerNotification,
@@ -20,7 +21,7 @@ export async function redeemRewards(params: {
   notes?: string;
   redeemed_by?: string;
 }) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('rewards_redemptions')
     .insert([params])
     .select()
@@ -31,7 +32,7 @@ export async function redeemRewards(params: {
 }
 
 export async function getRedemptionHistory(customerId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('rewards_redemptions')
     .select('*')
     .eq('customer_id', customerId)
@@ -42,7 +43,7 @@ export async function getRedemptionHistory(customerId: string) {
 }
 
 export async function getRedemptionStats(branchId: string, startDate: string, endDate: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('rewards_redemptions')
     .select('redemption_type, COUNT(*) as count, SUM(points_redeemed) as total_points')
     .eq('branch_id', branchId)
@@ -66,7 +67,7 @@ export async function sendNotification(params: {
   related_order_id?: string;
   scheduled_for?: string;
 }) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('customer_notifications')
     .insert([{ ...params, status: 'pending' }])
     .select()
@@ -92,7 +93,7 @@ export async function getNotificationHistory(customerId?: string, branchId?: str
 }
 
 export async function updateNotificationStatus(notificationId: string, status: string, sentAt?: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('customer_notifications')
     .update({
       status,
@@ -119,7 +120,7 @@ export async function submitFeedback(params: {
   // Determine sentiment based on rating
   const sentiment = params.rating >= 4 ? 'positive' : params.rating >= 3 ? 'neutral' : 'negative';
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('customer_feedback')
     .insert([{ ...params, sentiment, is_public: true }])
     .select()
@@ -130,7 +131,7 @@ export async function submitFeedback(params: {
 }
 
 export async function getFeedbackStats(branchId: string, startDate: string, endDate: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('customer_feedback')
     .select('rating, sentiment, COUNT(*) as count, AVG(CAST(rating as NUMERIC)) as avg_rating')
     .eq('branch_id', branchId)
@@ -143,7 +144,7 @@ export async function getFeedbackStats(branchId: string, startDate: string, endD
 }
 
 export async function getFeedbackList(branchId: string, limit: number = 50) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('customer_feedback')
     .select('*')
     .eq('branch_id', branchId)
@@ -156,7 +157,7 @@ export async function getFeedbackList(branchId: string, limit: number = 50) {
 }
 
 export async function respondToFeedback(feedbackId: string, response: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('customer_feedback')
     .update({
       response_from_management: response,
@@ -184,7 +185,7 @@ export async function createCampaign(params: {
   target_segment: string;
   created_by?: string;
 }) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('marketing_campaigns')
     .insert([{ ...params, status: 'draft' }])
     .select()
@@ -208,7 +209,7 @@ export async function getCampaigns(branchId: string, status?: string) {
 }
 
 export async function updateCampaignStatus(campaignId: string, status: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('marketing_campaigns')
     .update({ status })
     .eq('id', campaignId)
@@ -226,7 +227,7 @@ export async function addCampaignRecipients(campaignId: string, recipients: Arra
     delivery_status: 'pending'
   }));
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('campaign_recipients')
     .insert(campaignRecipients)
     .select();
@@ -236,7 +237,7 @@ export async function addCampaignRecipients(campaignId: string, recipients: Arra
 }
 
 export async function getCampaignRecipients(campaignId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('campaign_recipients')
     .select('*')
     .eq('campaign_id', campaignId)
@@ -253,7 +254,7 @@ export async function updateRecipientStatus(recipientId: string, status: string)
   if (status === 'redeemed') updatePayload.redeemed_at = new Date().toISOString();
   if (status === 'sent') updatePayload.sent_at = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('campaign_recipients')
     .update(updatePayload)
     .eq('id', recipientId)
@@ -266,7 +267,7 @@ export async function updateRecipientStatus(recipientId: string, status: string)
 
 // Currency Functions
 export async function getCurrencies(branchId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('currencies')
     .select('*')
     .eq('branch_id', branchId)
@@ -277,7 +278,7 @@ export async function getCurrencies(branchId: string) {
 }
 
 export async function getPrimaryCurrency(branchId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('currencies')
     .select('*')
     .eq('branch_id', branchId)
@@ -297,7 +298,7 @@ export async function addCurrency(params: {
   decimal_places?: number;
   rounding_mode?: string;
 }) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('currencies')
     .insert([{ ...params, exchange_rate: params.exchange_rate || 1, is_primary: params.is_primary || false }])
     .select()
@@ -308,7 +309,7 @@ export async function addCurrency(params: {
 }
 
 export async function updateCurrencyRate(currencyId: string, exchangeRate: number) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('currencies')
     .update({ exchange_rate: exchangeRate })
     .eq('id', currencyId)

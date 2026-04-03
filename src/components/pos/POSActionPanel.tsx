@@ -32,33 +32,33 @@ export default function POSActionPanel() {
   ];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-800 p-3 space-y-3">
-      {/* Top 2 Buttons - 20% */}
-      <div className="flex-shrink-0 space-y-2">
-        <div className="grid grid-cols-2 gap-2 h-auto">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-800 p-2 space-y-2">
+      {/* Top 2 Buttons - Simple */}
+      <div className="flex-shrink-0 space-y-1">
+        <div className="grid grid-cols-2 gap-1">
           {topButtons.map((btn) => (
             <button
               key={btn.id}
-              className={`px-3 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-md ${btn.color} ${btn.textColor} text-center text-xs uppercase tracking-wider`}
+              className="px-2 py-2 rounded font-semibold transition-colors duration-200 bg-slate-700 hover:bg-slate-600 text-white text-center text-xs uppercase tracking-wider"
               title={btn.label}
             >
-              <div className="text-lg leading-tight">{btn.icon}</div>
+              <div className="text-base leading-tight">{btn.icon}</div>
               <div className="text-xs leading-tight whitespace-nowrap">{btn.label}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Function Keys - 3 rows, 35% */}
-      <div className="flex-shrink-0 border-t border-slate-700 pt-3">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">⌨️ Functions</div>
-        <div className="space-y-2">
+      {/* Function Keys - 3 rows */}
+      <div className="flex-shrink-0 border-t border-slate-700 pt-2">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Functions</div>
+        <div className="space-y-1">
           {functionRows.map((row, rowIdx) => (
-            <div key={rowIdx} className="grid grid-cols-3 gap-2">
+            <div key={rowIdx} className="grid grid-cols-3 gap-1">
               {row.map((btn) => (
                 <button
                   key={btn.key}
-                  className="flex flex-col items-center justify-center rounded-md font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-md bg-slate-700 text-white text-center aspect-square py-2"
+                  className="flex flex-col items-center justify-center rounded font-semibold transition-colors duration-200 bg-slate-700 hover:bg-slate-600 text-white text-center py-2"
                   title={`${btn.key}: ${btn.label}`}
                 >
                   <div className="text-sm leading-tight">{btn.icon}</div>
@@ -70,17 +70,17 @@ export default function POSActionPanel() {
         </div>
       </div>
 
-      {/* Payment Methods - 3 buttons, 40% */}
-      <div className="flex-1 border-t border-slate-700 pt-3 flex flex-col">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">💳 Payment</div>
-        <div className="grid grid-cols-1 gap-2 flex-1">
+      {/* Payment Methods - 3 buttons */}
+      <div className="flex-1 border-t border-slate-700 pt-2 flex flex-col">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Payment</div>
+        <div className="grid grid-cols-1 gap-1 flex-1">
           {paymentMethods.map((method) => (
             <button
               key={method.id}
               onClick={method.onClick}
-              className="h-full rounded-md bg-slate-700 hover:bg-slate-600 text-white font-bold shadow-md transition-all duration-200 flex flex-col justify-center items-center p-2 text-xs uppercase tracking-wider transform hover:scale-105 active:scale-95"
+              className="h-full rounded bg-slate-700 hover:bg-slate-600 text-white font-semibold transition-colors duration-200 flex flex-col justify-center items-center p-2 text-xs uppercase tracking-wider"
             >
-              <span className="text-xl">{method.icon}</span>
+              <span className="text-lg">{method.icon}</span>
               <span className="mt-1">{method.label}</span>
             </button>
           ))}

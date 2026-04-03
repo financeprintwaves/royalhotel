@@ -129,17 +129,13 @@ export default function POSLayout() {
     );
   }
 
-  // Desktop Layout: 4 columns - Professional Neutral Design
+  // Desktop Layout: 3 columns - Professional Neutral Design
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-900 to-slate-950 dark:from-slate-950 dark:to-black overflow-hidden relative">
-      {/* Subtle background glow effect */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-slate-800/20 via-transparent to-slate-800/10 pointer-events-none"></div>
+    <div className="flex h-screen bg-slate-900 overflow-hidden relative">
       {/* Left Sidebar: Order Summary + Hold Orders */}
-      <div className="w-72 border-r border-slate-700 bg-slate-800 flex flex-col overflow-hidden shadow-2xl relative">
-        {/* Subtle accent */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-700/5 to-transparent pointer-events-none"></div>
+      <div className="w-96 border-r border-slate-700 bg-slate-800 flex flex-col overflow-hidden shadow-lg relative">
         {/* Header with Total - Professional Style */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-slate-700 to-slate-600 p-5 rounded-br-xl shadow-lg relative overflow-hidden">
+        <div className="flex-shrink-0 bg-slate-700 p-5 shadow-md relative overflow-hidden">
           <div className="relative">
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-widest">💰 TOTAL</h2>
             <div className="text-4xl font-bold text-white mt-3 tabular-nums tracking-tight">
@@ -158,20 +154,20 @@ export default function POSLayout() {
         <div className="flex-shrink-0 p-4 border-t border-slate-700 space-y-3 rounded-t-xl bg-slate-900 relative z-10">
           <button
             onClick={() => setShowHoldOrders(true)}
-            className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-all duration-300 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 text-sm uppercase tracking-wider"
+            className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-colors duration-200 min-h-[44px] shadow-md text-sm uppercase tracking-wider"
           >
             ⏸️ Hold
           </button>
           <button
             onClick={() => setShowKOTDialog(true)}
-            className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-all duration-300 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 text-sm uppercase tracking-wider"
+            className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-colors duration-200 min-h-[44px] shadow-md text-sm uppercase tracking-wider"
           >
             🖨️ Print KOT
           </button>
           <button
             onClick={() => setShowPaymentDialog(true)}
             disabled={cartItems.length === 0}
-            className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:hover:bg-slate-800 text-white rounded-lg font-bold transition-all duration-300 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 disabled:transform-none disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+            className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:hover:bg-slate-800 text-white rounded-lg font-bold transition-colors duration-200 min-h-[44px] shadow-md disabled:cursor-not-allowed text-sm uppercase tracking-wider"
           >
             💳 Payment
           </button>
@@ -181,17 +177,15 @@ export default function POSLayout() {
       {/* Center-Left: Category Navigation */}
       {/* Removed - Categories now at top of menu */}
 
-      {/* Center-Right: Menu Items Grid - Main Focus - Now spans full width */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/8 via-transparent to-cyan-500/5 pointer-events-none"></div>
+      {/* Center: Menu Items Grid */}
+      <div className="w-96 flex flex-col overflow-hidden bg-slate-900 relative">
         <div className="relative z-10 h-full">
           <POSMenuPanel />
         </div>
       </div>
 
       {/* Right Sidebar: Payment + Function Buttons */}
-      <div className="w-64 border-l border-slate-700 bg-gradient-to-b from-slate-800 via-slate-850 to-slate-900 flex flex-col overflow-hidden shadow-2xl rounded-l-2xl relative">
-        <div className="absolute inset-0 bg-gradient-to-l from-cyan-500/5 to-transparent pointer-events-none"></div>
+      <div className="w-80 border-l border-slate-700 bg-slate-800 flex flex-col overflow-hidden shadow-lg relative">
         <div className="relative z-10 h-full">
           <POSActionPanel />
         </div>

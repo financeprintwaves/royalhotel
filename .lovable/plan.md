@@ -1,65 +1,45 @@
 
 
-## Fix: Manager Can't See Orders — Race Condition in AuthContext
+## Plan: Professional POS Terminal Redesign
 
-### Root Cause
-The session replay confirms the manager (`rhbr@royalhotel.com`) **has the correct branch assignment** in the database (Royal Hyderabadi, branch_id `c39f6b77...`), and the RLS policies are correct.
+### Problems with Current POS
+1. **Monotone blue-on-blue** everywhere — poor contrast, hard to distinguish sections
+2. **Emoji icons** (🖨️ 💳 🛒) instead of proper Lucide icons — looks amateur
+3. **Menu items in single column** with h-40 image placeholders — wastes space, low density
+4. **aspect-square buttons** making action buttons enormous squares
+5. **Gradient text effects** on prices — hard to read
+6. **Redundant headers** — POSLayout shows total AND POSOrderPanel shows "Order Summary" header with total again
+7. **Build errors**: `unit_price` doesn't exist on CartItem, `discount` doesn't exist on Order, `icon` doesn't exist on MenuItem, `items` doesn't exist on Order, `HOLD` not valid OrderStatus
 
-The actual problem is a **race condition in AuthContext**: `setLoading(false)` fires immediately (line 107/127) BEFORE `fetchUserData()` resolves. The Dashboard renders with `profile = null`, sees no branch, and shows "No Branch Assigned." The profile eventually loads, but if the user navigates during that window, the state resets.
+### Design Direction
+Clean, dark-themed professional POS (slate-900 base) with:
+- High-contrast white text on dark backgrounds
+- Color-coded semantic actions (green = pay, orange = KOT, red = void/cancel)
+- Compact information density — no wasted space
+- Proper Lucide icons throughout
+- Menu items in a responsive grid (3-4 columns on desktop)
+- Compact cart rows without excessive padding
 
-This means managers see the "No Branch Assigned" screen and can't access POS/Orders at all — they never get to see any Edit/Cancel buttons.
+### Files to Change
 
-### Fix
-
-#### 1. AuthContext — Wait for profile before setting loading=false (`src/contexts/AuthContext.tsx`)
-
-Move `setLoading(false)` inside the `fetchUserData().then()` callback so the app stays in loading state until the profile is available:
-
-```typescript
-// onAuthStateChange handler
-if (session?.user) {
-  fetchUserData(session.user.id).then((profileData) => {
-    if (!isMounted) return;
-    if (profileData?.branch_id) {
-      initializeSessionTracking(session.user.id, profileData.branch_id);
-    }
-    setLoading(false); // ← Move here
-  }).catch(() => {
-    if (isMounted) setLoading(false);
-  });
-} else {
-  setProfile(null);
-  setRoles([]);
-  setLoading(false); // ← Keep here for logged-out state
-}
-```
-
-Same change for the `getSession()` block.
-
-#### 2. Dashboard — Handle edge case where profile loads slowly (`src/pages/Dashboard.tsx`)
-
-Reset `hasBranch` to false when profile changes to null (currently it only sets to true, never resets):
-
-```typescript
-useEffect(() => {
-  if (profile?.branch_id) {
-    setHasBranch(true);
-    loadData();
-  } else {
-    setHasBranch(false);
-  }
-}, [profile]);
-```
-
-### Files Modified
 | File | Change |
 |------|--------|
-| `src/contexts/AuthContext.tsx` | Move `setLoading(false)` after `fetchUserData` resolves |
-| `src/pages/Dashboard.tsx` | Reset `hasBranch` when profile is null |
+| `src/contexts/POSContext.tsx` | Fix `unit_price` → `menuItem.price`, remove `discount` reference |
+| `src/components/pos/POSLayout.tsx` | Professional dark theme, compact buttons (no aspect-square), Lucide icons, tighter spacing |
+| `src/components/pos/POSOrderPanel.tsx` | Remove redundant header, compact totals, clean dark styling |
+| `src/components/pos/POSMenuPanel.tsx` | Multi-column grid (3-4 cols), compact category pills, cleaner search |
+| `src/components/pos/MenuItemCard.tsx` | Compact horizontal card (no h-40 image area), remove `icon`/`is_favorite`/`is_daily_special` refs, proper grid item |
+| `src/components/pos/CartItemRow.tsx` | Compact row, remove gradient text, readable prices, tighter padding |
+| `src/components/pos/POSActionPanel.tsx` | Compact function grid, proper Lucide icons, semantic colors |
+| `src/components/pos/POSTableSelector.tsx` | Clean styling matching new theme |
+| `src/components/pos/OrdersDialog.tsx` | Fix mock data to match Order type (remove `items`, `HOLD` status) |
+| `src/components/pos/HoldOrdersPanel.tsx` | Use `any` cast for items access (held orders store cart items separately) |
 
-### What This Fixes
-- Manager no longer sees "No Branch Assigned" flash
-- Profile, roles, and branch are all loaded before the app renders
-- POS and Orders pages will have correct `isManagerOrAdmin()` from the start
-- Edit/Cancel buttons (already fixed in last edit) will be visible immediately
+### Key Design Decisions
+- **Color scheme**: Slate-900/800 base, white text, green for money/pay, amber for KOT, blue for info
+- **Menu grid**: 3 columns desktop, 2 tablet, 1 mobile — compact cards showing name + price + add button
+- **Cart**: Tight single-line rows with inline quantity controls
+- **Action panel**: Small rectangular buttons in a grid, not huge squares
+- **No emojis**: All Lucide icons (Printer, CreditCard, Pause, LogOut, etc.)
+- **Panel widths**: Left 25% (cart), Center 50% (menu), Right 25% (actions) — more menu space
 

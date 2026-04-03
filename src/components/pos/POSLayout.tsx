@@ -179,18 +179,13 @@ export default function POSLayout() {
       </div>
 
       {/* Center-Left: Category Navigation */}
-      <div className="w-64 border-r border-slate-700 bg-gradient-to-b from-slate-800 via-slate-850 to-slate-900 flex flex-col overflow-hidden shadow-xl relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent pointer-events-none"></div>
-        <div className="relative z-10">
-          <POSMenuPanel showCategoriesOnly />
-        </div>
-      </div>
+      {/* Removed - Categories now at top of menu */}
 
-      {/* Center-Right: Menu Items Grid - Main Focus */}
+      {/* Center-Right: Menu Items Grid - Main Focus - Now spans full width */}
       <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-500/8 via-transparent to-cyan-500/5 pointer-events-none"></div>
         <div className="relative z-10 h-full">
-          <POSMenuPanel hideCategoryBar />
+          <POSMenuPanel />
         </div>
       </div>
 

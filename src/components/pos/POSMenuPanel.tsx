@@ -2,21 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useCategories, useMenuItems } from '@/hooks/useMenuData';
 import MenuItemCard from './MenuItemCard';
-import CategoryTabBar from './CategoryTabBar';
 import MenuPagination from './MenuPagination';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
-import type { MenuItem } from '@/types/pos';
+import type { MenuItem, Category } from '@/types/pos';
 
 interface POSMenuPanelProps {
-  showCategoriesOnly?: boolean;
-  hideCategoryBar?: boolean;
   compact?: boolean;
 }
 
 export default function POSMenuPanel({
-  showCategoriesOnly,
-  hideCategoryBar,
   compact,
 }: POSMenuPanelProps) {
   const { selectedCategory, setSelectedCategory, currentPage, setCurrentPage, searchQuery, setSearchQuery } =
@@ -57,29 +52,41 @@ export default function POSMenuPanel({
     setCurrentPage(1);
   }, [selectedCategory, setCurrentPage]);
 
-  if (showCategoriesOnly) {
-    return (
-      <div className="p-3 h-full overflow-y-auto">
-        <CategoryTabBar
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Categories - Horizontal Scrollable */}
+      <div className="flex-shrink-0 border-b border-slate-700 bg-slate-800 overflow-x-auto overflow-y-hidden">
+        <div className="flex gap-2 p-2 min-w-min">
+            {/* All button */}
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`flex-shrink-0 px-4 py-2 font-bold rounded-lg transition-all duration-300 whitespace-nowrap text-sm uppercase tracking-wider ${
+                selectedCategory === null
+                  ? 'bg-slate-600 text-white shadow-lg scale-105'
+                  : 'bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600'
+              }`}
+            >
+              ALL
+            </button>
+            {/* Category buttons */}
+            {categories?.map((cat: Category) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex-shrink-0 px-4 py-2 font-bold rounded-lg transition-all duration-300 whitespace-nowrap text-sm uppercase tracking-wider ${
+                  selectedCategory === cat.id
+                    ? 'bg-slate-600 text-white shadow-lg scale-105'
+                    : 'bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
       {/* Search Bar */}
-      <div className="flex-shrink-0 p-3 border-b space-y-3">
-        {!hideCategoryBar && (
-          <CategoryTabBar
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
-        )}
+      <div className="flex-shrink-0 p-3 border-b border-slate-700">
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input

@@ -11,9 +11,7 @@ interface POSMenuPanelProps {
   compact?: boolean;
 }
 
-export default function POSMenuPanel({
-  compact,
-}: POSMenuPanelProps) {
+export default function POSMenuPanel({ compact }: POSMenuPanelProps) {
   const { selectedCategory, setSelectedCategory, currentPage, setCurrentPage, searchQuery, setSearchQuery } =
     usePOSContext();
   const { data: categories = [] } = useCategories();
@@ -22,69 +20,61 @@ export default function POSMenuPanel({
 
   const filteredItems = useMemo(() => {
     let filtered = items || [];
-
-    // Filter by category
     if (selectedCategory) {
       filtered = filtered.filter((item: MenuItem) => item.category_id === selectedCategory);
     }
-
-    // Filter by search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (item: MenuItem) =>
-          item.description?.toLowerCase().includes(query) ||
-          item.name?.toLowerCase().includes(query)
+          item.name?.toLowerCase().includes(query) ||
+          item.description?.toLowerCase().includes(query)
       );
     }
-
     return filtered;
   }, [items, selectedCategory, searchQuery]);
 
-  const itemsPerPage = 12;
+  const itemsPerPage = compact ? 8 : 18;
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const paginatedItems = filteredItems.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // Reset to page 1 when category changes
   React.useEffect(() => {
     setCurrentPage(1);
   }, [selectedCategory, setCurrentPage]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Categories - Horizontal Scrollable with Arrow Buttons */}
-      <div className="flex-shrink-0 border-b border-blue-700 bg-blue-800 flex items-center">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-900">
+      {/* Categories */}
+      <div className="flex-shrink-0 border-b border-slate-700 flex items-center bg-slate-800">
         <button
-          onClick={() => categoryScrollRef.current?.scrollBy({ left: -100, behavior: 'smooth' })}
-          className="flex-shrink-0 px-2 py-2 bg-blue-700 hover:bg-blue-600 text-blue-300 hover:text-white transition-colors duration-200"
+          onClick={() => categoryScrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+          className="flex-shrink-0 px-2 py-2 text-slate-400 hover:text-white transition-colors"
         >
-          <ChevronLeft size={18} />
+          <ChevronLeft size={16} />
         </button>
         <div className="flex-1 overflow-x-auto overflow-y-hidden" ref={categoryScrollRef} style={{ scrollBehavior: 'smooth' }}>
-          <div className="flex gap-1 p-1 min-w-min">
-            {/* All button */}
+          <div className="flex gap-1 p-1.5 min-w-min">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`flex-shrink-0 px-3 py-2 font-semibold rounded text-xs uppercase tracking-wider transition-colors duration-200 whitespace-nowrap ${
+              className={`flex-shrink-0 px-3 py-1.5 font-medium rounded text-xs uppercase tracking-wide transition-colors whitespace-nowrap ${
                 selectedCategory === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-blue-700 text-blue-300 hover:text-white hover:bg-blue-600'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600'
               }`}
             >
-              ALL
+              All
             </button>
-            {/* Category buttons */}
             {categories?.map((cat: Category) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`flex-shrink-0 px-3 py-2 font-semibold rounded text-xs uppercase tracking-wider transition-colors duration-200 whitespace-nowrap ${
+                className={`flex-shrink-0 px-3 py-1.5 font-medium rounded text-xs uppercase tracking-wide transition-colors whitespace-nowrap ${
                   selectedCategory === cat.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-blue-700 text-blue-300 hover:text-white hover:bg-blue-600'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600'
                 }`}
               >
                 {cat.name}
@@ -93,20 +83,20 @@ export default function POSMenuPanel({
           </div>
         </div>
         <button
-          onClick={() => categoryScrollRef.current?.scrollBy({ left: 100, behavior: 'smooth' })}
-          className="flex-shrink-0 px-2 py-2 bg-blue-700 hover:bg-blue-600 text-blue-300 hover:text-white transition-colors duration-200"
+          onClick={() => categoryScrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+          className="flex-shrink-0 px-2 py-2 text-slate-400 hover:text-white transition-colors"
         >
-          <ChevronRight size={18} />
+          <ChevronRight size={16} />
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex-shrink-0 p-2 border-b border-blue-700">
+      {/* Search */}
+      <div className="flex-shrink-0 p-2 border-b border-slate-700">
         <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-blue-500" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <Input
-            placeholder="Search..."
-            className="pl-8 h-8 text-xs bg-blue-700 border-blue-600 text-white placeholder-blue-400"
+            placeholder="Search menu..."
+            className="pl-8 h-9 text-sm bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -116,11 +106,11 @@ export default function POSMenuPanel({
       {/* Menu Grid */}
       <div className="flex-1 overflow-y-auto p-2">
         {items.length === 0 ? (
-          <div className="text-center text-muted-foreground">Loading menu...</div>
+          <div className="flex items-center justify-center h-full text-slate-500 text-sm">Loading menu...</div>
         ) : paginatedItems.length === 0 ? (
-          <div className="text-center text-muted-foreground">No items found</div>
+          <div className="flex items-center justify-center h-full text-slate-500 text-sm">No items found</div>
         ) : (
-          <div className={`grid gap-2 ${compact ? 'grid-cols-1' : 'grid-cols-1'}`}>
+          <div className={`grid gap-2 ${compact ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
             {paginatedItems.map((item: MenuItem) => (
               <MenuItemCard key={item.id} item={item} />
             ))}
@@ -130,7 +120,7 @@ export default function POSMenuPanel({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex-shrink-0 border-t p-3">
+        <div className="flex-shrink-0 border-t border-slate-700 p-2">
           <MenuPagination
             currentPage={currentPage}
             totalPages={totalPages}

@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Plus } from 'lucide-react';
 import type { MenuItem } from '@/types/pos';
 
 interface MenuItemCardProps {
@@ -20,44 +19,40 @@ export default function MenuItemCard({ item }: MenuItemCardProps) {
   }, [item, addCartItem]);
 
   return (
-    <Card
-      className="overflow-hidden cursor-pointer flex flex-col h-full bg-blue-700 border border-blue-600 group hover:bg-blue-600 transition-colors"
+    <button
       onClick={handleAddToCart}
+      className="flex items-center gap-3 p-3 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 hover:border-slate-600 transition-all duration-150 text-left group w-full"
     >
-      {/* Image or Icon - Simple Background */}
-      <div className="w-full h-40 bg-blue-600 flex items-center justify-center text-5xl relative overflow-hidden">
-        <div className="relative z-10">{item.icon || '🍽️'}</div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 p-4 flex flex-col bg-blue-700">
-        <h4 className="font-bold text-lg line-clamp-2 text-white mb-2">{item.description}</h4>
-        {item.is_favorite && (
-          <span className="inline-flex items-center text-sm bg-blue-500 text-blue-100 px-3 py-1 rounded font-semibold mb-2 w-fit">
-            ⭐ Favorite
-          </span>
-        )}
-        {item.is_daily_special && (
-          <span className="inline-flex items-center text-sm bg-blue-500 text-blue-100 px-3 py-1 rounded font-semibold w-fit">
-            🌟 Special
-          </span>
-        )}
-      </div>
-
-      {/* Price Section */}
-      <div className="px-4 py-3 border-t border-blue-600 bg-blue-700">
-        <div className="text-3xl font-bold text-white">
-          ${item.price.toFixed(2)}
+      {/* Image thumbnail */}
+      {item.image_url ? (
+        <img
+          src={item.image_url}
+          alt={item.name}
+          className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+        />
+      ) : (
+        <div className="w-12 h-12 rounded-md bg-slate-700 flex items-center justify-center text-slate-500 flex-shrink-0 text-lg">
+          🍽
         </div>
+      )}
+
+      {/* Name & description */}
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-sm text-white truncate">{item.name}</div>
+        {item.description && (
+          <div className="text-xs text-slate-400 truncate">{item.description}</div>
+        )}
       </div>
 
-      {/* Add Button */}
-      <Button
-        className="w-full m-3 mt-0 bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg py-3 rounded transition-colors duration-200 uppercase tracking-wider"
-        onClick={handleAddToCart}
-      >
-        + Add to Cart
-      </Button>
-    </Card>
+      {/* Price */}
+      <div className="text-sm font-bold text-emerald-400 flex-shrink-0 tabular-nums">
+        ${item.price.toFixed(2)}
+      </div>
+
+      {/* Add icon */}
+      <div className="w-7 h-7 rounded-md bg-emerald-600 group-hover:bg-emerald-500 flex items-center justify-center flex-shrink-0 transition-colors">
+        <Plus className="w-4 h-4 text-white" />
+      </div>
+    </button>
   );
 }

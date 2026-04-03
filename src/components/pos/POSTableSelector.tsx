@@ -1,12 +1,9 @@
 import React, { useMemo } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { Button } from '@/components/ui/button';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, UtensilsCrossed, ShoppingBag, Truck } from 'lucide-react';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { RestaurantTable } from '@/types/pos';
 import { useTables } from '@/hooks/useMenuData';
@@ -20,9 +17,9 @@ export default function POSTableSelector({ compact }: POSTableSelectorProps) {
   const { data: tables = [] } = useTables();
 
   const displayText = useMemo(() => {
-    if (orderType === 'takeout') return 'TAKE OUT';
-    if (orderType === 'delivery') return 'DELIVERY';
-    return selectedTableName || 'SELECT TABLE';
+    if (orderType === 'takeout') return 'Take Out';
+    if (orderType === 'delivery') return 'Delivery';
+    return selectedTableName || 'Select Table';
   }, [orderType, selectedTableName]);
 
   return (
@@ -30,28 +27,25 @@ export default function POSTableSelector({ compact }: POSTableSelectorProps) {
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
-          className={compact ? 'text-xs h-8' : 'text-sm'}
+          className={`${compact ? 'text-xs h-8' : 'text-sm'} bg-slate-700 border-slate-600 text-white hover:bg-slate-600 hover:text-white`}
         >
           {displayText}
-          <ChevronDown className="w-4 h-4 ml-2" />
+          <ChevronDown className="w-3.5 h-3.5 ml-1.5 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
-        {/* Order Type Options */}
         <DropdownMenuItem onClick={() => setOrderType('dine-in')}>
-          Dine In
+          <UtensilsCrossed className="w-4 h-4 mr-2" /> Dine In
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setOrderType('takeout')}>
-          Take Out
+          <ShoppingBag className="w-4 h-4 mr-2" /> Take Out
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setOrderType('delivery')}>
-          Delivery
+          <Truck className="w-4 h-4 mr-2" /> Delivery
         </DropdownMenuItem>
 
-        {/* Divider */}
-        <div className="h-px bg-border my-2" />
+        <div className="h-px bg-border my-1" />
 
-        {/* Table Options */}
         {tables?.map((table: RestaurantTable) => (
           <DropdownMenuItem
             key={table.id}

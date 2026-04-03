@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
-import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import {
+  LogOut, Printer, ClipboardList, RotateCcw, Percent, Tag,
+  Ban, StickyNote, HelpCircle, Banknote, CreditCard, CheckCircle,
+  Pause, Play
+} from 'lucide-react';
 import OrdersDialog from './OrdersDialog';
 
 export default function POSActionPanel() {
@@ -11,114 +15,92 @@ export default function POSActionPanel() {
 
   const handleHoldOrder = () => {
     if (cartItems.length === 0) return;
-
-    const order = {
+    // Store held order with items in a separate structure
+    const heldData = {
       id: `hold-${Date.now()}`,
-      order_number: `H${Date.now()}`,
-      order_status: 'HOLD' as const,
-      total_amount: getOrderTotal(),
       items: cartItems,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      total: getOrderTotal(),
+      createdAt: new Date().toISOString(),
     };
-
-    addHeldOrder(order);
+    // Save to localStorage for persistence
+    const existing = JSON.parse(localStorage.getItem('pos_held_orders') || '[]');
+    existing.push(heldData);
+    localStorage.setItem('pos_held_orders', JSON.stringify(existing));
     clearCart();
   };
 
-  const handleRecallOrder = () => {
-    // This will be handled by the HoldOrdersPanel
-    // For now, just show a message
-    console.log('Recall order functionality');
-  };
-
-  const functionRows = [
-    [
-      { key: 'F1', label: 'EXIT', icon: '🚪', action: () => navigate('/') },
-      { key: 'F2', label: 'PRINT', icon: '🖨️', action: () => console.log('Print') },
-      { key: 'F3', label: 'ORDERS', icon: '📋', action: () => setShowOrdersDialog(true) },
-    ],
-    [
-      { key: 'F4', label: 'REFUND', icon: '↩️', action: () => console.log('Refund') },
-      { key: 'F5', label: 'TAX', icon: '📊', action: () => console.log('Tax settings') },
-      { key: 'F6', label: 'DISCT', icon: '🏷️', action: () => console.log('Discount') },
-    ],
-    [
-      { key: 'F7', label: 'VOID', icon: '✗', action: () => console.log('Void order') },
-      { key: 'F8', label: 'NOTE', icon: '📝', action: () => console.log('Add note') },
-      { key: 'F9', label: 'HELP', icon: '❓', action: () => console.log('Help') },
-    ],
+  const functionButtons = [
+    { label: 'Exit', icon: LogOut, action: () => navigate('/'), color: 'bg-red-600 hover:bg-red-500' },
+    { label: 'Print', icon: Printer, action: () => console.log('Print'), color: 'bg-slate-700 hover:bg-slate-600' },
+    { label: 'Orders', icon: ClipboardList, action: () => setShowOrdersDialog(true), color: 'bg-slate-700 hover:bg-slate-600' },
+    { label: 'Refund', icon: RotateCcw, action: () => console.log('Refund'), color: 'bg-slate-700 hover:bg-slate-600' },
+    { label: 'Tax', icon: Percent, action: () => console.log('Tax'), color: 'bg-slate-700 hover:bg-slate-600' },
+    { label: 'Discount', icon: Tag, action: () => console.log('Discount'), color: 'bg-amber-600 hover:bg-amber-500' },
+    { label: 'Void', icon: Ban, action: () => console.log('Void'), color: 'bg-red-700 hover:bg-red-600' },
+    { label: 'Note', icon: StickyNote, action: () => console.log('Note'), color: 'bg-slate-700 hover:bg-slate-600' },
+    { label: 'Help', icon: HelpCircle, action: () => console.log('Help'), color: 'bg-slate-700 hover:bg-slate-600' },
   ];
 
   const paymentMethods = [
-    { id: 'cash', label: 'CASH', icon: '💰', action: () => console.log('Cash payment') },
-    { id: 'card', label: 'CARD', icon: '💳', action: () => console.log('Card payment') },
-    { id: 'other', label: 'OTHER', icon: '✓', action: () => console.log('Other payment') },
+    { label: 'Cash', icon: Banknote, action: () => console.log('Cash'), color: 'bg-emerald-600 hover:bg-emerald-500' },
+    { label: 'Card', icon: CreditCard, action: () => console.log('Card'), color: 'bg-blue-600 hover:bg-blue-500' },
+    { label: 'Other', icon: CheckCircle, action: () => console.log('Other'), color: 'bg-purple-600 hover:bg-purple-500' },
   ];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-blue-800 p-2 space-y-2">
-      {/* Top 2 Buttons - Simple */}
-      <div className="flex-shrink-0 space-y-1">
-        <div className="grid grid-cols-2 gap-1">
-          <button
-            onClick={handleHoldOrder}
-            disabled={cartItems.length === 0}
-            className="aspect-square rounded font-semibold transition-colors duration-200 bg-blue-700 hover:bg-blue-600 disabled:bg-blue-900 disabled:cursor-not-allowed text-white text-center text-xs uppercase tracking-wider flex items-center justify-center"
-            title="Hold Order"
-          >
-            <div className="text-base leading-tight">⏸️</div>
-          </button>
-          <button
-            onClick={handleRecallOrder}
-            className="aspect-square rounded font-semibold transition-colors duration-200 bg-blue-700 hover:bg-blue-600 text-white text-center text-xs uppercase tracking-wider flex items-center justify-center"
-            title="Recall Order"
-          >
-            <div className="text-base leading-tight">📋</div>
-          </button>
-        </div>
+    <div className="flex flex-col h-full overflow-hidden bg-slate-900 p-2 gap-2">
+      {/* Hold / Recall */}
+      <div className="flex-shrink-0 grid grid-cols-2 gap-1.5">
+        <button
+          onClick={handleHoldOrder}
+          disabled={cartItems.length === 0}
+          className="flex items-center justify-center gap-1.5 py-2.5 rounded-md font-medium text-xs text-white bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
+        >
+          <Pause className="w-3.5 h-3.5" />
+          Hold
+        </button>
+        <button
+          className="flex items-center justify-center gap-1.5 py-2.5 rounded-md font-medium text-xs text-white bg-sky-600 hover:bg-sky-500 transition-colors"
+        >
+          <Play className="w-3.5 h-3.5" />
+          Recall
+        </button>
       </div>
 
-      {/* Function Keys - 3 rows */}
-      <div className="flex-shrink-0 border-t border-blue-700 pt-2">
-        <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Functions</div>
-        <div className="space-y-1">
-          {functionRows.map((row, rowIdx) => (
-            <div key={rowIdx} className="grid grid-cols-3 gap-1">
-              {row.map((btn) => (
-                <button
-                  key={btn.key}
-                  onClick={btn.action}
-                  className="aspect-square flex flex-col items-center justify-center rounded font-semibold transition-colors duration-200 bg-blue-700 hover:bg-blue-600 text-white text-center py-2"
-                  title={`${btn.key}: ${btn.label}`}
-                >
-                  <div className="text-sm leading-tight">{btn.icon}</div>
-                  <div className="text-xs leading-tight">{btn.label}</div>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Payment Methods - 3 buttons */}
-      <div className="flex-1 border-t border-blue-700 pt-2 flex flex-col">
-        <div className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-1">Payment</div>
-        <div className="grid grid-cols-1 gap-1 flex-1">
-          {paymentMethods.map((method) => (
+      {/* Function keys */}
+      <div className="flex-shrink-0 border-t border-slate-700 pt-2">
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Functions</div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {functionButtons.map((btn) => (
             <button
-              key={method.id}
-              onClick={method.action}
-              className="h-full aspect-square rounded bg-blue-700 hover:bg-blue-600 text-white font-semibold transition-colors duration-200 flex flex-col justify-center items-center p-2 text-xs uppercase tracking-wider"
+              key={btn.label}
+              onClick={btn.action}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-md font-medium text-xs text-white transition-colors ${btn.color}`}
             >
-              <span className="text-lg">{method.icon}</span>
-              <span className="mt-1">{method.label}</span>
+              <btn.icon className="w-4 h-4 mb-0.5" />
+              <span className="text-[10px] leading-tight">{btn.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Orders Dialog */}
+      {/* Payment */}
+      <div className="flex-1 border-t border-slate-700 pt-2 flex flex-col">
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Payment</div>
+        <div className="grid grid-cols-1 gap-1.5 flex-1">
+          {paymentMethods.map((method) => (
+            <button
+              key={method.label}
+              onClick={method.action}
+              className={`flex items-center justify-center gap-2 rounded-md font-semibold text-sm text-white transition-colors ${method.color}`}
+            >
+              <method.icon className="w-5 h-5" />
+              {method.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {showOrdersDialog && <OrdersDialog onClose={() => setShowOrdersDialog(false)} />}
     </div>
   );

@@ -115,7 +115,7 @@ export function usePOSWorkflow() {
       );
 
       // Close order after successful payment
-      await closeOrderPOS(currentOrder.id);
+      await closeOrderPOS(currentOrder.id!);
       
       return payment;
     },

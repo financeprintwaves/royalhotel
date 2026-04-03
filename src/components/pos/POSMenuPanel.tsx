@@ -56,10 +56,10 @@ export default function POSMenuPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Categories - Horizontal Scrollable with Arrow Buttons */}
-      <div className="flex-shrink-0 border-b border-slate-700 bg-slate-800 flex items-center">
+      <div className="flex-shrink-0 border-b border-blue-700 bg-blue-800 flex items-center">
         <button
           onClick={() => categoryScrollRef.current?.scrollBy({ left: -100, behavior: 'smooth' })}
-          className="flex-shrink-0 px-2 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors duration-200"
+          className="flex-shrink-0 px-2 py-2 bg-blue-700 hover:bg-blue-600 text-blue-300 hover:text-white transition-colors duration-200"
         >
           <ChevronLeft size={18} />
         </button>
@@ -70,8 +70,8 @@ export default function POSMenuPanel({
               onClick={() => setSelectedCategory(null)}
               className={`flex-shrink-0 px-3 py-2 font-semibold rounded text-xs uppercase tracking-wider transition-colors duration-200 whitespace-nowrap ${
                 selectedCategory === null
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-blue-700 text-blue-300 hover:text-white hover:bg-blue-600'
               }`}
             >
               ALL
@@ -83,8 +83,8 @@ export default function POSMenuPanel({
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`flex-shrink-0 px-3 py-2 font-semibold rounded text-xs uppercase tracking-wider transition-colors duration-200 whitespace-nowrap ${
                   selectedCategory === cat.id
-                    ? 'bg-slate-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-700 text-blue-300 hover:text-white hover:bg-blue-600'
                 }`}
               >
                 {cat.name}
@@ -94,19 +94,19 @@ export default function POSMenuPanel({
         </div>
         <button
           onClick={() => categoryScrollRef.current?.scrollBy({ left: 100, behavior: 'smooth' })}
-          className="flex-shrink-0 px-2 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors duration-200"
+          className="flex-shrink-0 px-2 py-2 bg-blue-700 hover:bg-blue-600 text-blue-300 hover:text-white transition-colors duration-200"
         >
           <ChevronRight size={18} />
         </button>
       </div>
 
       {/* Search Bar */}
-      <div className="flex-shrink-0 p-2 border-b border-slate-700">
+      <div className="flex-shrink-0 p-2 border-b border-blue-700">
         <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-blue-500" />
           <Input
             placeholder="Search..."
-            className="pl-8 h-8 text-xs bg-slate-700 border-slate-600 text-white placeholder-slate-400"
+            className="pl-8 h-8 text-xs bg-blue-700 border-blue-600 text-white placeholder-blue-400"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -120,7 +120,7 @@ export default function POSMenuPanel({
         ) : paginatedItems.length === 0 ? (
           <div className="text-center text-muted-foreground">No items found</div>
         ) : (
-          <div className={`grid gap-1 ${compact ? 'grid-cols-2' : 'grid-cols-2'}`}>
+          <div className={`grid gap-2 ${compact ? 'grid-cols-1' : 'grid-cols-1'}`}>
             {paginatedItems.map((item: MenuItem) => (
               <MenuItemCard key={item.id} item={item} />
             ))}

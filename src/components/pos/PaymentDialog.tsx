@@ -180,7 +180,7 @@ function NumericKeypad({ onInput }: { onInput: (digit: string) => void }) {
           <Button
             key={key}
             onClick={() => onInput(key)}
-            className={`py-4 text-lg font-semibold ${
+            className={`py-2 text-lg font-semibold ${
               key === 'clear'
                 ? 'bg-red-500 hover:bg-red-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300 text-black'

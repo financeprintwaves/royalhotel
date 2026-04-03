@@ -1,53 +1,33 @@
-import { toast } from 'sonner';
+// Printer service for handling KOT and receipt printing
+// This is a stub implementation - full implementation needs to be restored
 
-// ─── Simplified Printer Service (Printing disabled) ──────────────
-
-interface KOTItem {
-  name: string;
-  quantity: number;
-  notes?: string | null;
-  portionName?: string | null;
-  isServing?: boolean;
-}
-
-export async function printKOT(
-  tableName: string | null,
-  items: KOTItem[],
-  orderNumber?: string | null,
-): Promise<boolean> {
-  toast.info('Print KOT: ' + (tableName || 'Takeaway'));
+export async function printKOT(tableName: string, items: any[], orderNumber: string): Promise<boolean> {
+  console.log(`Printing KOT for table ${tableName}, order ${orderNumber}:`, items);
+  // TODO: Implement actual KOT printing logic
   return true;
 }
 
-// ─── INVOICE HTML ───────────────────────────────────────────
-
-interface InvoiceItem {
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  portionName?: string | null;
-  isServing?: boolean;
+export async function printReceipt(order: any): Promise<boolean> {
+  console.log('Printing receipt:', order);
+  // TODO: Implement actual receipt printing logic
+  return true;
 }
 
-interface InvoiceData {
-  orderNumber?: string | null;
-  tableName?: string | null;
-  waiterName?: string | null;
-  branchName?: string;
-  branchAddress?: string | null;
-  branchPhone?: string | null;
-  items: InvoiceItem[];
-  subtotal: number;
-  discount: number;
-  total: number;
-  paymentMethod: string;
-  isFOC?: boolean;
-  focName?: string | null;
+export async function printInvoice(order: any): Promise<boolean> {
+  console.log('Printing invoice:', order);
+  // TODO: Implement actual invoice printing logic
+  return true;
 }
 
-export async function printInvoice(data: InvoiceData): Promise<boolean> {
-  toast.info(`Print Invoice: ${data.tableName || 'Takeaway'} - ${data.total.toFixed(3)} ${data.paymentMethod}`);
+export async function getPrinters(branchId?: string): Promise<any[]> {
+  console.log('Getting printers for branch:', branchId);
+  // TODO: Implement actual printer discovery logic
+  return [];
+}
+
+export async function testPrinter(printerId: string): Promise<boolean> {
+  console.log('Testing printer:', printerId);
+  // TODO: Implement actual printer testing logic
   return true;
 }
 

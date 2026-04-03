@@ -75,19 +75,19 @@ export default function POSLayout() {
   // Mobile Layout: Single column with drawers (320px - 767px)
   if (isMobile) {
     return (
-      <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 overflow-hidden">
-        {/* Header */}
-        <div className="flex-shrink-0 border-b border-slate-300 dark:border-slate-700 bg-slate-700 p-3 md:p-4 rounded-b-lg shadow-md">
-          <div className="flex items-center justify-between gap-2 md:gap-3 mb-2">
+      <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 overflow-hidden">
+        {/* Header - Compact */}
+        <div className="flex-shrink-0 bg-blue-700 p-2 shadow-md">
+          <div className="flex items-center justify-between gap-2">
             <POSTableSelector compact />
-            <div className="text-sm md:text-base font-bold text-white truncate">
+            <div className="text-sm font-bold text-white truncate flex-1 text-center">
               {orderType === 'takeout' ? '🛍️ Take Out' : selectedTableName || 'Select Table'}
             </div>
-            <div className="text-xs md:text-sm text-slate-200 bg-slate-600 px-2 py-1 rounded-md font-semibold">
+            <div className="text-xs text-blue-200 bg-blue-600 px-2 py-1 rounded-md font-semibold">
               {cartItems.length} items
             </div>
           </div>
-          <div className="text-right text-2xl font-bold text-white tabular-nums">
+          <div className="text-center text-xl font-bold text-white mt-1 tabular-nums">
             ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
           </div>
         </div>
@@ -97,21 +97,21 @@ export default function POSLayout() {
           <POSMenuPanel compact />
         </div>
 
-        {/* Bottom Controls */}
-        <div className="flex-shrink-0 border-t border-slate-300 dark:border-slate-700 bg-gradient-to-t from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-3 md:p-4 space-y-3 rounded-t-lg shadow-xl">
-          <div className="flex gap-2 md:gap-3">
+        {/* Bottom Controls - Compact */}
+        <div className="flex-shrink-0 bg-gradient-to-t from-white to-blue-50 dark:from-blue-900 dark:to-blue-800 p-2">
+          <div className="flex gap-1">
             <button
               onClick={() => setShowKOTDialog(true)}
-              className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105"
+              className="flex-1 aspect-square bg-blue-700 hover:bg-blue-600 text-white rounded text-sm font-semibold transition-all duration-200 shadow-sm"
             >
-              🖨️ Print KOT
+              🖨️ KOT
             </button>
             <button
               onClick={() => setShowPaymentDialog(true)}
               disabled={cartItems.length === 0}
-              className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-500 disabled:hover:bg-slate-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
+              className="flex-1 aspect-square bg-blue-700 hover:bg-blue-600 disabled:bg-blue-500 disabled:hover:bg-blue-500 text-white rounded text-sm font-semibold transition-all duration-200 shadow-sm disabled:transform-none disabled:cursor-not-allowed"
             >
-              💳 Payment
+              💳 Pay
             </button>
           </div>
         </div>
@@ -126,29 +126,29 @@ export default function POSLayout() {
   // Tablet Layout: 2 columns with overlays (768px - 1023px)
   if (isTablet) {
     return (
-      <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 overflow-hidden">
+      <div className="flex h-screen bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 overflow-hidden">
         {/* Left: Order Panel + Cart */}
-        <div className="w-1/3 border-r border-slate-300 dark:border-slate-700 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 flex flex-col overflow-hidden rounded-r-lg shadow-lg">
-          <div className="flex-shrink-0 bg-slate-700 p-4 rounded-br-lg shadow-md">
+        <div className="w-1/3 border-r border-blue-300 dark:border-blue-700 bg-gradient-to-b from-white to-blue-50 dark:from-blue-900 dark:to-blue-800 flex flex-col overflow-hidden rounded-r-lg shadow-lg">
+          <div className="flex-shrink-0 bg-blue-700 p-3 shadow-md">
             <POSTableSelector />
-            <div className="text-right text-2xl font-bold text-white mt-2 tabular-nums">
+            <div className="text-center text-xl font-bold text-white mt-2 tabular-nums">
               ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <POSOrderPanel />
           </div>
-          <div className="flex-shrink-0 p-4 border-t border-slate-300 dark:border-slate-700 space-y-3 rounded-t-lg bg-gradient-to-t from-white to-slate-50 dark:from-slate-900 dark:to-slate-800">
+          <div className="flex-shrink-0 p-3 space-y-2 bg-gradient-to-t from-white to-blue-50 dark:from-blue-900 dark:to-blue-800">
             <button
               onClick={() => setShowKOTDialog(true)}
-              className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105"
+              className="w-full aspect-square bg-blue-700 hover:bg-blue-600 text-white rounded font-semibold transition-all duration-200 shadow-sm"
             >
               🖨️ Print KOT
             </button>
             <button
               onClick={() => setShowPaymentDialog(true)}
               disabled={cartItems.length === 0}
-              className="w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-500 disabled:hover:bg-slate-500 text-white rounded-lg font-semibold transition-all duration-200 min-h-[44px] shadow-md hover:shadow-lg transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
+              className="w-full aspect-square bg-blue-700 hover:bg-blue-600 disabled:bg-blue-500 disabled:hover:bg-blue-500 text-white rounded font-semibold transition-all duration-200 shadow-sm disabled:transform-none disabled:cursor-not-allowed"
             >
               💳 Payment
             </button>
@@ -169,16 +169,16 @@ export default function POSLayout() {
 
   // Desktop Layout: 3 resizable panels (30% - 45% - 25%)
   return (
-    <div ref={containerRef} className="flex h-screen bg-slate-900 overflow-hidden relative">
+    <div ref={containerRef} className="flex h-screen bg-blue-900 overflow-hidden relative">
       {/* Left Sidebar: Order Summary (30%) */}
-      <div style={{ flex: `0 0 ${leftWidth}%` }} className="border-r border-slate-700 bg-slate-800 flex flex-col overflow-hidden shadow-lg relative min-w-0">
+      <div style={{ flex: `0 0 ${leftWidth}%` }} className="border-r border-blue-700 bg-blue-800 flex flex-col overflow-hidden shadow-lg relative min-w-0">
         {/* Header with Total */}
-        <div className="flex-shrink-0 bg-slate-700 p-4 shadow-md relative overflow-hidden">
-          <h2 className="text-xs font-bold text-slate-300 uppercase tracking-widest">💰 TOTAL</h2>
-          <div className="text-3xl font-bold text-white mt-2 tabular-nums tracking-tight">
+        <div className="flex-shrink-0 bg-blue-700 p-3 shadow-md relative overflow-hidden">
+          <h2 className="text-xs font-bold text-blue-300 uppercase tracking-widest">💰 TOTAL</h2>
+          <div className="text-2xl font-bold text-white mt-1 tabular-nums tracking-tight">
             ${cartItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0).toFixed(2)}
           </div>
-          <p className="text-slate-300 text-xs mt-1 font-semibold">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</p>
+          <p className="text-blue-300 text-xs mt-1 font-semibold">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</p>
         </div>
 
         {/* Order Items */}
@@ -187,23 +187,23 @@ export default function POSLayout() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex-shrink-0 p-3 border-t border-slate-700 space-y-2 bg-slate-900 relative z-10">
+        <div className="flex-shrink-0 p-2 border-t border-blue-700 space-y-1 bg-blue-900 relative z-10">
           <button
             onClick={() => setShowHoldOrders(true)}
-            className="w-full px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition-colors duration-200 min-h-[40px] shadow-md text-xs uppercase tracking-wider"
+            className="w-full aspect-square bg-blue-700 hover:bg-blue-600 text-white rounded font-bold transition-colors duration-200 text-xs uppercase tracking-wider"
           >
             ⏸️ Hold
           </button>
           <button
             onClick={() => setShowKOTDialog(true)}
-            className="w-full px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition-colors duration-200 min-h-[40px] shadow-md text-xs uppercase tracking-wider"
+            className="w-full aspect-square bg-blue-700 hover:bg-blue-600 text-white rounded font-bold transition-colors duration-200 text-xs uppercase tracking-wider"
           >
             🖨️ Print KOT
           </button>
           <button
             onClick={() => setShowPaymentDialog(true)}
             disabled={cartItems.length === 0}
-            className="w-full px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:hover:bg-slate-800 text-white rounded font-bold transition-colors duration-200 min-h-[40px] shadow-md disabled:cursor-not-allowed text-xs uppercase tracking-wider"
+            className="w-full aspect-square bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800 disabled:hover:bg-blue-800 text-white rounded font-bold transition-colors duration-200 disabled:cursor-not-allowed text-xs uppercase tracking-wider"
           >
             💳 Payment
           </button>
@@ -213,11 +213,11 @@ export default function POSLayout() {
       {/* Resize Handle 1 (Left-Center) */}
       <div
         onMouseDown={() => setIsDraggingLeft(true)}
-        className={`w-1 bg-slate-700 hover:bg-slate-600 cursor-col-resize transition-colors duration-200 ${isDraggingLeft ? 'bg-blue-500' : ''}`}
+        className={`w-1 bg-blue-700 hover:bg-blue-600 cursor-col-resize transition-colors duration-200 ${isDraggingLeft ? 'bg-blue-500' : ''}`}
       />
 
       {/* Center: Menu Items (45%) */}
-      <div style={{ flex: `0 0 ${centerWidth}%` }} className="flex flex-col overflow-hidden bg-slate-900 relative min-w-0">
+      <div style={{ flex: `0 0 ${centerWidth}%` }} className="flex flex-col overflow-hidden bg-blue-900 relative min-w-0">
         <div className="relative z-10 h-full">
           <POSMenuPanel />
         </div>
@@ -226,11 +226,11 @@ export default function POSLayout() {
       {/* Resize Handle 2 (Center-Right) */}
       <div
         onMouseDown={() => setIsDraggingRight(true)}
-        className={`w-1 bg-slate-700 hover:bg-slate-600 cursor-col-resize transition-colors duration-200 ${isDraggingRight ? 'bg-blue-500' : ''}`}
+        className={`w-1 bg-blue-700 hover:bg-blue-600 cursor-col-resize transition-colors duration-200 ${isDraggingRight ? 'bg-blue-500' : ''}`}
       />
 
       {/* Right Sidebar: Action Panel (25%) */}
-      <div style={{ flex: `0 0 ${rightWidth}%` }} className="border-l border-slate-700 bg-slate-800 flex flex-col overflow-hidden shadow-lg relative min-w-0">
+      <div style={{ flex: `0 0 ${rightWidth}%` }} className="border-l border-blue-700 bg-blue-800 flex flex-col overflow-hidden shadow-lg relative min-w-0">
         <div className="relative z-10 h-full">
           <POSActionPanel />
         </div>

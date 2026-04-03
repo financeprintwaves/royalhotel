@@ -21,39 +21,39 @@ export default function MenuItemCard({ item }: MenuItemCardProps) {
 
   return (
     <Card
-      className="overflow-hidden cursor-pointer flex flex-col h-full bg-slate-700 border border-slate-600 group"
+      className="overflow-hidden cursor-pointer flex flex-col h-full bg-blue-700 border border-blue-600 group hover:bg-blue-600 transition-colors"
       onClick={handleAddToCart}
     >
       {/* Image or Icon - Simple Background */}
-      <div className="w-full h-28 bg-slate-600 flex items-center justify-center text-4xl relative overflow-hidden">
+      <div className="w-full h-40 bg-blue-600 flex items-center justify-center text-5xl relative overflow-hidden">
         <div className="relative z-10">{item.icon || '🍽️'}</div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-3 flex flex-col bg-slate-700">
-        <h4 className="font-semibold text-sm line-clamp-2 text-white mb-1">{item.description}</h4>
+      <div className="flex-1 p-4 flex flex-col bg-blue-700">
+        <h4 className="font-bold text-lg line-clamp-2 text-white mb-2">{item.description}</h4>
         {item.is_favorite && (
-          <span className="inline-flex items-center text-xs bg-slate-500 text-slate-100 px-2 py-1 rounded font-semibold mb-1 w-fit">
+          <span className="inline-flex items-center text-sm bg-blue-500 text-blue-100 px-3 py-1 rounded font-semibold mb-2 w-fit">
             ⭐ Favorite
           </span>
         )}
         {item.is_daily_special && (
-          <span className="inline-flex items-center text-xs bg-slate-500 text-slate-100 px-2 py-1 rounded font-semibold w-fit">
+          <span className="inline-flex items-center text-sm bg-blue-500 text-blue-100 px-3 py-1 rounded font-semibold w-fit">
             🌟 Special
           </span>
         )}
       </div>
 
       {/* Price Section */}
-      <div className="px-3 py-2 border-t border-slate-600 bg-slate-700">
-        <div className="text-2xl font-bold text-white">
+      <div className="px-4 py-3 border-t border-blue-600 bg-blue-700">
+        <div className="text-3xl font-bold text-white">
           ${item.price.toFixed(2)}
         </div>
       </div>
 
       {/* Add Button */}
       <Button
-        className="w-full m-2 mt-0 bg-slate-600 hover:bg-slate-500 text-white font-bold text-xs py-2 rounded transition-colors duration-200 uppercase tracking-wider"
+        className="w-full m-3 mt-0 bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg py-3 rounded transition-colors duration-200 uppercase tracking-wider"
         onClick={handleAddToCart}
       >
         + Add to Cart

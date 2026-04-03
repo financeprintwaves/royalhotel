@@ -144,8 +144,8 @@ export function usePOSWorkflow() {
    */
   const holdOrderMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOrder) throw new Error('No order created');
-      await holdOrderPOS(currentOrder.id);
+      if (!currentOrder?.id) throw new Error('No order created');
+      await holdOrderPOS(currentOrder.id!);
     },
     onSuccess: () => {
       toast({

@@ -388,7 +388,7 @@ export default function ForecastingDashboard() {
                         <Tooltip
                           labelFormatter={(date) => format(new Date(date), 'MMM dd, yyyy')}
                           formatter={(value, name) => [
-                            name === 'predicted_revenue' ? `$${value.toFixed(0)}` : value,
+                            name === 'predicted_revenue' ? `$${Number(value).toFixed(0)}` : value,
                             name === 'predicted_revenue' ? 'Revenue' : 'Orders'
                           ]}
                         />

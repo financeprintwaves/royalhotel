@@ -15,13 +15,13 @@ export default function POSActionPanel() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-900 dark:to-slate-800">
       {/* Function Keys - Horizontal on Top */}
-      <div className="flex-shrink-0 p-3 border-b border-slate-300 dark:border-slate-700 space-y-2">
-        <div className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-widest">⌨️ Function Keys</div>
+      <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 p-3">
+        <div className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-widest mb-2">⌨️ Function Keys</div>
         <div className="grid grid-cols-6 gap-2">
           {functionKeys.map((btn) => (
             <button
               key={btn.key}
-              className={`flex flex-col items-center justify-center rounded-lg font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg ${btn.color} ${btn.textColor} p-2 text-center h-14`}
+              className={`flex flex-col items-center justify-center rounded-md font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-sm ${btn.color} ${btn.textColor} p-2 text-center aspect-square`}
               title={`${btn.key}: ${btn.label}`}
             >
               <div className="text-xs font-bold leading-tight">{btn.key}</div>
@@ -32,17 +32,20 @@ export default function POSActionPanel() {
       </div>
 
       {/* Payment Methods Section */}
-      <div className="flex-shrink-0 p-4 space-y-2 border-b border-slate-300 dark:border-slate-700">
-        <div className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-widest">💳 Payment Methods</div>
-        <div className="space-y-2">
-          <Button className="w-full h-11 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold text-sm shadow-lg transition-all duration-200">
-            💰 CASH (F3)
+      <div className="flex-shrink-0 p-3 border-b border-slate-300 dark:border-slate-700">
+        <div className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-widest mb-2">💳 Payment Methods</div>
+        <div className="grid grid-cols-3 gap-2">
+          <Button className="h-14 w-full rounded-lg bg-gradient-to-br from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold shadow-lg transition-all duration-200 flex flex-col justify-center items-center">
+            <span className="text-sm">💰</span>
+            <span className="text-xs font-semibold">CASH</span>
           </Button>
-          <Button className="w-full h-11 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-sm shadow-lg transition-all duration-200">
-            💳 CREDIT CARD (F4)
+          <Button className="h-14 w-full rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold shadow-lg transition-all duration-200 flex flex-col justify-center items-center">
+            <span className="text-sm">💳</span>
+            <span className="text-xs font-semibold">CARD</span>
           </Button>
-          <Button className="w-full h-11 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold text-sm shadow-lg transition-all duration-200">
-            ✓ CHECK/OTHER
+          <Button className="h-14 w-full rounded-lg bg-gradient-to-br from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold shadow-lg transition-all duration-200 flex flex-col justify-center items-center">
+            <span className="text-sm">✓</span>
+            <span className="text-xs font-semibold">OTHER</span>
           </Button>
         </div>
       </div>

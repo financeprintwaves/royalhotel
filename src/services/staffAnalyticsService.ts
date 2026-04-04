@@ -24,7 +24,7 @@ export class StaffAnalyticsService {
   }
 
   static async getTopPerformers(branchId: string, limit = 5): Promise<StaffPerformance[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('staff_performance_metrics')
       .select('*')
       .eq('branch_id', branchId)
@@ -32,7 +32,7 @@ export class StaffAnalyticsService {
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as StaffPerformance[];
   }
 
   static async getOrderCompletionTimes(branchId: string): Promise<StaffPerformance[]> {

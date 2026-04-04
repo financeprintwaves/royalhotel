@@ -31,7 +31,7 @@ export default function KOTDialog({ onClose }: KOTDialogProps) {
   const [kots, setKots] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const { profile } = useAuth();
-  const { setCartItems, setSelectedTableId, setOrderType, setCurrentOrder } = usePOSContext();
+  const { setCartItems, setSelectedTable, setOrderType, setCurrentOrder } = usePOSContext();
 
   useEffect(() => {
     const fetchKots = async () => {

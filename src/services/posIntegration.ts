@@ -50,17 +50,16 @@ export async function printKOT(
     const { printKOT: printKOTService } = await import('./printerService');
     
     const kotItems = cartItems.map((item) => ({
-      description: item.menuItem.description,
+      description: item.menuItem.description || item.menuItem.name,
       quantity: item.quantity,
       notes: item.notes,
     }));
 
-    await printKOTService({
-      orderId: order.id,
-      tableId: order.table_id,
-      items: kotItems,
-      timestamp: new Date(),
-    });
+    await printKOTService(
+      order.table_id || 'TAKEOUT',
+      kotItems,
+      order.id
+    );
 
     return true;
   } catch (error) {

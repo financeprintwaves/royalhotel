@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useCategories } from '@/hooks/useMenuData';
 import { useResponsive } from '@/hooks/useResponsive';
+import { usePOSWorkflow } from '@/hooks/usePOSWorkflow';
 import POSTableSelector from './POSTableSelector';
 import POSOrderPanel from './POSOrderPanel';
 import POSMenuPanel from './POSMenuPanel';
@@ -9,7 +10,8 @@ import POSActionPanel from './POSActionPanel';
 import PaymentDialog from './PaymentDialog';
 import KOTPrintDialog from './KOTPrintDialog';
 import HoldOrdersPanel from './HoldOrdersPanel';
-import { Printer, CreditCard, ShoppingCart, Pause } from 'lucide-react';
+import { printReceipt } from '@/services/printerService';
+import { Printer, FileText, CreditCard, ShoppingCart, Pause, Play } from 'lucide-react';
 
 export default function POSLayout() {
   const { orderType, selectedTableName, cartItems } = usePOSContext();

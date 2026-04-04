@@ -17,7 +17,7 @@ export default function POSOrderPanel() {
   }
 
   const subtotal = cartItems.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-  const tax = subtotal * 0.1;
+  const tax = subtotal * 0.05;
   const total = subtotal + tax;
 
   return (

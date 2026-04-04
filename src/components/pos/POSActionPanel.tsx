@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useNavigate } from 'react-router-dom';
 import { usePOSKeyboardShortcuts } from '@/hooks/usePOSKeyboardShortcuts';
+import { usePOSWorkflow } from '@/hooks/usePOSWorkflow';
 import {
   LogOut, Printer, ClipboardList, RotateCcw, Percent, Tag,
   Ban, StickyNote, HelpCircle, Banknote, CreditCard, CheckCircle,
@@ -9,12 +10,48 @@ import {
 } from 'lucide-react';
 import KOTDialog from './KOTDialog';
 import BillsDialog from './BillsDialog';
+import { printReceipt } from '@/services/printerService';
 
 export default function POSActionPanel() {
   const { clearCart, cartItems, getOrderTotal } = usePOSContext();
   const navigate = useNavigate();
+  const { printKOTMutation, handleAddItemToOrder } = usePOSWorkflow();
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showBillsDialog, setShowBillsDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+
+  const handlePrintKOT = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      await handleAddItemToOrder();
+      await printKOTMutation.mutateAsync();
+    } catch (error) {
+      console.error('Print KOT failed:', error);
+    }
+  };
+
+  const handlePrintBill = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      // Create mock order for printing bill
+      const mockOrder = {
+        order_number: `BILL${Date.now()}`,
+        total_amount: getOrderTotal(),
+        order_items: cartItems.map(item => ({
+          menu_item: item.menuItem,
+          quantity: item.quantity,
+          unit_price: item.menuItem.price,
+          total_price: item.menuItem.price * item.quantity,
+        })),
+        created_at: new Date().toISOString(),
+      };
+      await printReceipt(mockOrder);
+      // Then open payment
+      setShowPaymentDialog(true);
+    } catch (error) {
+      console.error('Print bill failed:', error);
+    }
+  };
 
   // Keyboard shortcuts
   usePOSKeyboardShortcuts({
@@ -39,6 +76,8 @@ export default function POSActionPanel() {
 
   const functionButtons = [
     { label: 'Exit', icon: LogOut, action: () => navigate('/'), color: 'bg-red-600 hover:bg-red-500' },
+    { label: 'Print KOT', icon: Printer, action: handlePrintKOT, color: 'bg-amber-600 hover:bg-amber-500' },
+    { label: 'Print Bill', icon: FileText, action: handlePrintBill, color: 'bg-blue-600 hover:bg-blue-500' },
     { label: 'KOT', icon: ClipboardList, action: () => setShowKOTDialog(true), color: 'bg-amber-600 hover:bg-amber-500' },
     { label: 'Bills', icon: FileText, action: () => setShowBillsDialog(true), color: 'bg-slate-700 hover:bg-slate-600' },
     { label: 'Refund', icon: RotateCcw, action: () => console.log('Refund'), color: 'bg-slate-700 hover:bg-slate-600' },
@@ -89,7 +128,7 @@ export default function POSActionPanel() {
 
       {showKOTDialog && <KOTDialog onClose={() => setShowKOTDialog(false)} />}
       {showBillsDialog && <BillsDialog onClose={() => setShowBillsDialog(false)} />}
-    
+      {showPaymentDialog && <PaymentDialog onClose={() => setShowPaymentDialog(false)} />}
     </div>
   );
 }

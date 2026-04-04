@@ -10,6 +10,9 @@ import { format } from 'date-fns';
 import type { Order } from '@/types/pos';
 import { printKOT } from '@/services/printerService';
 import { toast } from '@/hooks/use-toast';
+import { getOrders } from '@/services/orderService';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePOSContext } from '@/contexts/POSContext';
 
 interface KOTDialogProps {
   onClose: () => void;
@@ -27,46 +30,42 @@ const STATUS_COLORS: Record<string, string> = {
 export default function KOTDialog({ onClose }: KOTDialogProps) {
   const [kots, setKots] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const { profile } = useAuth();
+  const { setCartItems, setSelectedTableId, setOrderType, setCurrentOrder } = usePOSContext();
 
   useEffect(() => {
-    // In production, fetch from API. Mock data for now:
-    const mockKots: Order[] = [
-      {
-        id: '1', order_number: 'KOT001', order_status: 'CREATED',
-        total_amount: 25.50, branch_id: '', table_id: 'table-1', created_by: null,
-        payment_status: 'unpaid', subtotal: 23.18, tax_amount: 2.32,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-1', table_number: '5', capacity: 4 },
-        order_items: []
-      },
-      {
-        id: '2', order_number: 'KOT002', order_status: 'SENT_TO_KITCHEN',
-        total_amount: 45.75, branch_id: '', table_id: null, created_by: null,
-        payment_status: 'unpaid', subtotal: 41.59, tax_amount: 4.16,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        order_items: []
-      },
-      {
-        id: '3', order_number: 'KOT003', order_status: 'SERVED',
-        total_amount: 18.90, branch_id: '', table_id: 'table-2', created_by: null,
-        payment_status: 'unpaid', subtotal: 17.18, tax_amount: 1.72,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-2', table_number: '8', capacity: 6 },
-        order_items: []
-      },
-    ];
-    setKots(mockKots);
-  }, []);
+    const fetchKots = async () => {
+      setLoading(true);
+      try {
+        const fetchedKots = await getOrders(['CREATED', 'SENT_TO_KITCHEN'], 100, profile?.branch_id);
+        setKots(fetchedKots);
+      } catch (error) {
+        console.error('Failed to fetch KOTs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchKots();
+  }, [profile?.branch_id]);
 
   const handleEditKOT = (kot: Order) => {
-    // TODO: Implement edit functionality - open order in POS for modification
-    console.log('Edit KOT:', kot);
+    // Load order into POS for editing
+    setCurrentOrder(kot);
+    setSelectedTableId(kot.table_id);
+    setOrderType(kot.order_type || 'dine-in');
+    // Convert order_items to cart items format
+    const cartItems = kot.order_items.map(item => ({
+      id: item.id,
+      menuItem: item.menu_item,
+      quantity: item.quantity,
+      notes: item.notes || '',
+    }));
+    setCartItems(cartItems);
+    onClose(); // Close the dialog
     toast({
-      title: 'Edit KOT',
-      description: `Opening KOT ${kot.order_number} for editing`,
+      title: 'Order Loaded',
+      description: `Order ${kot.order_number} loaded for editing`,
     });
   };
 

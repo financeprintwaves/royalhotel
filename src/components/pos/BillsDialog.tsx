@@ -12,6 +12,8 @@ import type { Order } from '@/types/pos';
 import { printReceipt } from '@/services/printerService';
 import { toast } from '@/hooks/use-toast';
 import ReceiptDialog from '../ReceiptDialog';
+import { getOrders } from '@/services/orderService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface BillsDialogProps {
   onClose: () => void;
@@ -31,48 +33,23 @@ export default function BillsDialog({ onClose }: BillsDialogProps) {
   const [loading, setLoading] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Order | null>(null);
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const { profile } = useAuth();
 
   useEffect(() => {
-    // In production, fetch from API. Mock data for now:
-    const mockBills: Order[] = [
-      {
-        id: '1', order_number: 'BILL001', order_status: 'BILL_REQUESTED',
-        total_amount: 25.50, branch_id: '', table_id: 'table-1', created_by: null,
-        payment_status: 'unpaid', subtotal: 23.18, tax_amount: 2.32,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-1', table_number: '5', capacity: 4 },
-        order_items: []
-      },
-      {
-        id: '2', order_number: 'BILL002', order_status: 'PAID',
-        total_amount: 45.75, branch_id: '', table_id: null, created_by: null,
-        payment_status: 'paid', subtotal: 41.59, tax_amount: 4.16,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        order_items: []
-      },
-      {
-        id: '3', order_number: 'BILL003', order_status: 'PAID',
-        total_amount: 18.90, branch_id: '', table_id: 'table-2', created_by: null,
-        payment_status: 'paid', subtotal: 17.18, tax_amount: 1.72,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-2', table_number: '8', capacity: 6 },
-        order_items: []
-      },
-      {
-        id: '4', order_number: 'BILL004', order_status: 'BILL_REQUESTED',
-        total_amount: 32.40, branch_id: '', table_id: 'table-3', created_by: null,
-        payment_status: 'unpaid', subtotal: 29.45, tax_amount: 2.95,
-        discount_amount: 0, notes: null, locked_at: null,
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-3', table_number: '12', capacity: 8 },
-        order_items: []
-      },
-    ];
-    setBills(mockBills);
-  }, []);
+    const fetchBills = async () => {
+      setLoading(true);
+      try {
+        const fetchedBills = await getOrders(['BILL_REQUESTED', 'PAID', 'CLOSED'], 100, profile?.branch_id);
+        setBills(fetchedBills);
+      } catch (error) {
+        console.error('Failed to fetch bills:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBills();
+  }, [profile?.branch_id]);
 
   const handleViewBill = (bill: Order) => {
     setSelectedBill(bill);

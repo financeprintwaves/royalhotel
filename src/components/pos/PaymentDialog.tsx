@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
+import { usePOSWorkflow } from '@/hooks/usePOSWorkflow';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -11,178 +11,91 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { printReceipt } from '@/services/printerService';
-import { quickPayOrder } from '@/services/orderService';
-import { toast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 interface PaymentDialogProps {
   onClose: () => void;
 }
 
 export default function PaymentDialog({ onClose }: PaymentDialogProps) {
-  const {
+  const { 
     paymentMethod,
     setPaymentMethod,
+    amountPaid,
+    setAmountPaid,
     tipAmount,
     setTipAmount,
     getOrderTotal,
-    cartItems,
-    clearCart,
-    currentOrder,
+    getBalanceRemaining,
+    getChange,
   } = usePOSContext();
 
-  const [receivedAmount, setReceivedAmount] = useState('');
+  const { processPaymentMutation } = usePOSWorkflow();
   const [showTipInput, setShowTipInput] = useState(false);
-  const [processing, setProcessing] = useState(false);
 
   const orderTotal = getOrderTotal();
-  const received = parseFloat(receivedAmount) || 0;
-  const balance = received - orderTotal;
-  const isChange = balance >= 0;
-  const balanceAmount = Math.abs(balance);
-
-  useEffect(() => {
-    // Auto-fill received amount with order total for convenience
-    setReceivedAmount(orderTotal.toFixed(2));
-  }, [orderTotal]);
+  const balanceRemaining = getBalanceRemaining();
+  const change = getChange();
+  const isProcessing = processPaymentMutation.isPending;
 
   const handleNumericInput = (digit: string) => {
     if (digit === 'clear') {
-      setReceivedAmount('');
+      setAmountPaid(0);
     } else if (digit === 'backspace') {
-      setReceivedAmount(receivedAmount.slice(0, -1));
+      setAmountPaid(Math.floor(amountPaid / 10));
     } else if (digit === '00') {
-      setReceivedAmount(receivedAmount + '00');
+      setAmountPaid(amountPaid * 100);
     } else {
-      setReceivedAmount(receivedAmount + digit);
+      setAmountPaid(amountPaid * 10 + parseInt(digit));
     }
   };
 
-  const handleProceedPayment = async () => {
-    if (received < orderTotal) {
-      toast({
-        title: 'Insufficient Amount',
-        description: 'Received amount is less than the total amount.',
-        variant: 'destructive',
-      });
+  const handleProcessPayment = async () => {
+    if (amountPaid < orderTotal) {
+      alert('Insufficient amount paid');
       return;
     }
 
-    setProcessing(true);
     try {
-      // Create order if not exists
-      let orderId = currentOrder?.id;
-      if (!orderId) {
-        // TODO: Create order first
-        console.log('Creating order...');
-        orderId = 'temp-order-id'; // Mock for now
-      }
-
-      // Process payment
-      const paymentResponse = await quickPayOrder(
-        orderId,
-        received,
-        paymentMethod as any || 'cash',
-        undefined,
-        `Tip: $${tipAmount.toFixed(2)}`
-      );
-
-      if (paymentResponse.success) {
-        // Print receipt silently
-        try {
-          const mockOrder = {
-            ...currentOrder,
-            order_number: `ORD${Date.now()}`,
-            total_amount: orderTotal,
-            payment_status: 'paid',
-            order_items: cartItems.map(item => ({
-              menu_item: item.menuItem,
-              quantity: item.quantity,
-              unit_price: item.menuItem.price,
-              total_price: item.menuItem.price * item.quantity,
-            }))
-          };
-
-          await printReceipt(mockOrder);
-          toast({
-            title: '✅ Payment Complete',
-            description: `Order paid and receipt printed. ${isChange ? `Change: $${balanceAmount.toFixed(2)}` : ''}`,
-          });
-        } catch (printError) {
-          console.error('Print error:', printError);
-          toast({
-            title: 'Payment Complete',
-            description: 'Payment processed but printing failed.',
-            variant: 'destructive',
-          });
-        }
-
-        // Clear cart and close dialog
-        clearCart();
-        onClose();
-      } else {
-        throw new Error(paymentResponse.error || 'Payment failed');
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      toast({
-        title: 'Payment Failed',
-        description: 'An error occurred while processing payment.',
-        variant: 'destructive',
+      await processPaymentMutation.mutateAsync({
+        amount: orderTotal + tipAmount,
+        method: (paymentMethod || 'cash') as 'cash' | 'card' | 'transfer' | 'split',
+        tip: tipAmount,
       });
-    } finally {
-      setProcessing(false);
+
+      // Close dialog on success
+      onClose();
+    } catch (error) {
+      console.error('Payment failed:', error);
     }
   };
 
-  const displayReceived = receivedAmount;
+  const displayAmountPaid = (amountPaid / 100).toFixed(2);
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Payment</DialogTitle>
+          <DialogTitle>Payment Processing</DialogTitle>
         </DialogHeader>
 
         <Tabs
           value={paymentMethod || 'cash'}
-          onValueChange={(method: 'cash' | 'card' | 'transfer' | 'split') => setPaymentMethod(method)}
+          onValueChange={(method: any) => setPaymentMethod(method)}
           className="w-full"
         >
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="cash">Cash (F3)</TabsTrigger>
-            <TabsTrigger value="card">Card (F4)</TabsTrigger>
-            <TabsTrigger value="transfer">Transfer (F5)</TabsTrigger>
+            <TabsTrigger value="cash">Cash</TabsTrigger>
+            <TabsTrigger value="card">Card</TabsTrigger>
+            <TabsTrigger value="transfer">Transfer</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cash" className="space-y-4 mt-4">
-            {/* Total Amount */}
-            <Card className="p-3 bg-blue-100 border-blue-300">
-              <div className="text-xs font-semibold text-blue-800">TOTAL AMOUNT</div>
-              <div className="text-2xl font-bold text-blue-900">${orderTotal.toFixed(2)}</div>
-            </Card>
-
-            {/* Received Amount Input */}
-            <Card className="p-3 border-2 border-green-300">
-              <div className="text-xs font-semibold text-green-800 mb-2">AMOUNT RECEIVED</div>
-              <Input
-                value={displayReceived}
-                onChange={(e) => setReceivedAmount(e.target.value)}
-                className="text-2xl font-bold text-center"
-                placeholder="0.00"
-              />
-            </Card>
-
-            {/* Balance/Change Display */}
-            <Card className={`p-3 ${isChange ? 'bg-emerald-100 border-emerald-300' : 'bg-red-100 border-red-300'}`}>
-              <div className={`text-xs font-semibold ${isChange ? 'text-emerald-800' : 'text-red-800'}`}>
-                {isChange ? 'CHANGE DUE' : 'REMAINING BALANCE'}
-              </div>
-              <div className={`text-2xl font-bold ${isChange ? 'text-emerald-900' : 'text-red-900'}`}>
-                ${balanceAmount.toFixed(2)}
-              </div>
-            </Card>
-
+            <PaymentDisplay
+              orderTotal={orderTotal}
+              amountPaid={displayAmountPaid}
+              balanceRemaining={balanceRemaining}
+            />
             <NumericKeypad onInput={handleNumericInput} />
             <TipSection
               showTipInput={showTipInput}
@@ -193,11 +106,12 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
           </TabsContent>
 
           <TabsContent value="card" className="space-y-4 mt-4">
-            <Card className="p-3 bg-blue-100 border-blue-300">
-              <div className="text-xs font-semibold text-blue-800">TOTAL AMOUNT</div>
-              <div className="text-2xl font-bold text-blue-900">${orderTotal.toFixed(2)}</div>
-            </Card>
-            <Card className="p-4">
+            <PaymentDisplay
+              orderTotal={orderTotal}
+              amountPaid={displayAmountPaid}
+              balanceRemaining={0}
+            />
+            <Card className="p-4 text-center">
               <p className="text-sm text-muted-foreground">
                 Card payment will be processed through payment gateway
               </p>
@@ -205,28 +119,59 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
           </TabsContent>
 
           <TabsContent value="transfer" className="space-y-4 mt-4">
-            <Card className="p-3 bg-blue-100 border-blue-300">
-              <div className="text-xs font-semibold text-blue-800">TOTAL AMOUNT</div>
-              <div className="text-2xl font-bold text-blue-900">${orderTotal.toFixed(2)}</div>
-            </Card>
+            <PaymentDisplay
+              orderTotal={orderTotal}
+              amountPaid={displayAmountPaid}
+              balanceRemaining={balanceRemaining}
+            />
             <NumericKeypad onInput={handleNumericInput} />
           </TabsContent>
         </Tabs>
 
         <DialogFooter className="flex gap-2">
-          <Button variant="outline" onClick={onClose} disabled={processing}>
-            Back (F1)
+          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+            Cancel
           </Button>
           <Button
-            onClick={handleProceedPayment}
-            disabled={received < orderTotal || processing}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-slate-400"
+            onClick={handleProcessPayment}
+            disabled={amountPaid < orderTotal || isProcessing}
+            className="bg-green-600 hover:bg-green-700"
           >
-            {processing ? 'Processing...' : 'Proceed Payment'}
+            {isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isProcessing ? 'Processing...' : 'Process Payment'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PaymentDisplay({
+  orderTotal,
+  amountPaid,
+  balanceRemaining,
+}: {
+  orderTotal: number;
+  amountPaid: string;
+  balanceRemaining: number;
+}) {
+  return (
+    <div className="space-y-3">
+      <Card className="p-3 bg-yellow-100 border-yellow-300">
+        <div className="text-xs font-semibold text-yellow-800">BEGINNING BALANCE</div>
+        <div className="text-2xl font-bold text-yellow-900">${orderTotal.toFixed(2)}</div>
+      </Card>
+
+      <Card className="p-3 border-2 border-blue-300">
+        <div className="text-xs font-semibold text-blue-800">AMOUNT PAID</div>
+        <div className="text-3xl font-bold text-blue-900">${amountPaid}</div>
+      </Card>
+
+      <Card className="p-3 bg-green-100 border-green-300">
+        <div className="text-xs font-semibold text-green-800">BALANCE REMAINING</div>
+        <div className="text-2xl font-bold text-green-900">${balanceRemaining.toFixed(2)}</div>
+      </Card>
+    </div>
   );
 }
 
@@ -245,7 +190,7 @@ function NumericKeypad({ onInput }: { onInput: (digit: string) => void }) {
           <Button
             key={key}
             onClick={() => onInput(key)}
-            className={`py-2 text-lg font-semibold ${
+            className={`py-4 text-lg font-semibold ${
               key === 'clear'
                 ? 'bg-red-500 hover:bg-red-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300 text-black'
@@ -283,7 +228,7 @@ function TipSection({
         variant="outline"
         className="w-full"
       >
-        ADD TIP (F4)
+        ADD TIP
       </Button>
       {showTipInput && (
         <Card className="p-3 bg-black text-white">

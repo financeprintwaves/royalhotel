@@ -14,12 +14,79 @@ import { printReceipt } from '@/services/printerService';
 import { Printer, FileText, CreditCard, ShoppingCart, Pause, Play } from 'lucide-react';
 
 export default function POSLayout() {
-  const { orderType, selectedTableName, cartItems } = usePOSContext();
+  const { orderType, selectedTableName, cartItems, getOrderTotal, clearCart } = usePOSContext();
   const { isLoading } = useCategories();
   const { isMobile, isTablet } = useResponsive();
+  const { handleAddItemToOrder, printKOTMutation } = usePOSWorkflow();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showHoldOrders, setShowHoldOrders] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handlePrintKOT = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      setIsProcessing(true);
+      await handleAddItemToOrder();
+      await printKOTMutation.mutateAsync();
+      setShowKOTDialog(true);
+    } catch (error) {
+      console.error('Print KOT failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePrintBill = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      setIsProcessing(true);
+      await handleAddItemToOrder();
+      const mockOrder = {
+        order_number: `BILL${Date.now()}`,
+        total_amount: getOrderTotal(),
+        order_items: cartItems.map(item => ({
+          menu_item: item.menuItem,
+          quantity: item.quantity,
+          unit_price: item.menuItem.price,
+          total_price: item.menuItem.price * item.quantity,
+        })),
+        created_at: new Date().toISOString(),
+      };
+      await printReceipt(mockOrder);
+    } catch (error) {
+      console.error('Print bill failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOpenPayment = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      setIsProcessing(true);
+      await handleAddItemToOrder();
+      setShowPaymentDialog(true);
+    } catch (error) {
+      console.error('Open payment failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleHoldOrder = () => {
+    if (cartItems.length === 0) return;
+    const heldData = {
+      id: `hold-${Date.now()}`,
+      items: cartItems,
+      total: getOrderTotal(),
+      createdAt: new Date().toISOString(),
+    };
+    const existing = JSON.parse(localStorage.getItem('pos_held_orders') || '[]');
+    existing.push(heldData);
+    localStorage.setItem('pos_held_orders', JSON.stringify(existing));
+    clearCart();
+  };
 
   if (isLoading) {
     return (

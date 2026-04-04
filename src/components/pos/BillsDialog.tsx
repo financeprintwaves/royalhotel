@@ -41,7 +41,7 @@ export default function BillsDialog({ onClose }: BillsDialogProps) {
         payment_status: 'unpaid', subtotal: 23.18, tax_amount: 2.32,
         discount_amount: 0, notes: null, locked_at: null,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-1', table_number: 5, capacity: 4 },
+        table: { id: 'table-1', table_number: '5', capacity: 4 },
         order_items: []
       },
       {
@@ -58,7 +58,7 @@ export default function BillsDialog({ onClose }: BillsDialogProps) {
         payment_status: 'paid', subtotal: 17.18, tax_amount: 1.72,
         discount_amount: 0, notes: null, locked_at: null,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-2', table_number: 8, capacity: 6 },
+        table: { id: 'table-2', table_number: '8', capacity: 6 },
         order_items: []
       },
       {
@@ -67,7 +67,7 @@ export default function BillsDialog({ onClose }: BillsDialogProps) {
         payment_status: 'unpaid', subtotal: 29.45, tax_amount: 2.95,
         discount_amount: 0, notes: null, locked_at: null,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        table: { id: 'table-3', table_number: 12, capacity: 8 },
+        table: { id: 'table-3', table_number: '12', capacity: 8 },
         order_items: []
       },
     ];

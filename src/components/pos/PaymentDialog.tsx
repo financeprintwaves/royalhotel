@@ -23,13 +23,9 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
   const {
     paymentMethod,
     setPaymentMethod,
-    amountPaid,
-    setAmountPaid,
     tipAmount,
     setTipAmount,
     getOrderTotal,
-    getBalanceRemaining,
-    getChange,
     cartItems,
     clearCart,
     currentOrder,

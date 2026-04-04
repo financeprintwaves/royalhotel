@@ -116,3 +116,6 @@ export default function POSActionPanel() {
       {showKOTDialog && <KOTDialog onClose={() => setShowKOTDialog(false)} />}
       {showBillsDialog && <BillsDialog onClose={() => setShowBillsDialog(false)} />}
       {showPaymentDialog && <PaymentDialog onClose={() => setShowPaymentDialog(false)} />}
+    </div>
+  );
+}

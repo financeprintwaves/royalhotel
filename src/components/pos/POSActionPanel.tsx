@@ -57,15 +57,15 @@ export default function POSActionPanel() {
         <button
           onClick={handleHoldOrder}
           disabled={cartItems.length === 0}
-          className="aspect-square flex items-center justify-center gap-1.5 py-2.5 rounded-md font-medium text-xs text-white bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
+          className="h-14 flex items-center justify-center gap-1.5 py-2.5 rounded-md font-medium text-xs text-white bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
         >
-          <Pause className="w-4 h-2" />
+          <Pause className="w-5 h-5" />
           <span className="text-[10px] leading-tight">Hold</span>
         </button>
         <button
-          className="aspect-square flex items-center justify-center gap-1.5 py-2.5 rounded-md font-medium text-xs text-white bg-sky-600 hover:bg-sky-500 transition-colors"
+          className="h-14 flex items-center justify-center gap-1.5 py-2.5 rounded-md font-medium text-xs text-white bg-sky-600 hover:bg-sky-500 transition-colors"
         >
-          <Play className="w-4 h-2" />
+          <Play className="w-5 h-5" />
           <span className="text-[10px] leading-tight">Recall</span>
         </button>
       </div>

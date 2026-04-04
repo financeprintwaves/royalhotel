@@ -126,14 +126,15 @@ export default function POSLayout() {
         {/* Bottom actions */}
         <div className="flex-shrink-0 bg-slate-800 border-t border-slate-700 p-2 flex gap-2">
           <button
-            onClick={() => setShowKOTDialog(true)}
-            className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-md text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+            onClick={handlePrintKOT}
+            disabled={cartItems.length === 0 || isProcessing}
+            className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed"
           >
             <Printer className="w-4 h-4" /> KOT
           </button>
           <button
-            onClick={() => setShowPaymentDialog(true)}
-            disabled={cartItems.length === 0}
+            onClick={handleOpenPayment}
+            disabled={cartItems.length === 0 || isProcessing}
             className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed"
           >
             <CreditCard className="w-4 h-4" /> Pay

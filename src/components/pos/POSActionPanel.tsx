@@ -10,7 +10,7 @@ import KOTDialog from './KOTDialog';
 import BillsDialog from './BillsDialog';
 
 export default function POSActionPanel() {
-  const { cartItems } = usePOSContext();
+  const { } = usePOSContext();
   const navigate = useNavigate();
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showBillsDialog, setShowBillsDialog] = useState(false);

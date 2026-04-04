@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
+import { usePOSWorkflow } from '@/hooks/usePOSWorkflow';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -13,9 +14,15 @@ interface KOTPrintDialogProps {
 
 export default function KOTPrintDialog({ onClose }: KOTPrintDialogProps) {
   const { cartItems, selectedTableName, orderType } = usePOSContext();
+  const { handleAddItemToOrder, printKOTMutation } = usePOSWorkflow();
 
   const handlePrint = async () => {
-    console.log('Printing KOT...');
+    try {
+      await handleAddItemToOrder();
+      await printKOTMutation.mutateAsync();
+    } catch (error) {
+      console.error('KOT print failed:', error);
+    }
     onClose();
   };
 

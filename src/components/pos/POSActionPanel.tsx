@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { usePOSContext } from '@/contexts/POSContext';
 import { useNavigate } from 'react-router-dom';
 import { usePOSKeyboardShortcuts } from '@/hooks/usePOSKeyboardShortcuts';
 import {
@@ -10,7 +9,7 @@ import KOTDialog from './KOTDialog';
 import BillsDialog from './BillsDialog';
 
 export default function POSActionPanel() {
-  const { } = usePOSContext();
+  const navigate = useNavigate();
   const navigate = useNavigate();
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showBillsDialog, setShowBillsDialog] = useState(false);

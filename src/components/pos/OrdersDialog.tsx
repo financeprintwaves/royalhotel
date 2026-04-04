@@ -107,6 +107,7 @@ export default function OrdersDialog({ onClose }: OrdersDialogProps) {
                 </table>
               </div>
             )}
+          </ScrollArea>
 
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>Close</Button>

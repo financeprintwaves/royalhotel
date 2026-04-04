@@ -16,14 +16,7 @@ export async function createPOSOrder(
 ) {
   const { createOrder } = await import('./orderService');
   
-  const order = await createOrder({
-    branch_id: branchId,
-    table_id: tableId || undefined,
-    order_type: orderType,
-    created_by: userId,
-    order_status: 'CREATED',
-  });
-
+  const order = await createOrder(branchId, userId, tableId || undefined);
   return order;
 }
 
@@ -37,12 +30,10 @@ export async function addCartItemsToOrder(
   const { addOrderItemsBatch } = await import('./orderService');
   
   const orderItems = cartItems.map((item) => ({
-    menu_item_id: item.menuItem.id,
+    menuItem: item.menuItem,
     quantity: item.quantity,
-    unit_price: item.menuItem.price,
-    total_price: item.menuItem.price * item.quantity,
-    portion_name: item.portionName,
-    item_status: 'pending' as const,
+    notes: item.notes,
+    portionName: item.portionName,
   }));
 
   await addOrderItemsBatch(orderId, orderItems);
@@ -58,7 +49,6 @@ export async function printKOT(
   try {
     const { printKOT: printKOTService } = await import('./printerService');
     
-    // Format items without prices for kitchen
     const kotItems = cartItems.map((item) => ({
       description: item.menuItem.description,
       quantity: item.quantity,
@@ -95,15 +85,12 @@ export async function processPaymentAndPrint(
     const { finalizePayment } = await import('./paymentService');
     const { printReceipt } = await import('./printerService');
     
-    // Process payment (atomic transaction)
-    const payment = await finalizePayment({
-      order_id: order.id,
-      amount: paymentData.amount,
-      payment_method: paymentData.method,
-      tip: paymentData.tip || 0,
-    });
+    const payment = await finalizePayment(
+      order.id,
+      paymentData.amount,
+      paymentData.method as any,
+    );
 
-    // Auto-print receipt
     const receiptItems = cartItems.map((item) => ({
       description: item.menuItem.description,
       quantity: item.quantity,
@@ -139,11 +126,11 @@ export async function sendToKitchenPOS(orderId: string) {
 }
 
 /**
- * Hold current order (save to DB with HOLD status)
+ * Hold current order (save locally)
  */
-export async function holdOrderPOS(orderId: string) {
-  const { updateOrderStatus } = await import('./orderService');
-  await updateOrderStatus(orderId, 'HOLD');
+export async function holdOrderPOS(_orderId: string) {
+  // Hold orders are managed via localStorage in POSActionPanel
+  console.log('Order held locally');
 }
 
 /**
@@ -151,8 +138,8 @@ export async function holdOrderPOS(orderId: string) {
  */
 export async function recallHeldOrderPOS(orderId: string) {
   const { getOrders } = await import('./orderService');
-  const orders = await getOrders({ id: orderId });
-  return orders[0] || null;
+  const orders = await getOrders(['CREATED'], 1);
+  return orders.find((o: any) => o.id === orderId) || null;
 }
 
 /**

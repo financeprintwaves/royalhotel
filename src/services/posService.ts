@@ -79,8 +79,8 @@ ${discount > 0 ? `Discount (${Math.round((discount / subtotal) * 100)}%):      -
 ${'-'.repeat(40)}
 TOTAL:                       ${total.toFixed(2).padStart(7)}
 ${'-'.repeat(40)}
-Payment Method: ${order.payment_method?.toUpperCase() || 'CASH'}
-Amount Paid: ${(order.total || total).toFixed(2).padStart(7)}
+Payment Method: ${((order as any).payment_method || 'CASH').toUpperCase()}
+Amount Paid: ${((order as any).total_amount || total).toFixed(2).padStart(7)}
 Change: 0.00
 ${'-'.repeat(40)}
 Thank you for your order!

@@ -47,7 +47,7 @@ export async function updateTransferRequestStatus(params: {
   approved_by?: string;
   notes?: string;
 }): Promise<InventoryTransferRequest> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('inventory_transfer_requests')
     .update({
       status: params.status,

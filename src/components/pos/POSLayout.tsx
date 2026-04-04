@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { useCategories } from '@/hooks/useMenuData';
 import { useResponsive } from '@/hooks/useResponsive';
+import { usePOSWorkflow } from '@/hooks/usePOSWorkflow';
 import POSTableSelector from './POSTableSelector';
 import POSOrderPanel from './POSOrderPanel';
 import POSMenuPanel from './POSMenuPanel';
@@ -9,15 +10,83 @@ import POSActionPanel from './POSActionPanel';
 import PaymentDialog from './PaymentDialog';
 import KOTPrintDialog from './KOTPrintDialog';
 import HoldOrdersPanel from './HoldOrdersPanel';
-import { Printer, CreditCard, ShoppingCart, Pause } from 'lucide-react';
+import { printReceipt } from '@/services/printerService';
+import { Printer, FileText, CreditCard, ShoppingCart, Pause, Play } from 'lucide-react';
 
 export default function POSLayout() {
-  const { orderType, selectedTableName, cartItems } = usePOSContext();
+  const { orderType, selectedTableName, cartItems, getOrderTotal, clearCart } = usePOSContext();
   const { isLoading } = useCategories();
   const { isMobile, isTablet } = useResponsive();
+  const { handleAddItemToOrder, printKOTMutation } = usePOSWorkflow();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showHoldOrders, setShowHoldOrders] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handlePrintKOT = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      setIsProcessing(true);
+      await handleAddItemToOrder();
+      await printKOTMutation.mutateAsync();
+      setShowKOTDialog(true);
+    } catch (error) {
+      console.error('Print KOT failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePrintBill = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      setIsProcessing(true);
+      await handleAddItemToOrder();
+      const mockOrder = {
+        order_number: `BILL${Date.now()}`,
+        total_amount: getOrderTotal(),
+        order_items: cartItems.map(item => ({
+          menu_item: item.menuItem,
+          quantity: item.quantity,
+          unit_price: item.menuItem.price,
+          total_price: item.menuItem.price * item.quantity,
+        })),
+        created_at: new Date().toISOString(),
+      };
+      await printReceipt(mockOrder);
+    } catch (error) {
+      console.error('Print bill failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOpenPayment = async () => {
+    if (cartItems.length === 0) return;
+    try {
+      setIsProcessing(true);
+      await handleAddItemToOrder();
+      setShowPaymentDialog(true);
+    } catch (error) {
+      console.error('Open payment failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleHoldOrder = () => {
+    if (cartItems.length === 0) return;
+    const heldData = {
+      id: `hold-${Date.now()}`,
+      items: cartItems,
+      total: getOrderTotal(),
+      createdAt: new Date().toISOString(),
+    };
+    const existing = JSON.parse(localStorage.getItem('pos_held_orders') || '[]');
+    existing.push(heldData);
+    localStorage.setItem('pos_held_orders', JSON.stringify(existing));
+    clearCart();
+  };
 
   if (isLoading) {
     return (
@@ -57,14 +126,15 @@ export default function POSLayout() {
         {/* Bottom actions */}
         <div className="flex-shrink-0 bg-slate-800 border-t border-slate-700 p-2 flex gap-2">
           <button
-            onClick={() => setShowKOTDialog(true)}
-            className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-md text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+            onClick={handlePrintKOT}
+            disabled={cartItems.length === 0 || isProcessing}
+            className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed"
           >
             <Printer className="w-4 h-4" /> KOT
           </button>
           <button
-            onClick={() => setShowPaymentDialog(true)}
-            disabled={cartItems.length === 0}
+            onClick={handleOpenPayment}
+            disabled={cartItems.length === 0 || isProcessing}
             className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed"
           >
             <CreditCard className="w-4 h-4" /> Pay
@@ -93,17 +163,21 @@ export default function POSLayout() {
             <POSOrderPanel />
           </div>
           <div className="flex-shrink-0 p-2 border-t border-slate-700 space-y-1.5">
-            <button
-              onClick={() => setShowKOTDialog(true)}
-              className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
-            >
-              <Printer className="w-4 h-4" /> Print KOT
+            <div className="grid grid-cols-2 gap-1.5">
+              <button onClick={handleHoldOrder} disabled={cartItems.length === 0} className="py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-1.5 transition-colors disabled:cursor-not-allowed">
+                <Pause className="w-3.5 h-3.5" /> Hold
+              </button>
+              <button onClick={() => setShowHoldOrders(true)} className="py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-1.5 transition-colors">
+                <Play className="w-3.5 h-3.5" /> Recall
+              </button>
+            </div>
+            <button onClick={handlePrintKOT} disabled={cartItems.length === 0 || isProcessing} className="w-full py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
+              <Printer className="w-3.5 h-3.5" /> Print KOT
             </button>
-            <button
-              onClick={() => setShowPaymentDialog(true)}
-              disabled={cartItems.length === 0}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed"
-            >
+            <button onClick={handlePrintBill} disabled={cartItems.length === 0 || isProcessing} className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
+              <FileText className="w-3.5 h-3.5" /> Print Bill
+            </button>
+            <button onClick={handleOpenPayment} disabled={cartItems.length === 0 || isProcessing} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
               <CreditCard className="w-4 h-4" /> Payment
             </button>
           </div>
@@ -144,23 +218,21 @@ export default function POSLayout() {
 
         {/* Quick actions */}
         <div className="flex-shrink-0 p-2 border-t border-slate-700 space-y-1.5">
-          <button
-            onClick={() => setShowHoldOrders(true)}
-            className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-2 transition-colors uppercase tracking-wide"
-          >
-            <Pause className="w-3.5 h-3.5" /> Hold Order
-          </button>
-          <button
-            onClick={() => setShowKOTDialog(true)}
-            className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-2 transition-colors uppercase tracking-wide"
-          >
+          <div className="grid grid-cols-2 gap-1.5">
+            <button onClick={handleHoldOrder} disabled={cartItems.length === 0} className="py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-1.5 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
+              <Pause className="w-3.5 h-3.5" /> Hold
+            </button>
+            <button onClick={() => setShowHoldOrders(true)} className="py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wide">
+              <Play className="w-3.5 h-3.5" /> Recall
+            </button>
+          </div>
+          <button onClick={handlePrintKOT} disabled={cartItems.length === 0 || isProcessing} className="w-full py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
             <Printer className="w-3.5 h-3.5" /> Print KOT
           </button>
-          <button
-            onClick={() => setShowPaymentDialog(true)}
-            disabled={cartItems.length === 0}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide"
-          >
+          <button onClick={handlePrintBill} disabled={cartItems.length === 0 || isProcessing} className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
+            <FileText className="w-3.5 h-3.5" /> Print Bill
+          </button>
+          <button onClick={handleOpenPayment} disabled={cartItems.length === 0 || isProcessing} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed uppercase tracking-wide">
             <CreditCard className="w-4 h-4" /> Payment
           </button>
         </div>

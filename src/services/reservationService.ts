@@ -5,19 +5,15 @@ export interface Reservation {
   branch_id: string;
   table_id: string;
   customer_name: string;
-  phone_number?: string;
-  email?: string;
+  customer_phone?: string;
+  customer_email?: string;
   party_size: number;
-  reservation_time: string;
-  reservation_status: 'confirmed' | 'checked_in' | 'no_show' | 'cancelled' | 'completed';
-  special_requests?: string;
-  seating_preference?: string;
-  deposit_amount?: number;
-  deposit_paid_at?: string;
+  reservation_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
   notes?: string;
-  created_by_staff_id?: string;
-  checked_in_at?: string;
-  checked_in_by_staff_id?: string;
+  created_by?: string;
   created_at: string;
   updated_at: string;
 }

@@ -28,7 +28,7 @@ export async function createDeliveryDriver(driver: {
 }
 
 export async function listDeliveryAssignments(branchId?: string): Promise<DeliveryAssignment[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('delivery_assignments')
     .select('*, driver:delivery_drivers(*), order:orders(*)')
     .order('created_at', { ascending: false });

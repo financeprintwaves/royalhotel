@@ -52,8 +52,8 @@ export default function KOTDialog({ onClose }: KOTDialogProps) {
   const handleEditKOT = (kot: Order) => {
     // Load order into POS for editing
     setCurrentOrder(kot);
-    setSelectedTableId(kot.table_id);
-    setOrderType(kot.order_type || 'dine-in');
+    setSelectedTable(kot.table_id, null);
+    setOrderType((kot as any).order_type || 'dine-in');
     // Convert order_items to cart items format
     const cartItems = kot.order_items.map(item => ({
       id: item.id,

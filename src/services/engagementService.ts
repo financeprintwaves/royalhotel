@@ -196,7 +196,7 @@ export async function createCampaign(params: {
 }
 
 export async function getCampaigns(branchId: string, status?: string) {
-  let query = supabase
+  let query = (supabase as any)
     .from('marketing_campaigns')
     .select('*')
     .eq('branch_id', branchId);

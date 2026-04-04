@@ -27,7 +27,7 @@ export async function requestInventoryTransfer(params: {
 }
 
 export async function getTransferRequests(branchId?: string): Promise<InventoryTransferRequest[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('inventory_transfer_requests')
     .select('*')
     .order('requested_at', { ascending: false });

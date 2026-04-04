@@ -391,7 +391,7 @@ export async function getTrendAnalyses(
   branchId: string,
   analysisType?: string
 ): Promise<TrendAnalysis[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('trend_analysis')
     .select('*')
     .eq('branch_id', branchId)
@@ -404,7 +404,7 @@ export async function getTrendAnalyses(
   const { data, error } = await query.limit(20);
 
   if (error) throw error;
-  return data;
+  return data as TrendAnalysis[];
 }
 
 // Helper Functions

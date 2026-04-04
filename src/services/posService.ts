@@ -51,7 +51,7 @@ export function formatReceiptForPrint(order: Order, items: any[]): string {
 
   const subtotal = items.reduce((sum, item) => sum + item.total_price, 0);
   const tax = subtotal * 0.1; // 10% tax
-  const discount = order.discount || 0;
+  const discount = (order as any).discount_amount || 0;
   const total = subtotal + tax - discount;
 
   const receiptContent = `

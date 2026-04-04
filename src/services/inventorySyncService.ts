@@ -9,7 +9,7 @@ export async function requestInventoryTransfer(params: {
   requested_by: string;
   notes?: string;
 }): Promise<InventoryTransferRequest> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('inventory_transfer_requests')
     .insert({
       from_branch_id: params.from_branch_id,

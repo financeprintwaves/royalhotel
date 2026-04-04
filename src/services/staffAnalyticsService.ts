@@ -36,14 +36,14 @@ export class StaffAnalyticsService {
   }
 
   static async getOrderCompletionTimes(branchId: string): Promise<StaffPerformance[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('staff_performance_metrics')
       .select('staff_id, staff_name, avg_order_completion_time')
       .eq('branch_id', branchId)
       .order('avg_order_completion_time', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as StaffPerformance[];
   }
 }
 

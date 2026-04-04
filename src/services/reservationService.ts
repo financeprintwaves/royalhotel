@@ -173,12 +173,6 @@ export class ReservationServiceEnhanced {
 // Legacy exports for backward compatibility
 export interface ReservationWithTable extends Reservation {
   table_number?: string;
-  // DB column aliases used by Reservations.tsx
-  status?: string;
-  start_time?: string;
-  end_time?: string;
-  customer_phone?: string;
-  customer_email?: string;
 }
 
 export async function getReservations(date?: string): Promise<ReservationWithTable[]> {

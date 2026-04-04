@@ -10,7 +10,6 @@ import BillsDialog from './BillsDialog';
 
 export default function POSActionPanel() {
   const navigate = useNavigate();
-  const navigate = useNavigate();
   const [showKOTDialog, setShowKOTDialog] = useState(false);
   const [showBillsDialog, setShowBillsDialog] = useState(false);
 

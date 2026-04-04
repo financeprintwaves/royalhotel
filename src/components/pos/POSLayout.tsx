@@ -175,11 +175,6 @@ export default function POSLayout() {
       <div className="w-[22%] min-w-[220px] max-w-[320px] border-l border-slate-700 flex flex-col overflow-hidden">
         <POSActionPanel />
       </div>
-
-      {/* Dialogs */}
-      {showPaymentDialog && <PaymentDialog onClose={() => setShowPaymentDialog(false)} />}
-      {showKOTDialog && <KOTPrintDialog onClose={() => setShowKOTDialog(false)} />}
-      {showHoldOrders && <HoldOrdersPanel onClose={() => setShowHoldOrders(false)} />}
     </div>
   );
 }

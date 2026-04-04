@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePOSContext } from '@/contexts/POSContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { printReceipt } from '@/services/printerService';
+import { quickPayOrder } from '@/services/orderService';
+import { toast } from '@/hooks/use-toast';
 
 interface PaymentDialogProps {
   onClose: () => void;
@@ -26,42 +30,116 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
     getOrderTotal,
     getBalanceRemaining,
     getChange,
+    cartItems,
+    clearCart,
+    currentOrder,
   } = usePOSContext();
 
+  const [receivedAmount, setReceivedAmount] = useState('');
   const [showTipInput, setShowTipInput] = useState(false);
+  const [processing, setProcessing] = useState(false);
+
   const orderTotal = getOrderTotal();
-  const balanceRemaining = getBalanceRemaining();
-  const change = getChange();
+  const received = parseFloat(receivedAmount) || 0;
+  const balance = received - orderTotal;
+  const isChange = balance >= 0;
+  const balanceAmount = Math.abs(balance);
+
+  useEffect(() => {
+    // Auto-fill received amount with order total for convenience
+    setReceivedAmount(orderTotal.toFixed(2));
+  }, [orderTotal]);
 
   const handleNumericInput = (digit: string) => {
     if (digit === 'clear') {
-      setAmountPaid(0);
+      setReceivedAmount('');
     } else if (digit === 'backspace') {
-      setAmountPaid(Math.floor(amountPaid / 10));
+      setReceivedAmount(receivedAmount.slice(0, -1));
     } else if (digit === '00') {
-      setAmountPaid(amountPaid * 100);
+      setReceivedAmount(receivedAmount + '00');
     } else {
-      setAmountPaid(amountPaid * 10 + parseInt(digit));
+      setReceivedAmount(receivedAmount + digit);
     }
   };
 
-  const handleProcessPayment = () => {
-    if (amountPaid < orderTotal) {
-      alert('Insufficient amount');
+  const handleProceedPayment = async () => {
+    if (received < orderTotal) {
+      toast({
+        title: 'Insufficient Amount',
+        description: 'Received amount is less than the total amount.',
+        variant: 'destructive',
+      });
       return;
     }
-    // Call payment service
-    console.log('Processing payment:', {
-      method: paymentMethod,
-      amount: orderTotal,
-      paid: amountPaid,
-      tip: tipAmount,
-      change: change,
-    });
-    onClose();
+
+    setProcessing(true);
+    try {
+      // Create order if not exists
+      let orderId = currentOrder?.id;
+      if (!orderId) {
+        // TODO: Create order first
+        console.log('Creating order...');
+        orderId = 'temp-order-id'; // Mock for now
+      }
+
+      // Process payment
+      const paymentResponse = await quickPayOrder(
+        orderId,
+        received,
+        paymentMethod as any || 'cash',
+        undefined,
+        `Tip: $${tipAmount.toFixed(2)}`
+      );
+
+      if (paymentResponse.success) {
+        // Print receipt silently
+        try {
+          const mockOrder = {
+            ...currentOrder,
+            order_number: `ORD${Date.now()}`,
+            total_amount: orderTotal,
+            payment_status: 'paid',
+            order_items: cartItems.map(item => ({
+              menu_item: item.menuItem,
+              quantity: item.quantity,
+              unit_price: item.menuItem.price,
+              total_price: item.menuItem.price * item.quantity,
+            }))
+          };
+
+          await printReceipt(mockOrder);
+          toast({
+            title: '✅ Payment Complete',
+            description: `Order paid and receipt printed. ${isChange ? `Change: $${balanceAmount.toFixed(2)}` : ''}`,
+          });
+        } catch (printError) {
+          console.error('Print error:', printError);
+          toast({
+            title: 'Payment Complete',
+            description: 'Payment processed but printing failed.',
+            variant: 'destructive',
+          });
+        }
+
+        // Clear cart and close dialog
+        clearCart();
+        onClose();
+      } else {
+        throw new Error(paymentResponse.error || 'Payment failed');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast({
+        title: 'Payment Failed',
+        description: 'An error occurred while processing payment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const displayAmountPaid = (amountPaid / 100).toFixed(2);
+  const displayReceived = receivedAmount;
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -82,11 +160,33 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
           </TabsList>
 
           <TabsContent value="cash" className="space-y-4 mt-4">
-            <PaymentAmountDisplay
-              orderTotal={orderTotal}
-              amountPaid={displayAmountPaid}
-              balanceRemaining={balanceRemaining}
-            />
+            {/* Total Amount */}
+            <Card className="p-3 bg-blue-100 border-blue-300">
+              <div className="text-xs font-semibold text-blue-800">TOTAL AMOUNT</div>
+              <div className="text-2xl font-bold text-blue-900">${orderTotal.toFixed(2)}</div>
+            </Card>
+
+            {/* Received Amount Input */}
+            <Card className="p-3 border-2 border-green-300">
+              <div className="text-xs font-semibold text-green-800 mb-2">AMOUNT RECEIVED</div>
+              <Input
+                value={displayReceived}
+                onChange={(e) => setReceivedAmount(e.target.value)}
+                className="text-2xl font-bold text-center"
+                placeholder="0.00"
+              />
+            </Card>
+
+            {/* Balance/Change Display */}
+            <Card className={`p-3 ${isChange ? 'bg-emerald-100 border-emerald-300' : 'bg-red-100 border-red-300'}`}>
+              <div className={`text-xs font-semibold ${isChange ? 'text-emerald-800' : 'text-red-800'}`}>
+                {isChange ? 'CHANGE DUE' : 'REMAINING BALANCE'}
+              </div>
+              <div className={`text-2xl font-bold ${isChange ? 'text-emerald-900' : 'text-red-900'}`}>
+                ${balanceAmount.toFixed(2)}
+              </div>
+            </Card>
+
             <NumericKeypad onInput={handleNumericInput} />
             <TipSection
               showTipInput={showTipInput}
@@ -97,11 +197,10 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
           </TabsContent>
 
           <TabsContent value="card" className="space-y-4 mt-4">
-            <PaymentAmountDisplay
-              orderTotal={orderTotal}
-              amountPaid={displayAmountPaid}
-              balanceRemaining={0}
-            />
+            <Card className="p-3 bg-blue-100 border-blue-300">
+              <div className="text-xs font-semibold text-blue-800">TOTAL AMOUNT</div>
+              <div className="text-2xl font-bold text-blue-900">${orderTotal.toFixed(2)}</div>
+            </Card>
             <Card className="p-4">
               <p className="text-sm text-muted-foreground">
                 Card payment will be processed through payment gateway
@@ -110,58 +209,28 @@ export default function PaymentDialog({ onClose }: PaymentDialogProps) {
           </TabsContent>
 
           <TabsContent value="transfer" className="space-y-4 mt-4">
-            <PaymentAmountDisplay
-              orderTotal={orderTotal}
-              amountPaid={displayAmountPaid}
-              balanceRemaining={balanceRemaining}
-            />
+            <Card className="p-3 bg-blue-100 border-blue-300">
+              <div className="text-xs font-semibold text-blue-800">TOTAL AMOUNT</div>
+              <div className="text-2xl font-bold text-blue-900">${orderTotal.toFixed(2)}</div>
+            </Card>
             <NumericKeypad onInput={handleNumericInput} />
           </TabsContent>
         </Tabs>
 
         <DialogFooter className="flex gap-2">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={processing}>
             Back (F1)
           </Button>
           <Button
-            onClick={handleProcessPayment}
-            disabled={amountPaid < orderTotal}
-            className="bg-green-600 hover:bg-green-700"
+            onClick={handleProceedPayment}
+            disabled={received < orderTotal || processing}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-slate-400"
           >
-            Process Payment
+            {processing ? 'Processing...' : 'Proceed Payment'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function PaymentAmountDisplay({
-  orderTotal,
-  amountPaid,
-  balanceRemaining,
-}: {
-  orderTotal: number;
-  amountPaid: string;
-  balanceRemaining: number;
-}) {
-  return (
-    <div className="space-y-3">
-      <Card className="p-3 bg-yellow-100 border-yellow-300">
-        <div className="text-xs font-semibold text-yellow-800">BEGINNING BALANCE</div>
-        <div className="text-2xl font-bold text-yellow-900">${orderTotal.toFixed(2)}</div>
-      </Card>
-
-      <Card className="p-3 border-2 border-blue-300">
-        <div className="text-xs font-semibold text-blue-800">AMOUNT PAID</div>
-        <div className="text-3xl font-bold text-blue-900">${amountPaid}</div>
-      </Card>
-
-      <Card className="p-3 bg-green-100 border-green-300">
-        <div className="text-xs font-semibold text-green-800">BALANCE REMAINING</div>
-        <div className="text-2xl font-bold text-green-900">${balanceRemaining.toFixed(2)}</div>
-      </Card>
-    </div>
   );
 }
 

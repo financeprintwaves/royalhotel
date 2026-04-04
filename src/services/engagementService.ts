@@ -78,7 +78,7 @@ export async function sendNotification(params: {
 }
 
 export async function getNotificationHistory(customerId?: string, branchId?: string, limit: number = 100) {
-  let query = supabase
+  let query = (supabase as any)
     .from('customer_notifications')
     .select('*')
     .order('created_at', { ascending: false })
@@ -196,7 +196,7 @@ export async function createCampaign(params: {
 }
 
 export async function getCampaigns(branchId: string, status?: string) {
-  let query = supabase
+  let query = (supabase as any)
     .from('marketing_campaigns')
     .select('*')
     .eq('branch_id', branchId);

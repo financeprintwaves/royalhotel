@@ -9,7 +9,7 @@ export async function requestInventoryTransfer(params: {
   requested_by: string;
   notes?: string;
 }): Promise<InventoryTransferRequest> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('inventory_transfer_requests')
     .insert({
       from_branch_id: params.from_branch_id,
@@ -27,7 +27,7 @@ export async function requestInventoryTransfer(params: {
 }
 
 export async function getTransferRequests(branchId?: string): Promise<InventoryTransferRequest[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('inventory_transfer_requests')
     .select('*')
     .order('requested_at', { ascending: false });
@@ -47,7 +47,7 @@ export async function updateTransferRequestStatus(params: {
   approved_by?: string;
   notes?: string;
 }): Promise<InventoryTransferRequest> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('inventory_transfer_requests')
     .update({
       status: params.status,

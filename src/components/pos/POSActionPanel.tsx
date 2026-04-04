@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import KOTDialog from './KOTDialog';
 import BillsDialog from './BillsDialog';
+import PaymentDialog from './PaymentDialog';
 import { printReceipt } from '@/services/printerService';
 
 export default function POSActionPanel() {

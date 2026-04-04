@@ -13,18 +13,18 @@ type StaffPerformance = {
 
 export class StaffAnalyticsService {
   static async getPerformanceMetrics(branchId: string): Promise<StaffPerformance[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('staff_performance_metrics')
       .select('*')
       .eq('branch_id', branchId)
       .order('revenue_generated', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as StaffPerformance[];
   }
 
   static async getTopPerformers(branchId: string, limit = 5): Promise<StaffPerformance[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('staff_performance_metrics')
       .select('*')
       .eq('branch_id', branchId)
@@ -32,18 +32,18 @@ export class StaffAnalyticsService {
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as StaffPerformance[];
   }
 
   static async getOrderCompletionTimes(branchId: string): Promise<StaffPerformance[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('staff_performance_metrics')
       .select('staff_id, staff_name, avg_order_completion_time')
       .eq('branch_id', branchId)
       .order('avg_order_completion_time', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as StaffPerformance[];
   }
 }
 

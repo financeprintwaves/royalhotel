@@ -5,19 +5,15 @@ export interface Reservation {
   branch_id: string;
   table_id: string;
   customer_name: string;
-  phone_number?: string;
-  email?: string;
+  customer_phone?: string;
+  customer_email?: string;
   party_size: number;
-  reservation_time: string;
-  reservation_status: 'confirmed' | 'checked_in' | 'no_show' | 'cancelled' | 'completed';
-  special_requests?: string;
-  seating_preference?: string;
-  deposit_amount?: number;
-  deposit_paid_at?: string;
+  reservation_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
   notes?: string;
-  created_by_staff_id?: string;
-  checked_in_at?: string;
-  checked_in_by_staff_id?: string;
+  created_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -27,19 +23,15 @@ export interface Reservation {
  * Provides complete reservation management functionality
  */
 export class ReservationServiceEnhanced {
-  /**
-   * Create a new reservation
-   */
   static async createReservation(
     branchId: string,
     tableId: string,
     customerName: string,
     phoneNumber: string,
     partySize: number,
-    reservationTime: Date,
-    email?: string,
-    specialRequests?: string,
-    seatingPreference?: string,
+    reservationDate: string,
+    startTime: string,
+    endTime: string,
     staffId?: string
   ): Promise<Reservation> {
     const { data, error } = await supabase
@@ -48,152 +40,87 @@ export class ReservationServiceEnhanced {
         branch_id: branchId,
         table_id: tableId,
         customer_name: customerName,
-        phone_number: phoneNumber,
+        customer_phone: phoneNumber,
         party_size: partySize,
-        reservation_time: reservationTime.toISOString(),
-        email,
-        special_requests: specialRequests,
-        seating_preference: seatingPreference,
-        created_by_staff_id: staffId,
-        reservation_status: 'confirmed'
+        reservation_date: reservationDate,
+        start_time: startTime,
+        end_time: endTime,
+        created_by: staffId,
+        status: 'confirmed'
       })
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Reservation;
   }
 
-  /**
-   * Get reservations for a specific date and branch
-   */
-  static async getReservationsForDate(
-    branchId: string,
-    date: Date
-  ): Promise<Reservation[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-
+  static async getReservationsForDate(branchId: string, date: Date): Promise<Reservation[]> {
+    const dateStr = date.toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('reservations')
       .select('*')
       .eq('branch_id', branchId)
-      .gte('reservation_time', startOfDay.toISOString())
-      .lte('reservation_time', endOfDay.toISOString())
-      .order('reservation_time', { ascending: true });
+      .eq('reservation_date', dateStr)
+      .order('start_time', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as unknown as Reservation[];
   }
 
-  /**
-   * Get upcoming reservations
-   */
-  static async getUpcomingReservations(
-    branchId: string,
-    daysAhead: number = 7
-  ): Promise<Reservation[]> {
+  static async getUpcomingReservations(branchId: string, daysAhead: number = 7): Promise<Reservation[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = new Date(Date.now() + daysAhead * 86400000).toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('reservations')
       .select('*')
       .eq('branch_id', branchId)
-      .eq('reservation_status', 'confirmed')
-      .gte('reservation_time', new Date().toISOString())
-      .lte('reservation_time', new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString())
-      .order('reservation_time', { ascending: true });
+      .eq('status', 'confirmed')
+      .gte('reservation_date', today)
+      .lte('reservation_date', futureDate)
+      .order('reservation_date', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as unknown as Reservation[];
   }
 
-  /**
-   * Check in a reservation
-   */
-  static async checkInReservation(
-    reservationId: string,
-    staffId: string
-  ): Promise<Reservation> {
+  static async checkInReservation(reservationId: string, _staffId: string): Promise<Reservation> {
     const { data, error } = await supabase
       .from('reservations')
-      .update({
-        reservation_status: 'checked_in',
-        checked_in_at: new Date().toISOString(),
-        checked_in_by_staff_id: staffId
-      })
+      .update({ status: 'seated' })
       .eq('id', reservationId)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Reservation;
   }
 
-  /**
-   * Cancel a reservation
-   */
-  static async cancelReservation(
-    reservationId: string,
-    reason?: string
-  ): Promise<Reservation> {
+  static async cancelReservation(reservationId: string, reason?: string): Promise<Reservation> {
     const { data, error } = await supabase
       .from('reservations')
-      .update({
-        reservation_status: 'cancelled',
-        notes: reason
-      })
+      .update({ status: 'cancelled', notes: reason })
       .eq('id', reservationId)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Reservation;
   }
 
-  /**
-   * Mark reservation as no-show
-   */
   static async markAsNoShow(reservationId: string): Promise<Reservation> {
     const { data, error } = await supabase
       .from('reservations')
-      .update({ reservation_status: 'no_show' })
+      .update({ status: 'no_show' })
       .eq('id', reservationId)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Reservation;
   }
 
-  /**
-   * Get reservation by phone number
-   */
-  static async findReservationByPhone(
-    branchId: string,
-    phoneNumber: string
-  ): Promise<Reservation | null> {
-    const { data, error } = await supabase
-      .from('reservations')
-      .select('*')
-      .eq('branch_id', branchId)
-      .eq('phone_number', phoneNumber)
-      .eq('reservation_status', 'confirmed')
-      .gt('reservation_time', new Date().toISOString())
-      .order('reservation_time', { ascending: true })
-      .limit(1)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
-    return data || null;
-  }
-
-  /**
-   * Get reservation statistics
-   */
   static async getReservationStats(branchId: string) {
-    // Total reservations this month
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -203,22 +130,20 @@ export class ReservationServiceEnhanced {
       .select('*', { count: 'exact', head: true })
       .eq('branch_id', branchId)
       .gte('created_at', startOfMonth.toISOString())
-      .eq('reservation_status', 'completed');
+      .eq('status', 'completed');
 
-    // Upcoming confirmations
     const { count: upcomingConfirmations } = await supabase
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('branch_id', branchId)
-      .eq('reservation_status', 'confirmed')
-      .gte('reservation_time', new Date().toISOString());
+      .eq('status', 'confirmed')
+      .gte('reservation_date', new Date().toISOString().split('T')[0]);
 
-    // No-shows this month
     const { count: noShows } = await supabase
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('branch_id', branchId)
-      .eq('reservation_status', 'no_show')
+      .eq('status', 'no_show')
       .gte('created_at', startOfMonth.toISOString());
 
     return {
@@ -229,17 +154,9 @@ export class ReservationServiceEnhanced {
     };
   }
 
-  /**
-   * Update reservation details
-   */
   static async updateReservation(
     reservationId: string,
-    updates: {
-      partySize?: number;
-      specialRequests?: string;
-      seatingPreference?: string;
-      email?: string;
-    }
+    updates: { party_size?: number; notes?: string; }
   ): Promise<Reservation> {
     const { data, error } = await supabase
       .from('reservations')
@@ -249,19 +166,13 @@ export class ReservationServiceEnhanced {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Reservation;
   }
 }
 
 // Legacy exports for backward compatibility
 export interface ReservationWithTable extends Reservation {
   table_number?: string;
-  // DB column aliases used by Reservations.tsx
-  status?: string;
-  start_time?: string;
-  end_time?: string;
-  customer_phone?: string;
-  customer_email?: string;
 }
 
 export async function getReservations(date?: string): Promise<ReservationWithTable[]> {

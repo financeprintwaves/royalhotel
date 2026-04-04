@@ -343,7 +343,7 @@ export async function performTrendAnalysis(
   endDate: string
 ): Promise<TrendAnalysis> {
   // Get historical data
-  let query = supabase.from('orders').select('*').eq('branch_id', branchId).eq('status', 'paid');
+  let query = (supabase as any).from('orders').select('*').eq('branch_id', branchId).eq('status', 'paid');
 
   if (startDate) query = query.gte('created_at', startDate);
   if (endDate) query = query.lte('created_at', endDate);
@@ -391,7 +391,7 @@ export async function getTrendAnalyses(
   branchId: string,
   analysisType?: string
 ): Promise<TrendAnalysis[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('trend_analysis')
     .select('*')
     .eq('branch_id', branchId)
@@ -404,7 +404,7 @@ export async function getTrendAnalyses(
   const { data, error } = await query.limit(20);
 
   if (error) throw error;
-  return data;
+  return data as TrendAnalysis[];
 }
 
 // Helper Functions

@@ -78,7 +78,7 @@ export async function sendNotification(params: {
 }
 
 export async function getNotificationHistory(customerId?: string, branchId?: string, limit: number = 100) {
-  let query = supabase
+  let query = (supabase as any)
     .from('customer_notifications')
     .select('*')
     .order('created_at', { ascending: false })
